@@ -1,0 +1,61 @@
+### Digital Exam Grading - OMR Answer Sheet Template API Tests
+### Su dung voi REST Client (VS Code extension)
+
+@baseUrl = http://localhost:5000/api
+@teacherEmail = teacher@digitalexam.local
+@teacherPassword = Teacher@123456
+
+# Sau khi login, copy tokens vao day
+@teacherAccessToken = PASTE_TEACHER_ACCESS_TOKEN_HERE
+@examId = PASTE_EXAM_ID_HERE
+
+###############################################################
+# 1. Login Teacher
+###############################################################
+### POST Login Teacher
+# @name teacherLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{teacherEmail}}",
+  "password": "{{teacherPassword}}"
+}
+
+### Luu token
+@token = {{teacherLogin.response.body.data.accessToken}}
+
+###############################################################
+# 2. Tao / Regenerate Phieu tra loi (DRAFT only)
+###############################################################
+### POST Create Answer Sheet Template (Defaults: 6 digits SBD, 3 digits Made, 50 questions/page)
+POST {{baseUrl}}/exams/{{examId}}/answer-sheet-template
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "studentNumberDigits": 6,
+  "examCodeDigits": 3,
+  "questionsPerPage": 50
+}
+
+###############################################################
+# 3. Lay Metadata Phieu tra loi moi nhat
+###############################################################
+### GET Answer Sheet Template Metadata
+GET {{baseUrl}}/exams/{{examId}}/answer-sheet-template
+Authorization: Bearer {{token}}
+
+###############################################################
+# 4. Lay Layout JSON (Source of Truth cho OpenCV sau nay)
+###############################################################
+### GET Answer Sheet Layout JSON
+GET {{baseUrl}}/exams/{{examId}}/answer-sheet-template/layout
+Authorization: Bearer {{token}}
+
+###############################################################
+# 5. Download Vector PDF Phieu tra loi
+###############################################################
+### GET Download Vector PDF
+GET {{baseUrl}}/exams/{{examId}}/answer-sheet-template/pdf
+Authorization: Bearer {{token}}

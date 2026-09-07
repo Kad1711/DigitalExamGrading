@@ -251,10 +251,11 @@ model Exam {
   allowStudentViewAnswers Boolean @default(false)
   allowStudentViewImage   Boolean @default(false)
 
-  teacher   Teacher    @relation(fields: [teacherId], references: [id], onDelete: Restrict)
-  subject   Subject    @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  class     Class      @relation(fields: [classId], references: [id], onDelete: Restrict)
-  examCodes ExamCode[]
+  teacher              Teacher               @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  subject              Subject               @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  class                Class                 @relation(fields: [classId], references: [id], onDelete: Restrict)
+  examCodes            ExamCode[]
+  answerSheetTemplates AnswerSheetTemplate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -294,4 +295,24 @@ model AnswerKey {
 
   @@unique([examCodeId, questionNumber])
   @@index([examCodeId])
+}
+
+model AnswerSheetTemplate {
+  id                  String @id @default(cuid())
+  examId              String
+  version             Int    @default(1)
+  templateVersion     String @default("OMR_V1")
+  studentNumberDigits Int    @default(6)
+  examCodeDigits      Int    @default(3)
+  questionsPerPage    Int    @default(50)
+  pageCount           Int    @default(1)
+  layoutJson          Json
+
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([examId, version])
+  @@index([examId])
 }

@@ -16,6 +16,8 @@ import {
   putAnswerKeyController,
   getAnswerKeyController,
 } from "../controllers/exam.controller.js";
+import answerKeyImportRoutes from "./answer-key-import.routes.js";
+import answerSheetRoutes from "./answer-sheet.routes.js";
 
 const router = Router();
 
@@ -42,5 +44,9 @@ router.delete("/:examId/codes/:codeId", denyStudent, deleteExamCodeController);
 // AnswerKey
 router.put("/:examId/codes/:codeId/answer-key", denyStudent, putAnswerKeyController);
 router.get("/:examId/codes/:codeId/answer-key", denyStudent, getAnswerKeyController);
+
+// Sub-modules: Answer Key Import & OMR Answer Sheet Template
+router.use("/", answerKeyImportRoutes);
+router.use("/", answerSheetRoutes);
 
 export default router;

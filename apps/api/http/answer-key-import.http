@@ -1,0 +1,103 @@
+### Digital Exam Grading - Answer Key Import API Tests
+### Su dung voi REST Client (VS Code extension)
+
+@baseUrl = http://localhost:5000/api
+@teacherEmail = teacher@digitalexam.local
+@teacherPassword = Teacher@123456
+
+# Sau khi login, copy tokens vao day
+@teacherAccessToken = PASTE_TEACHER_ACCESS_TOKEN_HERE
+@examId = PASTE_EXAM_ID_HERE
+
+###############################################################
+# 1. Login Teacher
+###############################################################
+### POST Login Teacher
+# @name teacherLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{teacherEmail}}",
+  "password": "{{teacherPassword}}"
+}
+
+### Luu token tu response
+@token = {{teacherLogin.response.body.data.accessToken}}
+
+###############################################################
+# 2. Download Import Template
+###############################################################
+### GET Import Template XLSX
+GET {{baseUrl}}/exams/{{examId}}/answer-key/import-template?format=xlsx
+Authorization: Bearer {{token}}
+
+### GET Import Template CSV
+GET {{baseUrl}}/exams/{{examId}}/answer-key/import-template?format=csv
+Authorization: Bearer {{token}}
+
+###############################################################
+# 3. Preview Import (Khong ghi DB)
+###############################################################
+### POST Preview Import CSV
+POST {{baseUrl}}/exams/{{examId}}/answer-key/import/preview
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="answer-key-40-valid.csv"
+Content-Type: text/csv
+
+< ./fixtures/answer-key-40-valid.csv
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### POST Preview Import XLSX
+POST {{baseUrl}}/exams/{{examId}}/answer-key/import/preview
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="answer-key-40-valid.xlsx"
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+< ./fixtures/answer-key-40-valid.xlsx
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### POST Preview Import Invalid Answer (has 'E')
+POST {{baseUrl}}/exams/{{examId}}/answer-key/import/preview
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="answer-key-invalid-answer.csv"
+Content-Type: text/csv
+
+< ./fixtures/answer-key-invalid-answer.csv
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###############################################################
+# 4. Apply Import (Ghi atomic vao DB)
+###############################################################
+### POST Apply Import CSV (Valid)
+POST {{baseUrl}}/exams/{{examId}}/answer-key/import
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="answer-key-40-valid.csv"
+Content-Type: text/csv
+
+< ./fixtures/answer-key-40-valid.csv
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### POST Apply Import XLSX (Valid)
+POST {{baseUrl}}/exams/{{examId}}/answer-key/import
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="answer-key-40-valid.xlsx"
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+< ./fixtures/answer-key-40-valid.xlsx
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
