@@ -68,8 +68,8 @@ export async function renderAnswerSheetPdf(layoutJson) {
           const qrBuffer = await QRCode.toBuffer(JSON.stringify(page.qr.payload), {
             errorCorrectionLevel: "M",
             type: "png",
-            margin: 0,
-            width: 160,
+            margin: 4,
+            width: 240,
           });
           doc.image(qrBuffer, toPt(page.qr.xMm), toPt(page.qr.yMm), {
             width: toPt(page.qr.sizeMm),
