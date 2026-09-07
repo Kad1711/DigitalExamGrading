@@ -6,8 +6,292 @@ datasource db {
   provider = "postgresql"
 }
 
-model TestConnection {
-  id        Int      @id @default(autoincrement())
-  message   String
+// =====================================================
+// ENUMS - Auth
+// =====================================================
+
+enum UserRole {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
+}
+
+// =====================================================
+// ENUMS - Exam
+// =====================================================
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  ARCHIVED
+}
+
+enum ScoringType {
+  EQUAL
+  CUSTOM
+}
+
+enum AnswerOption {
+  A
+  B
+  C
+  D
+}
+
+// =====================================================
+// AUTH MODELS
+// =====================================================
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+
+  teacher       Teacher?
+  student       Student?
+  refreshTokens RefreshToken[]
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// =====================================================
+// SCHOOL MODELS
+// =====================================================
+
+model Teacher {
+  id          String  @id @default(cuid())
+  userId      String  @unique
+  teacherCode String  @unique
+  fullName    String
+  phone       String?
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignments TeachingAssignment[]
+  exams       Exam[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Student {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  studentCode String    @unique
+  fullName    String
+  dateOfBirth DateTime?
+
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollments StudentEnrollment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AcademicYear {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  startDate DateTime?
+  endDate   DateTime?
+
+  semesters   Semester[]
+  classes     Class[]
+  enrollments StudentEnrollment[]
+  assignments TeachingAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Semester {
+  id             String @id @default(cuid())
+  name           String
+  academicYearId String
+
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([academicYearId, name])
+  @@index([academicYearId])
+}
+
+model Grade {
+  id    String @id @default(cuid())
+  level Int    @unique
+  name  String @unique
+
+  classes Class[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Class {
+  id             String @id @default(cuid())
+  name           String
+  gradeId        String
+  academicYearId String
+
+  grade        Grade        @relation(fields: [gradeId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  enrollments StudentEnrollment[]
+  assignments TeachingAssignment[]
+  exams       Exam[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, academicYearId])
+  @@index([gradeId])
+  @@index([academicYearId])
+}
+
+model StudentEnrollment {
+  id             String @id @default(cuid())
+  studentId      String
+  classId        String
+  academicYearId String
+
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, academicYearId])
+  @@index([classId])
+  @@index([academicYearId])
+}
+
+model Subject {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String  @unique
+  description String?
+
+  assignments TeachingAssignment[]
+  exams       Exam[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TeachingAssignment {
+  id             String @id @default(cuid())
+  teacherId      String
+  classId        String
+  subjectId      String
+  academicYearId String
+
+  teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teacherId, classId, subjectId, academicYearId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([subjectId])
+  @@index([academicYearId])
+}
+
+// =====================================================
+// EXAM MODELS
+// =====================================================
+
+model Exam {
+  id          String  @id @default(cuid())
+  title       String
+  description String?
+
+  teacherId String
+  subjectId String
+  classId   String
+
+  questionCount Int
+  maxScore      Decimal     @db.Decimal(6, 4)
+  scoringType   ScoringType @default(EQUAL)
+
+  status      ExamStatus @default(DRAFT)
+  publishedAt DateTime?
+
+  allowStudentViewAnswers Boolean @default(false)
+  allowStudentViewImage   Boolean @default(false)
+
+  teacher   Teacher    @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  subject   Subject    @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  class     Class      @relation(fields: [classId], references: [id], onDelete: Restrict)
+  examCodes ExamCode[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([teacherId])
+  @@index([subjectId])
+  @@index([classId])
+  @@index([status])
+}
+
+model ExamCode {
+  id     String @id @default(cuid())
+  examId String
+  code   String
+
+  exam       Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
+  answerKeys AnswerKey[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([examId, code])
+  @@index([examId])
+}
+
+model AnswerKey {
+  id             String       @id @default(cuid())
+  examCodeId     String
+  questionNumber Int
+  correctAnswer  AnswerOption
+  score          Decimal      @db.Decimal(6, 4)
+
+  examCode ExamCode @relation(fields: [examCodeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([examCodeId, questionNumber])
+  @@index([examCodeId])
 }

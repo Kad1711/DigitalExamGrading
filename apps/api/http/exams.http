@@ -1,0 +1,227 @@
+### Digital Exam Grading - Exams API Tests
+### Su dung voi REST Client (VS Code extension)
+### Chay auth.http truoc de lay tokens
+
+@baseUrl = http://localhost:5000/api
+@teacherEmail = teacher@digitalexam.local
+@teacherPassword = Teacher@123456
+@adminEmail = admin@digitalexam.local
+@adminPassword = Admin@123456
+
+# Sau khi login, copy tokens vao day
+@teacherAccessToken = PASTE_TEACHER_ACCESS_TOKEN_HERE
+@examId = PASTE_EXAM_ID_HERE
+@codeId101 = PASTE_CODE_101_ID_HERE
+@codeId102 = PASTE_CODE_102_ID_HERE
+
+###############################################################
+# 1. Login Teacher
+###############################################################
+### POST Login Teacher
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{teacherEmail}}",
+  "password": "{{teacherPassword}}"
+}
+
+
+###############################################################
+# 2. Create Exam (40 cau, EQUAL)
+###############################################################
+### POST Create Exam
+POST {{baseUrl}}/exams
+Authorization: Bearer {{teacherAccessToken}}
+Content-Type: application/json
+
+{
+  "title": "Kiem tra giua ky I - Vat ly 11",
+  "description": "Bai kiem tra giua ky mon Vat ly lop 11",
+  "subjectId": "REPLACE_WITH_VATLY_SUBJECT_ID",
+  "classId": "REPLACE_WITH_CLASS_11A1_ID",
+  "questionCount": 40,
+  "maxScore": 10,
+  "scoringType": "EQUAL"
+}
+
+
+###############################################################
+# 3. List Exams
+###############################################################
+### GET List Exams
+GET {{baseUrl}}/exams
+Authorization: Bearer {{teacherAccessToken}}
+
+
+### GET List Exams with filter
+GET {{baseUrl}}/exams?status=DRAFT
+Authorization: Bearer {{teacherAccessToken}}
+
+
+###############################################################
+# 4. Get Exam Detail
+###############################################################
+### GET Exam Detail
+GET {{baseUrl}}/exams/{{examId}}
+Authorization: Bearer {{teacherAccessToken}}
+
+
+###############################################################
+# 5. Update Exam
+###############################################################
+### PATCH Update Exam (title)
+PATCH {{baseUrl}}/exams/{{examId}}
+Authorization: Bearer {{teacherAccessToken}}
+Content-Type: application/json
+
+{
+  "title": "Kiem tra giua ky I - Vat ly 11 (Updated)"
+}
+
+
+###############################################################
+# 6. Create Exam Codes
+###############################################################
+### POST Create Code 101
+POST {{baseUrl}}/exams/{{examId}}/codes
+Authorization: Bearer {{teacherAccessToken}}
+Content-Type: application/json
+
+{
+  "code": "101"
+}
+
+
+### POST Create Code 102
+POST {{baseUrl}}/exams/{{examId}}/codes
+Authorization: Bearer {{teacherAccessToken}}
+Content-Type: application/json
+
+{
+  "code": "102"
+}
+
+
+###############################################################
+# 7. List Exam Codes
+###############################################################
+### GET List Codes
+GET {{baseUrl}}/exams/{{examId}}/codes
+Authorization: Bearer {{teacherAccessToken}}
+
+
+###############################################################
+# 8. PUT Answer Key - Code 101 (40 cau EQUAL)
+###############################################################
+### PUT Answer Key 101 (40 cau)
+PUT {{baseUrl}}/exams/{{examId}}/codes/{{codeId101}}/answer-key
+Authorization: Bearer {{teacherAccessToken}}
+Content-Type: application/json
+
+{
+  "answers": [
+    {"questionNumber": 1, "correctAnswer": "A"},
+    {"questionNumber": 2, "correctAnswer": "C"},
+    {"questionNumber": 3, "correctAnswer": "D"},
+    {"questionNumber": 4, "correctAnswer": "B"},
+    {"questionNumber": 5, "correctAnswer": "A"},
+    {"questionNumber": 6, "correctAnswer": "C"},
+    {"questionNumber": 7, "correctAnswer": "B"},
+    {"questionNumber": 8, "correctAnswer": "D"},
+    {"questionNumber": 9, "correctAnswer": "A"},
+    {"questionNumber": 10, "correctAnswer": "C"},
+    {"questionNumber": 11, "correctAnswer": "B"},
+    {"questionNumber": 12, "correctAnswer": "D"},
+    {"questionNumber": 13, "correctAnswer": "A"},
+    {"questionNumber": 14, "correctAnswer": "C"},
+    {"questionNumber": 15, "correctAnswer": "B"},
+    {"questionNumber": 16, "correctAnswer": "D"},
+    {"questionNumber": 17, "correctAnswer": "A"},
+    {"questionNumber": 18, "correctAnswer": "C"},
+    {"questionNumber": 19, "correctAnswer": "B"},
+    {"questionNumber": 20, "correctAnswer": "D"},
+    {"questionNumber": 21, "correctAnswer": "A"},
+    {"questionNumber": 22, "correctAnswer": "B"},
+    {"questionNumber": 23, "correctAnswer": "C"},
+    {"questionNumber": 24, "correctAnswer": "D"},
+    {"questionNumber": 25, "correctAnswer": "A"},
+    {"questionNumber": 26, "correctAnswer": "B"},
+    {"questionNumber": 27, "correctAnswer": "C"},
+    {"questionNumber": 28, "correctAnswer": "D"},
+    {"questionNumber": 29, "correctAnswer": "A"},
+    {"questionNumber": 30, "correctAnswer": "B"},
+    {"questionNumber": 31, "correctAnswer": "C"},
+    {"questionNumber": 32, "correctAnswer": "D"},
+    {"questionNumber": 33, "correctAnswer": "A"},
+    {"questionNumber": 34, "correctAnswer": "B"},
+    {"questionNumber": 35, "correctAnswer": "C"},
+    {"questionNumber": 36, "correctAnswer": "D"},
+    {"questionNumber": 37, "correctAnswer": "A"},
+    {"questionNumber": 38, "correctAnswer": "B"},
+    {"questionNumber": 39, "correctAnswer": "C"},
+    {"questionNumber": 40, "correctAnswer": "D"}
+  ]
+}
+
+
+###############################################################
+# 9. GET Answer Key - Code 101
+###############################################################
+### GET Answer Key 101
+GET {{baseUrl}}/exams/{{examId}}/codes/{{codeId101}}/answer-key
+Authorization: Bearer {{teacherAccessToken}}
+
+
+###############################################################
+# 10. Publish Exam
+###############################################################
+### POST Publish Exam
+POST {{baseUrl}}/exams/{{examId}}/publish
+Authorization: Bearer {{teacherAccessToken}}
+
+
+###############################################################
+# 11. Try to update questionCount after publish (should fail)
+###############################################################
+### PATCH questionCount after publish - should 409
+PATCH {{baseUrl}}/exams/{{examId}}
+Authorization: Bearer {{teacherAccessToken}}
+Content-Type: application/json
+
+{
+  "questionCount": 50
+}
+
+
+###############################################################
+# 12. Close Exam
+###############################################################
+### POST Close Exam
+POST {{baseUrl}}/exams/{{examId}}/close
+Authorization: Bearer {{teacherAccessToken}}
+
+
+###############################################################
+# 13. Archive Exam
+###############################################################
+### POST Archive Exam
+POST {{baseUrl}}/exams/{{examId}}/archive
+Authorization: Bearer {{teacherAccessToken}}
+
+
+###############################################################
+# 14. Delete Exam (only DRAFT allowed)
+###############################################################
+### DELETE Exam
+DELETE {{baseUrl}}/exams/{{examId}}
+Authorization: Bearer {{teacherAccessToken}}
+
+
+###############################################################
+# 15. Student access exam (should 403)
+###############################################################
+### GET Exams as STUDENT - should 403
+# (Dung student access token neu co)
+GET {{baseUrl}}/exams
+Authorization: Bearer STUDENT_ACCESS_TOKEN_HERE

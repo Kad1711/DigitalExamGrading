@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "AnswerKey" ALTER COLUMN "score" SET DATA TYPE DECIMAL(6,4);
+
+-- AlterTable
+ALTER TABLE "Exam" ALTER COLUMN "maxScore" SET DATA TYPE DECIMAL(6,4);

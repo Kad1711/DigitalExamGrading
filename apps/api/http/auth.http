@@ -1,0 +1,105 @@
+﻿### Digital Exam Grading - Auth API Tests
+### Su dung voi REST Client (VS Code extension)
+### https://marketplace.visualstudio.com/items?itemName=humao.rest-client
+
+@baseUrl = http://localhost:5000/api
+@adminEmail = admin@digitalexam.local
+@adminPassword = Admin@123456
+
+# Sau khi login, copy accessToken va refreshToken vao day
+@accessToken = PASTE_ACCESS_TOKEN_HERE
+@refreshToken = PASTE_REFRESH_TOKEN_HERE
+
+###############################################################
+# 1. Health Check
+###############################################################
+### GET Health
+GET {{baseUrl}}/health
+
+
+###############################################################
+# 2. Login
+###############################################################
+### POST Login - Admin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+
+###############################################################
+# 3. Get Current User (can access token)
+###############################################################
+### GET Me
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################
+# 4. Refresh Token
+###############################################################
+### POST Refresh
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+
+###############################################################
+# 5. Logout
+###############################################################
+### POST Logout
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+
+###############################################################
+# 6. Admin RBAC Test
+###############################################################
+### GET Admin Test (chi ADMIN duoc)
+GET {{baseUrl}}/admin/test
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################
+# 7. Test cases: loi
+###############################################################
+### Login sai password
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "wrong_password"
+}
+
+
+### Login sai email
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "notexist@example.com",
+  "password": "Admin@123456"
+}
+
+
+### Me khong co token
+GET {{baseUrl}}/auth/me
+
+
+### Admin test khong co token
+GET {{baseUrl}}/admin/test
+
+
+### Route khong ton tai (404)
+GET {{baseUrl}}/not-exist
