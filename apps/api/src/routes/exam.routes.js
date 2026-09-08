@@ -20,6 +20,8 @@ import {
 import answerKeyImportRoutes from "./answer-key-import.routes.js";
 import answerSheetRoutes from "./answer-sheet.routes.js";
 import gradingRoutes from "./grading.routes.js";
+import examSubmissionListRoutes from "./exam-submission-list.routes.js";
+import resultPublicationRoutes from "./result-publication.routes.js";
 
 const router = Router();
 
@@ -52,5 +54,11 @@ router.get("/:examId/codes/:codeId/answer-key", denyStudent, getAnswerKeyControl
 router.use("/", answerKeyImportRoutes);
 router.use("/", answerSheetRoutes);
 router.use("/", gradingRoutes);
+
+// Phase 7: Submission Management
+router.use("/", examSubmissionListRoutes);
+
+// Phase 8: Result Publication & Export
+router.use("/", resultPublicationRoutes);
 
 export default router;

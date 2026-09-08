@@ -7,6 +7,7 @@ import GradingPage from "./pages/GradingPage";
 import ExamListPage from "./pages/ExamListPage";
 import ExamCreatePage from "./pages/ExamCreatePage";
 import ExamDetailPage from "./pages/ExamDetailPage";
+import ExamSubmissionsPage from "./pages/ExamSubmissionsPage";
 import AdminTeacherListPage from "./pages/AdminTeacherListPage";
 import TeacherProfilePage from "./pages/TeacherProfilePage";
 
@@ -67,6 +68,14 @@ export default function App() {
             element={
               <RequireRole roles={["TEACHER"]}>
                 <ExamDetailPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/exams/:examId/submissions"
+            element={
+              <RequireRole roles={["TEACHER"]}>
+                <ExamSubmissionsPage />
               </RequireRole>
             }
           />

@@ -777,6 +777,14 @@ export default function ExamDetailPage() {
                   <Button
                     variant="outline"
                     size="md"
+                    icon={FileCheck}
+                    onClick={() => navigate(`/exams/${exam.id}/submissions`)}
+                  >
+                    Bài đã chấm
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="md"
                     icon={Copy}
                     onClick={() => setConfirmCloneOpen(true)}
                     title="Nhân bản để tạo một bản Nháp mới"
@@ -799,6 +807,14 @@ export default function ExamDetailPage() {
                 <>
                   <Button
                     variant="primary"
+                    size="md"
+                    icon={FileCheck}
+                    onClick={() => navigate(`/exams/${exam.id}/submissions`)}
+                  >
+                    Bài đã chấm
+                  </Button>
+                  <Button
+                    variant="outline"
                     size="md"
                     icon={Copy}
                     onClick={() => setConfirmCloneOpen(true)}

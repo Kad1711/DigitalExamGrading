@@ -13,6 +13,7 @@ import {
   cleanupSubmissionStorage,
   storageService,
 } from "./storage/storage.service.js";
+import { assertResultsNotPublished } from "./result-publication.service.js";
 
 /**
  * Asserts access to a submission for a requesting user.
@@ -618,6 +619,9 @@ export async function getSubmissionReviewCropStream({ submissionId, questionNumb
 export async function reviewSubmissionAnswers({ submissionId, reviews, user }) {
   const submission = await assertSubmissionAccess(submissionId, user);
 
+  // Block mutations if results are published
+  await assertResultsNotPublished(submission.examId);
+
   // Lifecycle check: ARCHIVED is read-only. Both PUBLISHED and CLOSED allow review.
   if (submission.exam.status === "ARCHIVED") {
     throw new AppError(
@@ -954,6 +958,9 @@ export async function reviewSubmissionAnswers({ submissionId, reviews, user }) {
  */
 export async function reviewSubmissionIdentity({ submissionId, studentNumber, user }) {
   const submission = await assertSubmissionAccess(submissionId, user);
+
+  // Block mutations if results are published
+  await assertResultsNotPublished(submission.examId);
 
   if (submission.exam.status === "ARCHIVED") {
     throw new AppError(

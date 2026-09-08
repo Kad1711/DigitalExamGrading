@@ -87,6 +87,24 @@ export const ERROR_MESSAGES = {
     "Không tìm thấy file ảnh gốc của bài nộp.",
   SUBMISSION_REVIEW_CROP_NOT_FOUND:
     "Không tìm thấy ảnh cắt vùng làm bài của câu hỏi.",
+  NO_RESULTS_TO_PUBLISH:
+    "Kỳ thi chưa có bài nộp nào được chấm để công bố.",
+  NO_FINAL_RESULTS:
+    "Kỳ thi chưa có bài nộp nào ở trạng thái hoàn tất (FINAL).",
+  PROVISIONAL_SUBMISSIONS_EXIST:
+    "Còn bài nộp chưa được duyệt hoàn tất (PROVISIONAL).",
+  UNCONFIRMED_IDENTITIES_EXIST:
+    "Còn bài nộp chưa được xác nhận số báo danh.",
+  DUPLICATE_STUDENT_NUMBERS_EXIST:
+    "Phát hiện số báo danh bị trùng lặp giữa các bài nộp.",
+  PUBLISHED_RESULTS_INCONSISTENT:
+    "Dữ liệu bài thi không đồng nhất để xuất kết quả chính thức.",
+  RESULTS_PUBLISHED_LOCKED:
+    "Kết quả kỳ thi đã được công bố. Không thể can thiệp chỉnh sửa bài nộp.",
+  RESULTS_ALREADY_PUBLISHED:
+    "Kết quả kỳ thi này đã được công bố trước đó.",
+  RESULTS_NOT_PUBLISHED:
+    "Kết quả kỳ thi chưa được công bố. Chỉ có thể xuất sau khi đã công bố.",
 };
 
 export const QUALITY_WARNING_MESSAGES = {

@@ -77,6 +77,15 @@ enum SubmissionAuditEventType {
 }
 
 // =====================================================
+// ENUMS - Publication
+// =====================================================
+
+enum ResultPublicationAction {
+  PUBLISHED
+  UNPUBLISHED
+}
+
+// =====================================================
 // AUTH MODELS
 // =====================================================
 
@@ -95,6 +104,8 @@ model User {
   submissionsIdentityReviewed ExamSubmission[]         @relation("SubmissionsIdentityReviewed")
   submissionAnswersReviewed   SubmissionAnswer[]       @relation("SubmissionAnswersReviewed")
   submissionAuditLogs         ExamSubmissionAuditLog[] @relation("SubmissionAuditLogs")
+  examsPublished              Exam[]                   @relation("ExamResultPublisher")
+  resultPublicationLogs       ExamResultPublicationLog[] @relation("PublicationLogActor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -287,12 +298,18 @@ model Exam {
   allowStudentViewAnswers Boolean @default(false)
   allowStudentViewImage   Boolean @default(false)
 
+  // Result Publication (Phase 8)
+  resultsPublishedAt         DateTime?
+  resultsPublishedByUserId   String?
+
   teacher              Teacher               @relation(fields: [teacherId], references: [id], onDelete: Restrict)
   subject              Subject               @relation(fields: [subjectId], references: [id], onDelete: Restrict)
   class                Class                 @relation(fields: [classId], references: [id], onDelete: Restrict)
+  resultsPublishedByUser User?               @relation("ExamResultPublisher", fields: [resultsPublishedByUserId], references: [id], onDelete: SetNull)
   examCodes            ExamCode[]
   answerSheetTemplates AnswerSheetTemplate[]
   submissions          ExamSubmission[]
+  publicationLogs      ExamResultPublicationLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -484,5 +501,25 @@ model ExamSubmissionAuditLog {
   actorUser  User           @relation("SubmissionAuditLogs", fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@index([submissionId, createdAt])
+  @@index([actorUserId])
+}
+
+// =====================================================
+// PUBLICATION MODELS
+// =====================================================
+
+model ExamResultPublicationLog {
+  id          String                  @id @default(cuid())
+  examId      String
+  actorUserId String
+  action      ResultPublicationAction
+  note        String?
+  createdAt   DateTime                @default(now())
+
+  // Relations
+  exam      Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  actorUser User @relation("PublicationLogActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([examId, createdAt])
   @@index([actorUserId])
 }
