@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import api from "../api/client";
 import AppHeader from "../components/AppHeader";
 import { getErrorMessage, mapQualityWarning } from "../utils/error-map";
@@ -34,6 +34,7 @@ import Modal from "../components/ui/Modal";
 export default function GradingPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { submissionId: routeSubmissionId } = useParams();
   const fileInputRef = useRef(null);
 
   const [exams, setExams] = useState([]);
@@ -55,6 +56,7 @@ export default function GradingPage() {
   const [gradingResult, setGradingResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [pdfErrorMsg, setPdfErrorMsg] = useState("");
+  const [duplicateSubmissionId, setDuplicateSubmissionId] = useState(null);
 
   // Teacher manual review workflow state
   const [reviewOverrides, setReviewOverrides] = useState({});
@@ -63,6 +65,14 @@ export default function GradingPage() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState("");
   const [tableFilter, setTableFilter] = useState("ALL");
+
+  // Phase 6 Persistent Identity & Audit & Crops
+  const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
+  const [sbdInput, setSbdInput] = useState("");
+  const [isSubmittingIdentity, setIsSubmittingIdentity] = useState(false);
+  const [identityError, setIdentityError] = useState("");
+  const [cropBlobUrls, setCropBlobUrls] = useState({});
+  const [auditLogs, setAuditLogs] = useState([]);
 
   // Clean up preview object URL on unmount
   useEffect(() => {
@@ -100,6 +110,73 @@ export default function GradingPage() {
     }
   };
 
+  // Load persisted submission if route parameter is present
+  useEffect(() => {
+    if (!routeSubmissionId) return;
+
+    let active = true;
+    setGradingLoading(true);
+    setErrorMsg("");
+
+    api
+      .get(`/submissions/${routeSubmissionId}`)
+      .then(async (res) => {
+        if (!active) return;
+        const sub = res.data.data;
+        setGradingResult(sub);
+        if (sub.exam?.id) {
+          setSelectedExamId(sub.exam.id);
+        }
+        if (sub.auditLogs) {
+          setAuditLogs(sub.auditLogs);
+        }
+
+        // Fetch authenticated original image blob
+        if (sub.image?.url) {
+          try {
+            const imgRes = await api.get(sub.image.url, { responseType: "blob" });
+            if (active) {
+              const url = window.URL.createObjectURL(imgRes.data);
+              setPreviewUrl((prev) => {
+                if (prev) window.URL.revokeObjectURL(prev);
+                return url;
+              });
+              setImageMeta({
+                name: `submission-${sub.id}.jpg`,
+                sizeStr: `${Math.round(sub.image.sizeBytes / 1024)} KB`,
+                width: sub.image.width,
+                height: sub.image.height,
+              });
+            }
+          } catch (imgErr) {
+            console.warn("Could not load authenticated image blob:", imgErr);
+          }
+        }
+      })
+      .catch((err) => {
+        if (!active) return;
+        const code = err.response?.data?.error?.code;
+        const rawMsg = err.response?.data?.error?.message;
+        setErrorMsg(getErrorMessage(code, rawMsg || "Không thể tải thông tin bài nộp."));
+      })
+      .finally(() => {
+        if (active) setGradingLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [routeSubmissionId]);
+
+  // Clean up crop blob URLs on unmount or change
+  useEffect(() => {
+    return () => {
+      Object.values(cropBlobUrls).forEach((url) => {
+        if (url) window.URL.revokeObjectURL(url);
+      });
+    };
+  }, [cropBlobUrls]);
+
   // Check template readiness whenever selectedExamId changes
   useEffect(() => {
     if (!selectedExamId) {
@@ -108,14 +185,17 @@ export default function GradingPage() {
       return;
     }
 
-    // Clear previous file, image preview, results, and errors
-    setSelectedFile(null);
-    if (previewUrl) {
-      window.URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
+    // Clear previous file, image preview, results, and errors only when not loading a persisted submission
+    if (!routeSubmissionId) {
+      setSelectedFile(null);
+      if (previewUrl) {
+        window.URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+      }
+      setImageMeta(null);
+      setGradingResult(null);
+      setDuplicateSubmissionId(null);
     }
-    setImageMeta(null);
-    setGradingResult(null);
     setErrorMsg("");
     setPdfErrorMsg("");
     setTemplateErrorMsg("");
@@ -159,7 +239,7 @@ export default function GradingPage() {
     return () => {
       controller.abort();
     };
-  }, [selectedExamId]);
+  }, [selectedExamId, routeSubmissionId]);
 
   const handleFileChange = (file) => {
     if (!file) return;
@@ -305,24 +385,36 @@ export default function GradingPage() {
     try {
       setGradingLoading(true);
       setErrorMsg("");
+      setDuplicateSubmissionId(null);
       setGradingResult(null);
 
       const formData = new FormData();
       formData.append("image", selectedFile);
 
       const res = await api.post(
-        `/exams/${selectedExamId}/grade-image`,
+        `/exams/${selectedExamId}/submissions`,
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },
         }
       );
 
-      setGradingResult(res.data.data);
+      const sub = res.data.data;
+      setGradingResult(sub);
+      if (sub.auditLogs) setAuditLogs(sub.auditLogs);
+      navigate(`/submissions/${sub.id}`);
     } catch (err) {
       const code = err.response?.data?.error?.code;
       const rawMsg = err.response?.data?.error?.message;
-      setErrorMsg(getErrorMessage(code, rawMsg));
+      if (code === "DUPLICATE_SUBMISSION_IMAGE") {
+        const existingId =
+          err.response?.data?.error?.details?.existingSubmissionId ||
+          err.response?.data?.data?.existingSubmissionId;
+        setDuplicateSubmissionId(existingId || null);
+        setErrorMsg("Ảnh bài thi này đã được chấm trước đó cho kỳ thi này.");
+      } else {
+        setErrorMsg(getErrorMessage(code, rawMsg));
+      }
     } finally {
       setGradingLoading(false);
     }
@@ -330,14 +422,12 @@ export default function GradingPage() {
 
   // Submit manual teacher reviews and re-grade
   const handleApplyReview = async () => {
-    if (!selectedExamId || !selectedFile) return;
+    const subId = gradingResult?.id || routeSubmissionId;
+    if (!subId) return;
 
     try {
       setIsSubmittingReview(true);
       setReviewError("");
-
-      const formData = new FormData();
-      formData.append("image", selectedFile);
 
       const list = Object.entries(reviewOverrides).map(([num, val]) => {
         const qn = Number(num);
@@ -346,17 +436,15 @@ export default function GradingPage() {
         }
         return { questionNumber: qn, resolution: val.resolution };
       });
-      formData.append("reviewOverrides", JSON.stringify(list));
 
-      const res = await api.post(
-        `/exams/${selectedExamId}/grade-image`,
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        }
-      );
+      const res = await api.patch(`/submissions/${subId}/review`, {
+        reviews: list,
+      });
 
-      setGradingResult(res.data.data);
+      const updatedSub = res.data.data;
+      setGradingResult(updatedSub);
+      if (updatedSub.auditLogs) setAuditLogs(updatedSub.auditLogs);
+      setReviewOverrides({});
       setIsReviewModalOpen(false);
     } catch (err) {
       const code = err.response?.data?.error?.code;
@@ -364,6 +452,38 @@ export default function GradingPage() {
       setReviewError(getErrorMessage(code, rawMsg));
     } finally {
       setIsSubmittingReview(false);
+    }
+  };
+
+  // Submit student candidate number (SBD) review
+  const handleSaveIdentity = async () => {
+    const subId = gradingResult?.id || routeSubmissionId;
+    if (!subId) return;
+
+    const cleanSbd = sbdInput.trim();
+    if (!/^\d{6}$/.test(cleanSbd)) {
+      setIdentityError("Số báo danh phải bao gồm đúng 6 chữ số.");
+      return;
+    }
+
+    try {
+      setIsSubmittingIdentity(true);
+      setIdentityError("");
+
+      const res = await api.patch(`/submissions/${subId}/identity`, {
+        studentNumber: cleanSbd,
+      });
+
+      const updatedSub = res.data.data;
+      setGradingResult(updatedSub);
+      if (updatedSub.auditLogs) setAuditLogs(updatedSub.auditLogs);
+      setIsIdentityModalOpen(false);
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      const rawMsg = err.response?.data?.error?.message;
+      setIdentityError(getErrorMessage(code, rawMsg));
+    } finally {
+      setIsSubmittingIdentity(false);
     }
   };
 
@@ -383,6 +503,23 @@ export default function GradingPage() {
     Math.max(0, reviewQueue.length - 1)
   );
   const currentReviewQuestion = reviewQueue[safeReviewIndex] || null;
+
+  // Load review crop blob URL on demand when modal opens or question changes
+  useEffect(() => {
+    if (!isReviewModalOpen || !currentReviewQuestion) return;
+    const qn = currentReviewQuestion.questionNumber;
+    if (currentReviewQuestion.reviewCropUrl && !cropBlobUrls[qn]) {
+      api
+        .get(currentReviewQuestion.reviewCropUrl, { responseType: "blob" })
+        .then((res) => {
+          const url = window.URL.createObjectURL(res.data);
+          setCropBlobUrls((prev) => ({ ...prev, [qn]: url }));
+        })
+        .catch((err) => {
+          console.warn(`Could not load crop for Q${qn}:`, err);
+        });
+    }
+  }, [isReviewModalOpen, currentReviewQuestion]);
 
   // Question table counts & filter
   const countAll = questionsList.length;
@@ -677,7 +814,19 @@ export default function GradingPage() {
                   className="text-xs"
                   onClose={() => setErrorMsg("")}
                 >
-                  {errorMsg}
+                  <p>{errorMsg}</p>
+                  {duplicateSubmissionId && (
+                    <div className="mt-2 pt-2 border-t border-rose-200">
+                      <Button
+                        variant="primary"
+                        size="xs"
+                        onClick={() => navigate(`/submissions/${duplicateSubmissionId}`)}
+                        className="bg-rose-600 hover:bg-rose-700 text-white"
+                      >
+                        Mở bài đã chấm
+                      </Button>
+                    </div>
+                  )}
                 </Alert>
               )}
 
@@ -752,13 +901,17 @@ export default function GradingPage() {
                         <div>
                           SBD:{" "}
                           <span className="font-bold font-mono">
-                            {gradingResult.omr.studentNumber?.value || "Chưa rõ"}
+                            {gradingResult.identity?.resolvedStudentNumber ||
+                              gradingResult.omr?.studentNumber?.value ||
+                              "Chưa rõ"}
                           </span>
                         </div>
                         <div>
                           Mã đề:{" "}
                           <span className="font-bold font-mono">
-                            {gradingResult.omr.examCode?.value || "Chưa rõ"}
+                            {gradingResult.examCode?.code ||
+                              gradingResult.omr?.examCode?.value ||
+                              "Chưa rõ"}
                           </span>
                         </div>
                       </div>
@@ -804,13 +957,17 @@ export default function GradingPage() {
                         <div>
                           SBD:{" "}
                           <span className="font-bold font-mono">
-                            {gradingResult.omr.studentNumber?.value || "Chưa rõ"}
+                            {gradingResult.identity?.resolvedStudentNumber ||
+                              gradingResult.omr?.studentNumber?.value ||
+                              "Chưa rõ"}
                           </span>
                         </div>
                         <div>
                           Mã đề:{" "}
                           <span className="font-bold font-mono">
-                            {gradingResult.omr.examCode?.value || "Chưa rõ"}
+                            {gradingResult.examCode?.code ||
+                              gradingResult.omr?.examCode?.value ||
+                              "Chưa rõ"}
                           </span>
                         </div>
                       </div>
@@ -843,7 +1000,7 @@ export default function GradingPage() {
                       Hệ thống không thể đọc rõ mã đề từ phiếu thi (tô mờ hoặc tô
                       nhiều ô). Cần xác nhận mã đề thủ công trước khi chấm điểm.
                     </p>
-                    {gradingResult.omr.examCode?.candidateValue && (
+                    {gradingResult.omr?.examCode?.candidateValue && (
                       <p className="text-xs font-mono font-semibold mt-1">
                         Gợi ý nhận diện: {gradingResult.omr.examCode.candidateValue}
                       </p>
@@ -852,23 +1009,45 @@ export default function GradingPage() {
                 )}
 
                 {/* SBD Uncertain Alert */}
-                {gradingResult.omr.identityNeedsReview && (
+                {(gradingResult.identity?.identityNeedsReview ||
+                  gradingResult.omr?.identityNeedsReview) && (
                   <Alert
                     variant="warning"
                     title="Lưu ý về Số báo danh thí sinh"
                   >
-                    <p className="text-xs mt-1">
-                      Điểm đã chấm xong — danh tính thí sinh chưa được xác nhận.
-                      {gradingResult.omr.studentNumber?.candidateValue ? (
-                        <span>
-                          {" "}
-                          Gợi ý SBD nhận diện:{" "}
-                          <strong>
-                            {gradingResult.omr.studentNumber.candidateValue}
-                          </strong>
-                        </span>
-                      ) : null}
-                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-1">
+                      <p className="text-xs">
+                        Điểm đã chấm xong — danh tính thí sinh chưa được xác nhận.
+                        {(gradingResult.identity?.candidateStudentNumber ||
+                          gradingResult.omr?.studentNumber?.candidateValue) ? (
+                          <span>
+                            {" "}
+                            Gợi ý SBD nhận diện:{" "}
+                            <strong>
+                              {gradingResult.identity?.candidateStudentNumber ||
+                                gradingResult.omr?.studentNumber?.candidateValue}
+                            </strong>
+                          </span>
+                        ) : null}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => {
+                          setSbdInput(
+                            gradingResult.identity?.resolvedStudentNumber ||
+                              gradingResult.identity?.candidateStudentNumber ||
+                              gradingResult.omr?.studentNumber?.candidateValue ||
+                              ""
+                          );
+                          setIdentityError("");
+                          setIsIdentityModalOpen(true);
+                        }}
+                        className="bg-white text-amber-900 border-amber-300 hover:bg-amber-100 whitespace-nowrap"
+                      >
+                        Xác nhận SBD
+                      </Button>
+                    </div>
                   </Alert>
                 )}
 
@@ -948,6 +1127,68 @@ export default function GradingPage() {
                     </div>
                   </div>
                 </details>
+
+                {/* Audit History Accordion */}
+                {auditLogs && auditLogs.length > 0 && (
+                  <details className="group bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <summary className="px-5 py-3.5 text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors select-none">
+                      <span className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                        Lịch sử xử lý ({auditLogs.length})
+                      </span>
+                      <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                    </summary>
+                    <div className="p-5 border-t border-slate-100 bg-slate-50/50 space-y-2.5 text-xs">
+                      {auditLogs.map((log) => {
+                        const timeStr = new Date(log.createdAt).toLocaleTimeString("vi-VN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        });
+                        const actorName = log.actor?.fullName || log.actor?.email || "Hệ thống";
+
+                        let desc = "";
+                        if (log.eventType === "SUBMISSION_CREATED") {
+                          desc = `Tạo bài chấm — Trạng thái: ${
+                            log.afterState?.status === "FINAL" ? "Chính thức" : "Tạm tính"
+                          } (${log.afterState?.finalScore || log.afterState?.provisionalScore || 0}đ)`;
+                        } else if (log.eventType === "ANSWER_REVIEWED") {
+                          const res = log.afterState?.teacherResolution;
+                          const ansStr = log.afterState?.resolvedAnswer
+                            ? ` (${log.afterState.resolvedAnswer})`
+                            : "";
+                          const label =
+                            res === "MULTIPLE_INVALID"
+                              ? "Tô nhiều ô / Không hợp lệ"
+                              : res === "BLANK"
+                              ? "Bỏ trống"
+                              : res === "ANSWER"
+                              ? `Phương án${ansStr}`
+                              : "Chưa thể xác định";
+                          desc = `Xác nhận câu ${log.questionNumber}: ${label}`;
+                        } else if (log.eventType === "IDENTITY_REVIEWED") {
+                          desc = `Xác nhận SBD: ${log.afterState?.resolvedStudentNumber}`;
+                        } else if (log.eventType === "REGRADED") {
+                          desc = `Hệ thống chấm lại: ${
+                            log.afterState?.status === "FINAL" ? "Chính thức" : "Tạm tính"
+                          } (${log.afterState?.finalScore || log.afterState?.provisionalScore || 0}đ)`;
+                        }
+
+                        return (
+                          <div
+                            key={log.id}
+                            className="bg-white p-3 rounded-lg border border-slate-200 flex items-start justify-between gap-2"
+                          >
+                            <div>
+                              <span className="font-semibold text-slate-800 mr-2">{timeStr}</span>
+                              <span className="text-slate-600 mr-2">[{actorName}]</span>
+                              <span className="text-slate-900 font-medium">{desc}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                )}
 
                 {/* 4-Stat Metric Cards */}
                 {gradingResult.grading && (
@@ -1404,14 +1645,18 @@ export default function GradingPage() {
                   </div>
 
                   {/* Crop Image Display */}
-                  {currentReviewQuestion.reviewCropDataUrl ? (
+                  {(cropBlobUrls[currentReviewQuestion.questionNumber] ||
+                  currentReviewQuestion.reviewCropDataUrl) ? (
                     <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col items-center justify-center gap-2">
                       <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                         Ảnh trích xuất vùng câu{" "}
                         {currentReviewQuestion.questionNumber}
                       </span>
                       <img
-                        src={currentReviewQuestion.reviewCropDataUrl}
+                        src={
+                          cropBlobUrls[currentReviewQuestion.questionNumber] ||
+                          currentReviewQuestion.reviewCropDataUrl
+                        }
                         alt={`Vùng tô câu ${currentReviewQuestion.questionNumber}`}
                         className="max-h-24 w-auto rounded-lg border border-slate-300 shadow-xs bg-white object-contain"
                       />
@@ -1634,6 +1879,68 @@ export default function GradingPage() {
               )}
             </div>
           )}
+        </Modal>
+
+        {/* Phase 6 Student Number Confirmation Modal */}
+        <Modal
+          isOpen={isIdentityModalOpen}
+          onClose={() => setIsIdentityModalOpen(false)}
+          title="Xác nhận Số báo danh thí sinh"
+          size="sm"
+          footer={
+            <div className="flex items-center justify-end gap-2 w-full">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsIdentityModalOpen(false)}
+                disabled={isSubmittingIdentity}
+              >
+                Hủy
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={CheckCircle2}
+                onClick={handleSaveIdentity}
+                isLoading={isSubmittingIdentity}
+              >
+                Lưu số báo danh
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4 py-1">
+            <p className="text-xs text-slate-600">
+              Nhập chính xác số báo danh của thí sinh (đúng 6 chữ số). Hành động
+              này sẽ được ghi lại trong nhật ký kiểm toán.
+            </p>
+            <div>
+              <label
+                htmlFor="sbd-input"
+                className="block text-xs font-semibold text-slate-700 mb-1"
+              >
+                Số báo danh (6 chữ số)
+              </label>
+              <input
+                id="sbd-input"
+                type="text"
+                maxLength={6}
+                value={sbdInput}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  setSbdInput(val);
+                }}
+                placeholder="Ví dụ: 000001"
+                className="w-full px-3 py-2 text-center text-lg font-mono font-bold tracking-widest rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                autoFocus
+              />
+            </div>
+            {identityError && (
+              <Alert variant="danger" className="text-xs">
+                {identityError}
+              </Alert>
+            )}
+          </div>
         </Modal>
       </main>
     </div>

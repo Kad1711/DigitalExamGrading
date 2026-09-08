@@ -86,6 +86,14 @@ export default function App() {
               </RequireRole>
             }
           />
+          <Route
+            path="/submissions/:submissionId"
+            element={
+              <RequireRole roles={["TEACHER"]}>
+                <GradingPage />
+              </RequireRole>
+            }
+          />
 
           {/* Fallback route */}
           <Route path="*" element={<RootRedirect />} />

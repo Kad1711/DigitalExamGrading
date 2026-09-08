@@ -65,6 +65,28 @@ export const ERROR_MESSAGES = {
     "Chỉ chấp nhận file định dạng .xlsx hoặc .csv.",
   ANSWER_KEY_FILE_TOO_LARGE:
     "Dung lượng file vượt quá giới hạn 5MB.",
+  DUPLICATE_SUBMISSION_IMAGE:
+    "Ảnh bài thi này đã được chấm trước đó cho kỳ thi này.",
+  SUBMISSION_NOT_FOUND:
+    "Không tìm thấy kết quả bài nộp trong hệ thống.",
+  SUBMISSION_ACCESS_DENIED:
+    "Bạn không có quyền truy cập bài nộp này.",
+  SUBMISSION_REVIEW_NOT_ALLOWED:
+    "Kỳ thi đã lưu trữ, không thể chỉnh sửa duyệt bài.",
+  CANNOT_OVERRIDE_RESOLVED_QUESTION:
+    "Không thể can thiệp câu hỏi đã được nhận diện rõ ràng.",
+  DUPLICATE_REVIEW_OVERRIDE:
+    "Trùng lặp câu hỏi trong danh sách duyệt bài.",
+  INVALID_OVERRIDE_ANSWER:
+    "Đáp án hoặc phương án xác nhận không hợp lệ.",
+  INVALID_REVIEW_RESOLUTION:
+    "Loại xác nhận duyệt bài không hợp lệ.",
+  INVALID_STUDENT_NUMBER:
+    "Số báo danh phải bao gồm đúng 6 chữ số.",
+  SUBMISSION_IMAGE_NOT_FOUND:
+    "Không tìm thấy file ảnh gốc của bài nộp.",
+  SUBMISSION_REVIEW_CROP_NOT_FOUND:
+    "Không tìm thấy ảnh cắt vùng làm bài của câu hỏi.",
 };
 
 export const QUALITY_WARNING_MESSAGES = {

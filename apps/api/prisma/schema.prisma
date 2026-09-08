@@ -46,6 +46,37 @@ enum AnswerOption {
 }
 
 // =====================================================
+// ENUMS - Submission
+// =====================================================
+
+enum ExamSubmissionStatus {
+  PROVISIONAL
+  FINAL
+}
+
+enum SubmissionAnswerOutcome {
+  CORRECT
+  INCORRECT
+  BLANK
+  INVALID_MULTIPLE
+  UNRESOLVED
+}
+
+enum TeacherReviewResolution {
+  ANSWER
+  BLANK
+  MULTIPLE_INVALID
+  UNRESOLVED
+}
+
+enum SubmissionAuditEventType {
+  SUBMISSION_CREATED
+  ANSWER_REVIEWED
+  IDENTITY_REVIEWED
+  REGRADED
+}
+
+// =====================================================
 // AUTH MODELS
 // =====================================================
 
@@ -59,6 +90,11 @@ model User {
   teacher       Teacher?
   student       Student?
   refreshTokens RefreshToken[]
+
+  submissionsGraded           ExamSubmission[]         @relation("SubmissionsGraded")
+  submissionsIdentityReviewed ExamSubmission[]         @relation("SubmissionsIdentityReviewed")
+  submissionAnswersReviewed   SubmissionAnswer[]       @relation("SubmissionAnswersReviewed")
+  submissionAuditLogs         ExamSubmissionAuditLog[] @relation("SubmissionAuditLogs")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -256,6 +292,7 @@ model Exam {
   class                Class                 @relation(fields: [classId], references: [id], onDelete: Restrict)
   examCodes            ExamCode[]
   answerSheetTemplates AnswerSheetTemplate[]
+  submissions          ExamSubmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -271,8 +308,9 @@ model ExamCode {
   examId String
   code   String
 
-  exam       Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
-  answerKeys AnswerKey[]
+  exam        Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
+  answerKeys  AnswerKey[]
+  submissions ExamSubmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -308,11 +346,143 @@ model AnswerSheetTemplate {
   pageCount           Int    @default(1)
   layoutJson          Json
 
-  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  exam        Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
+  submissions ExamSubmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([examId, version])
   @@index([examId])
+}
+
+// =====================================================
+// SUBMISSION MODELS
+// =====================================================
+
+model ExamSubmission {
+  id                    String               @id @default(cuid())
+  examId                String
+  examCodeId            String
+  answerSheetTemplateId String
+  gradedByUserId        String
+  status                ExamSubmissionStatus @default(PROVISIONAL)
+
+  // Original Identity Observation
+  detectedStudentNumber  String?
+  candidateStudentNumber String?
+  studentNumberOmrStatus String
+
+  // Current Identity State
+  resolvedStudentNumber    String?
+  identityNeedsReview      Boolean   @default(false)
+  identityReviewedByUserId String?
+  identityReviewedAt       DateTime?
+
+  // Image Metadata
+  originalImageStorageKey String
+  originalImageSha256     String
+  originalImageMimeType   String
+  originalImageSizeBytes   Int
+  originalImageWidth      Int?
+  originalImageHeight     Int?
+
+  // OMR Metadata
+  omrOverallStatus String
+  templateVersion  String?
+  qualityMetadata  Json?
+  timingMetadata   Json?
+  rawOmrSnapshot   Json?
+
+  // Grading Configuration Snapshots
+  questionCountSnapshot Int
+  maxScoreSnapshot      Decimal     @db.Decimal(6, 4)
+  scoringTypeSnapshot   ScoringType
+  examCodeSnapshot      String
+
+  // Grading Summary
+  correctCount     Int
+  incorrectCount   Int
+  blankCount       Int
+  unresolvedCount  Int
+  provisionalScore Decimal? @db.Decimal(6, 4)
+  finalScore       Decimal? @db.Decimal(6, 4)
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  finalizedAt DateTime?
+
+  // Relations
+  exam                   Exam                   @relation(fields: [examId], references: [id], onDelete: Restrict)
+  examCode               ExamCode               @relation(fields: [examCodeId], references: [id], onDelete: Restrict)
+  template               AnswerSheetTemplate    @relation(fields: [answerSheetTemplateId], references: [id], onDelete: Restrict)
+  gradedByUser           User                   @relation("SubmissionsGraded", fields: [gradedByUserId], references: [id], onDelete: Restrict)
+  identityReviewedByUser User?                  @relation("SubmissionsIdentityReviewed", fields: [identityReviewedByUserId], references: [id], onDelete: Restrict)
+  answers                SubmissionAnswer[]
+  auditLogs              ExamSubmissionAuditLog[]
+
+  @@unique([examId, originalImageSha256])
+  @@index([examId])
+  @@index([examCodeId])
+  @@index([status])
+  @@index([gradedByUserId])
+}
+
+model SubmissionAnswer {
+  id             String @id @default(cuid())
+  submissionId   String
+  questionNumber Int
+
+  // Original OMR - Immutable
+  detectedAnswer       String?
+  candidate            String?
+  originalCandidates   Json?
+  omrStatus            String
+  confidence           Float
+  fillRatios           Json
+  reviewCropStorageKey String?
+
+  // Answer Key Snapshot
+  correctAnswerSnapshot AnswerOption
+  scoreSnapshot         Decimal      @db.Decimal(6, 4)
+
+  // Teacher Review
+  resolvedByTeacher Boolean                   @default(false)
+  teacherResolution TeacherReviewResolution?
+  resolvedAnswer    String?
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+
+  // Current Derived Outcome
+  effectiveAnswer String?
+  result          SubmissionAnswerOutcome
+  scoreEarned     Decimal?                 @db.Decimal(6, 4)
+  needsReview     Boolean                  @default(false)
+
+  // Relations
+  submission     ExamSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewedByUser User?          @relation("SubmissionAnswersReviewed", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([submissionId, questionNumber])
+  @@index([submissionId])
+}
+
+model ExamSubmissionAuditLog {
+  id             String                   @id @default(cuid())
+  submissionId   String
+  actorUserId    String
+  eventType      SubmissionAuditEventType
+  questionNumber Int?
+  beforeState    Json?
+  afterState     Json?
+  reason         String?
+  createdAt      DateTime                 @default(now())
+
+  // Relations
+  submission ExamSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  actorUser  User           @relation("SubmissionAuditLogs", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([submissionId, createdAt])
+  @@index([actorUserId])
 }

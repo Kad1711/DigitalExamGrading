@@ -1,11 +1,15 @@
-﻿/**
+/**
  * Custom application error class
  */
 export class AppError extends Error {
-  constructor(message, statusCode, code) {
+  constructor(message, statusCode, code, details) {
     super(message);
     this.statusCode = statusCode;
     this.code = code || "APP_ERROR";
+    this.details = details || null;
+    if (details && typeof details === "object") {
+      Object.assign(this, details);
+    }
     this.isOperational = true;
     Error.captureStackTrace(this, this.constructor);
   }
@@ -36,12 +40,16 @@ export function globalErrorHandler(err, req, res, next) {
   }
 
   if (err.isOperational) {
+    const errorPayload = {
+      code: err.code,
+      message: err.message,
+    };
+    if (err.details && typeof err.details === "object") {
+      Object.assign(errorPayload, err.details);
+    }
     return res.status(err.statusCode).json({
       success: false,
-      error: {
-        code: err.code,
-        message: err.message,
-      },
+      error: errorPayload,
     });
   }
 

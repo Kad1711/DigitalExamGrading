@@ -4,14 +4,15 @@ import { authenticate } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/role.middleware.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import { gradeImageController } from "../controllers/grading.controller.js";
+import { createSubmissionController } from "../controllers/submission.controller.js";
 
 const router = Router({ mergeParams: true });
 
 router.use(authenticate);
-const denyStudent = authorizeRoles("ADMIN", "TEACHER");
+const requireTeacher = authorizeRoles("TEACHER");
 
 const storage = multer.memoryStorage();
-const uploadImage = multer({
+export const uploadImage = multer({
   storage,
   limits: {
     fileSize: 15 * 1024 * 1024, // 15MB
@@ -39,7 +40,7 @@ const uploadImage = multer({
   },
 }).single("image");
 
-function handleImageUpload(req, res, next) {
+export function handleImageUpload(req, res, next) {
   uploadImage(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {
@@ -62,7 +63,12 @@ function handleImageUpload(req, res, next) {
   });
 }
 
+// Stateless regression endpoint
 // POST /api/exams/:examId/grade-image
-router.post("/:examId/grade-image", denyStudent, handleImageUpload, gradeImageController);
+router.post("/:examId/grade-image", requireTeacher, handleImageUpload, gradeImageController);
+
+// Phase 6 Persistent endpoint
+// POST /api/exams/:examId/submissions
+router.post("/:examId/submissions", requireTeacher, handleImageUpload, createSubmissionController);
 
 export default router;
