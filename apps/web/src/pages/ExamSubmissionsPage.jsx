@@ -22,6 +22,9 @@ import {
   ShieldOff,
   History,
   FileSpreadsheet,
+  Users,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -112,6 +115,81 @@ export default function ExamSubmissionsPage() {
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
 
+  // Candidate mapping state (Phase 9)
+  const [candidates, setCandidates] = useState([]);
+  const [candidateMap, setCandidateMap] = useState({});
+  const [eligibleStudents, setEligibleStudents] = useState([]);
+  const [candidateModalOpen, setCandidateModalOpen] = useState(false);
+  const [candidateLoading, setCandidateLoading] = useState(false);
+  const [candidateSaving, setCandidateSaving] = useState(false);
+  const [candidateError, setCandidateError] = useState("");
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [candidateSbdInput, setCandidateSbdInput] = useState("");
+
+  const loadCandidates = useCallback(async () => {
+    try {
+      setCandidateLoading(true);
+      setCandidateError("");
+      const res = await api.get(`/exams/${examId}/candidates`);
+      const list = res.data.data || [];
+      setCandidates(list);
+      const map = {};
+      for (const c of list) {
+        map[c.studentNumber] = c;
+      }
+      setCandidateMap(map);
+    } catch (err) {
+      setCandidateError(getErrorMessage(err.response?.data?.error?.code, "Không thể tải danh sách thí sinh."));
+    } finally {
+      setCandidateLoading(false);
+    }
+  }, [examId]);
+
+  const loadEligibleStudents = useCallback(async () => {
+    try {
+      const res = await api.get(`/exams/${examId}/eligible-students`);
+      setEligibleStudents(res.data.data || []);
+    } catch {
+      // Non-blocking
+    }
+  }, [examId]);
+
+  const handleAssignCandidate = async (e) => {
+    e.preventDefault();
+    if (!selectedStudentId || !candidateSbdInput.trim()) {
+      setCandidateError("Vui lòng chọn học sinh và nhập số báo danh.");
+      return;
+    }
+    try {
+      setCandidateSaving(true);
+      setCandidateError("");
+      await api.post(`/exams/${examId}/candidates`, {
+        studentId: selectedStudentId,
+        studentNumber: candidateSbdInput.trim(),
+      });
+      setSelectedStudentId("");
+      setCandidateSbdInput("");
+      await Promise.all([loadCandidates(), loadEligibleStudents()]);
+    } catch (err) {
+      setCandidateError(getErrorMessage(err.response?.data?.error?.code, "Không thể gán học sinh vào số báo danh."));
+    } finally {
+      setCandidateSaving(false);
+    }
+  };
+
+  const handleDeleteCandidate = async (candidateId) => {
+    try {
+      setCandidateLoading(true);
+      setCandidateError("");
+      await api.delete(`/exams/${examId}/candidates/${candidateId}`);
+      await Promise.all([loadCandidates(), loadEligibleStudents()]);
+    } catch (err) {
+      setCandidateError(getErrorMessage(err.response?.data?.error?.code, "Không thể xóa liên kết thí sinh."));
+    } finally {
+      setCandidateLoading(false);
+    }
+  };
+
   const PAGE_SIZE = 20;
 
   const loadExam = useCallback(async () => {
@@ -194,7 +272,8 @@ export default function ExamSubmissionsPage() {
     loadExam();
     loadSummary();
     loadPublicationStatus();
-  }, [loadExam, loadSummary, loadPublicationStatus]);
+    loadCandidates();
+  }, [loadExam, loadSummary, loadPublicationStatus, loadCandidates]);
 
   useEffect(() => {
     loadSubmissions(1);
@@ -324,6 +403,23 @@ export default function ExamSubmissionsPage() {
             <p className="text-sm text-slate-500 mt-1">{examTitle}</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <Link to={`/exams/${examId}/analytics`}>
+              <Button variant="outline" size="sm" icon={BarChart3}>
+                Thống kê chi tiết
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Users}
+              onClick={() => {
+                setCandidateModalOpen(true);
+                loadCandidates();
+                loadEligibleStudents();
+              }}
+            >
+              Quản lý thí sinh (SBD)
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -736,6 +832,17 @@ export default function ExamSubmissionsPage() {
                             <Badge variant="red" size="sm">Trùng SBD</Badge>
                           )}
                         </div>
+                        {sub.studentNumber.resolved && (
+                          candidateMap[sub.studentNumber.resolved] ? (
+                            <span className="text-[11px] text-blue-600 font-medium block truncate max-w-[180px]">
+                              {candidateMap[sub.studentNumber.resolved].studentName}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 block italic">
+                              Chưa gán tài khoản
+                            </span>
+                          )
+                        )}
                       </td>
                       <td className="px-4 py-3 font-mono text-slate-700">{sub.examCode}</td>
                       <td className="px-4 py-3">
@@ -891,6 +998,160 @@ export default function ExamSubmissionsPage() {
                 placeholder="Ví dụ: Cần điều chỉnh duyệt lại câu hỏi..."
                 className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+          </div>
+        </Modal>
+
+        {/* ===================================================== */}
+        {/* MODAL: Candidate Management (Phase 9) */}
+        {/* ===================================================== */}
+        <Modal
+          isOpen={candidateModalOpen}
+          onClose={() => setCandidateModalOpen(false)}
+          title="Quản lý thí sinh & Gán số báo danh (SBD)"
+          size="lg"
+          footer={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCandidateModalOpen(false)}
+            >
+              Đóng
+            </Button>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-xs text-slate-500">
+              Liên kết số báo danh (SBD) trên phiếu thi với tài khoản học sinh thuộc lớp của kỳ thi để học sinh có thể tra cứu điểm chính thức trên cổng thông tin.
+            </p>
+
+            {publication?.isPublished && (
+              <Alert variant="warning">
+                <strong>Kết quả kỳ thi đã công bố:</strong> Danh sách liên kết thí sinh đã bị khóa để bảo đảm tính toàn vẹn. Vui lòng thu hồi công bố nếu bạn cần điều chỉnh danh sách này.
+              </Alert>
+            )}
+
+            {candidateError && (
+              <Alert variant="danger" onClose={() => setCandidateError("")}>
+                {candidateError}
+              </Alert>
+            )}
+
+            {/* Add Candidate Form (only if unpublished) */}
+            {!publication?.isPublished && (
+              <form onSubmit={handleAssignCandidate} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                  Gán học sinh vào số báo danh
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Học sinh trong lớp:
+                    </label>
+                    <select
+                      value={selectedStudentId}
+                      onChange={(e) => setSelectedStudentId(e.target.value)}
+                      className="w-full text-xs border border-slate-300 rounded-lg px-2.5 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- Chọn học sinh --</option>
+                      {eligibleStudents.map((st) => (
+                        <option key={st.studentId} value={st.studentId}>
+                          {st.studentName} ({st.studentCode}) {st.isAssigned ? `[Đã gán: ${st.assignedStudentNumber}]` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Số báo danh (SBD):
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="VD: 171101"
+                      maxLength={10}
+                      value={candidateSbdInput}
+                      onChange={(e) => setCandidateSbdInput(e.target.value)}
+                      className="w-full text-xs font-mono border border-slate-300 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    loading={candidateSaving}
+                    disabled={!selectedStudentId || !candidateSbdInput.trim()}
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    <span>Lưu liên kết</span>
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* Candidates List Table */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-700">
+                  Danh sách đã liên kết ({candidates.length} thí sinh)
+                </span>
+              </div>
+
+              {candidateLoading ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  <Loader2 className="w-5 h-5 animate-spin mx-auto mb-1" />
+                  <span>Đang tải danh sách thí sinh...</span>
+                </div>
+              ) : candidates.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                  Chưa có thí sinh nào được liên kết với số báo danh.
+                </div>
+              ) : (
+                <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0">
+                      <tr>
+                        <th className="py-2 px-3">SBD</th>
+                        <th className="py-2 px-3">Mã học sinh</th>
+                        <th className="py-2 px-3">Họ và tên</th>
+                        {!publication?.isPublished && (
+                          <th className="py-2 px-3 text-right">Xóa</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {candidates.map((c) => (
+                        <tr key={c.id} className="hover:bg-slate-50">
+                          <td className="py-2 px-3 font-mono font-bold text-blue-700">
+                            {c.studentNumber}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-slate-600">
+                            {c.studentCode}
+                          </td>
+                          <td className="py-2 px-3 font-medium text-slate-900">
+                            {c.studentName}
+                          </td>
+                          {!publication?.isPublished && (
+                            <td className="py-2 px-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCandidate(c.id)}
+                                className="text-rose-600 hover:text-rose-800 p-1 hover:bg-rose-50 rounded cursor-pointer"
+                                title="Hủy liên kết"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </Modal>

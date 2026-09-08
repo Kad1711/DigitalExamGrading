@@ -5,10 +5,10 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
-    "test": "node --test tests/grading.test.js tests/exam-lifecycle.test.js tests/admin-profile.test.js tests/exam-code-normalization.test.js tests/submission-persistence.test.js tests/exam-submission-list.test.js tests/result-publication.test.js tests/result-export.test.js",
+    "test": "node --test tests/grading.test.js tests/exam-lifecycle.test.js tests/admin-profile.test.js tests/exam-code-normalization.test.js tests/submission-persistence.test.js tests/exam-submission-list.test.js tests/result-publication.test.js tests/result-export.test.js tests/student-results.test.js tests/exam-candidate.test.js tests/exam-analytics.test.js tests/teacher-dashboard.test.js tests/v1-rbac.test.js",
     "test:smoke": "node scripts/smoke-grade-image.js",
-    "dev:localize-data": "node scripts/localize-dev-data.js"
+    "dev:localize-data": "node scripts/localize-dev-data.js",
+    "start": "node src/server.js"
   },
   "keywords": [],
   "author": "",

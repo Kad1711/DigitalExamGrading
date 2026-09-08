@@ -40,8 +40,10 @@ export default function LoginPage() {
         navigate("/admin/teachers", { replace: true });
       } else if (user.role === "TEACHER") {
         navigate("/exams", { replace: true });
+      } else if (user.role === "STUDENT") {
+        navigate("/student/results", { replace: true });
       } else {
-        setErrorMsg("Chức năng dành cho học sinh hiện đang được phát triển.");
+        setErrorMsg("Vai trò tài khoản không hợp lệ.");
       }
     } catch (err) {
       const msg =
@@ -176,19 +178,19 @@ export default function LoginPage() {
                   DEV
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() =>
                     handleQuickFill("teacher@digitalexam.local", "Teacher@123456")
                   }
-                  className="text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-blue-50 hover:border-blue-200 transition-colors cursor-pointer group"
+                  className="text-left p-2 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-blue-50 hover:border-blue-200 transition-colors cursor-pointer group"
                 >
-                  <div className="text-xs font-semibold text-slate-800 group-hover:text-blue-700">
+                  <div className="text-xs font-semibold text-slate-800 group-hover:text-blue-700 truncate">
                     Giáo viên
                   </div>
-                  <div className="text-[11px] text-slate-500 font-mono truncate">
-                    teacher@digitalexam.local
+                  <div className="text-[10px] text-slate-500 font-mono truncate">
+                    teacher@...
                   </div>
                 </button>
 
@@ -197,13 +199,28 @@ export default function LoginPage() {
                   onClick={() =>
                     handleQuickFill("admin@digitalexam.local", "Admin@123456")
                   }
-                  className="text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-blue-50 hover:border-blue-200 transition-colors cursor-pointer group"
+                  className="text-left p-2 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-blue-50 hover:border-blue-200 transition-colors cursor-pointer group"
                 >
-                  <div className="text-xs font-semibold text-slate-800 group-hover:text-blue-700">
-                    Quản trị viên
+                  <div className="text-xs font-semibold text-slate-800 group-hover:text-blue-700 truncate">
+                    Quản trị
                   </div>
-                  <div className="text-[11px] text-slate-500 font-mono truncate">
-                    admin@digitalexam.local
+                  <div className="text-[10px] text-slate-500 font-mono truncate">
+                    admin@...
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleQuickFill("student@digitalexam.local", "Student@123456")
+                  }
+                  className="text-left p-2 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-blue-50 hover:border-blue-200 transition-colors cursor-pointer group"
+                >
+                  <div className="text-xs font-semibold text-slate-800 group-hover:text-blue-700 truncate">
+                    Học sinh
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-mono truncate">
+                    student@...
                   </div>
                 </button>
               </div>

@@ -19,6 +19,10 @@ import {
   Award,
   Eye,
   Copy,
+  FileCheck,
+  BarChart3,
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -34,12 +38,25 @@ export default function ExamListPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Teacher Dashboard State (Phase 10)
+  const [dashboard, setDashboard] = useState(null);
+
+  const fetchDashboard = async () => {
+    try {
+      const res = await api.get("/teacher/dashboard");
+      setDashboard(res.data.data);
+    } catch {
+      // Non-blocking
+    }
+  };
+
   // Clone Modal State
   const [examToClone, setExamToClone] = useState(null);
   const [cloning, setCloning] = useState(false);
 
   useEffect(() => {
     fetchExams();
+    fetchDashboard();
   }, [statusFilter]);
 
   const fetchExams = async () => {
@@ -133,6 +150,80 @@ export default function ExamListPage() {
           </div>
         </div>
 
+        {/* Teacher Dashboard Top Cards & Actions (Phase 10) */}
+        {dashboard?.summary && (
+          <div className="space-y-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+                  Tổng số kỳ thi
+                </span>
+                <span className="text-2xl font-bold text-slate-800">
+                  {dashboard.summary.totalExams}
+                </span>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+                <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 block mb-1">
+                  Đang diễn ra (Phát hành)
+                </span>
+                <span className="text-2xl font-bold text-blue-700">
+                  {dashboard.summary.activeExams}
+                </span>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-1">
+                  Đã đóng / Lưu trữ
+                </span>
+                <span className="text-2xl font-bold text-slate-700">
+                  {dashboard.summary.closedExams + dashboard.summary.archivedExams}
+                </span>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs bg-emerald-50/30">
+                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 block mb-1">
+                  Tổng bài thi đã chấm
+                </span>
+                <span className="text-2xl font-bold text-emerald-700">
+                  {dashboard.summary.totalSubmissions}
+                </span>
+              </div>
+            </div>
+
+            {/* Action Needed Section */}
+            {dashboard.actionNeeded && dashboard.actionNeeded.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2 text-amber-800 font-bold text-xs uppercase tracking-wider">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  <span>Kỳ thi cần giáo viên xử lý ({dashboard.actionNeeded.length})</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {dashboard.actionNeeded.map((act, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-white/90 border border-amber-200 rounded-lg p-3 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-semibold text-slate-800 block truncate">
+                          {act.examTitle}
+                        </span>
+                        <span className="text-slate-500 text-[11px] block">
+                          {act.message}
+                        </span>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => navigate(`/exams/${act.examId}/submissions`)}
+                        className="shrink-0 text-xs py-1 px-2.5 h-auto"
+                      >
+                        Xử lý ngay
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {/* Filter and Search Bar */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 mb-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -307,15 +398,35 @@ export default function ExamListPage() {
                             )}
 
                             {exam.status !== "DRAFT" && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                icon={Copy}
-                                onClick={() => setExamToClone(exam)}
-                                title="Nhân bản kỳ thi để sửa cấu hình"
-                              >
-                                Nhân bản
-                              </Button>
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  icon={FileCheck}
+                                  onClick={() => navigate(`/exams/${exam.id}/submissions`)}
+                                  title="Quản lý bài đã chấm và công bố kết quả"
+                                >
+                                  Bài đã chấm
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  icon={BarChart3}
+                                  onClick={() => navigate(`/exams/${exam.id}/analytics`)}
+                                  title="Thống kê kết quả thi"
+                                >
+                                  Thống kê
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  icon={Copy}
+                                  onClick={() => setExamToClone(exam)}
+                                  title="Nhân bản kỳ thi để sửa cấu hình"
+                                >
+                                  Nhân bản
+                                </Button>
+                              </>
                             )}
                           </div>
                         </td>

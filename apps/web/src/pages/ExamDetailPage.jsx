@@ -27,6 +27,7 @@ import {
   Copy,
   Pencil,
   AlertTriangle,
+  BarChart3,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -785,6 +786,14 @@ export default function ExamDetailPage() {
                   <Button
                     variant="outline"
                     size="md"
+                    icon={BarChart3}
+                    onClick={() => navigate(`/exams/${exam.id}/analytics`)}
+                  >
+                    Thống kê
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="md"
                     icon={Copy}
                     onClick={() => setConfirmCloneOpen(true)}
                     title="Nhân bản để tạo một bản Nháp mới"
@@ -816,6 +825,14 @@ export default function ExamDetailPage() {
                   <Button
                     variant="outline"
                     size="md"
+                    icon={BarChart3}
+                    onClick={() => navigate(`/exams/${exam.id}/analytics`)}
+                  >
+                    Thống kê
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="md"
                     icon={Copy}
                     onClick={() => setConfirmCloneOpen(true)}
                   >
@@ -834,14 +851,24 @@ export default function ExamDetailPage() {
 
               {/* ARCHIVED Actions */}
               {isArchived && (
-                <Button
-                  variant="primary"
-                  size="md"
-                  icon={Copy}
-                  onClick={() => setConfirmCloneOpen(true)}
-                >
-                  Nhân bản kỳ thi
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="md"
+                    icon={BarChart3}
+                    onClick={() => navigate(`/exams/${exam.id}/analytics`)}
+                  >
+                    Thống kê
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="md"
+                    icon={Copy}
+                    onClick={() => setConfirmCloneOpen(true)}
+                  >
+                    Nhân bản kỳ thi
+                  </Button>
+                </>
               )}
             </div>
           </div>

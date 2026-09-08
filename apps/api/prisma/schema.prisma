@@ -153,6 +153,7 @@ model Student {
 
   user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   enrollments StudentEnrollment[]
+  candidates  ExamCandidate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -310,6 +311,7 @@ model Exam {
   answerSheetTemplates AnswerSheetTemplate[]
   submissions          ExamSubmission[]
   publicationLogs      ExamResultPublicationLog[]
+  candidates           ExamCandidate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -522,4 +524,26 @@ model ExamResultPublicationLog {
 
   @@index([examId, createdAt])
   @@index([actorUserId])
+}
+
+// =====================================================
+// CANDIDATE MAPPING MODELS (Phase 9)
+// =====================================================
+
+model ExamCandidate {
+  id            String   @id @default(cuid())
+  examId        String
+  studentId     String
+  studentNumber String
+
+  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([examId, studentId])
+  @@unique([examId, studentNumber])
+  @@index([examId])
+  @@index([studentId])
 }

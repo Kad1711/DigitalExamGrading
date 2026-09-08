@@ -35,6 +35,9 @@ export default function RequireRole({ roles, children }) {
     if (user.role === "TEACHER") {
       return <Navigate to="/exams" replace />;
     }
+    if (user.role === "STUDENT") {
+      return <Navigate to="/student/results" replace />;
+    }
     return <Navigate to="/login" replace />;
   }
 

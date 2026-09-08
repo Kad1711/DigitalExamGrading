@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Menu,
   X,
+  Award,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { formatUserRole, getInitials } from "../utils/enum-map";
@@ -43,13 +44,15 @@ export default function AppHeader() {
 
   const isAdmin = user?.role === "ADMIN";
   const isTeacher = user?.role === "TEACHER";
+  const isStudent = user?.role === "STUDENT";
 
   const isExamsActive = location.pathname.startsWith("/exams");
   const isGradeActive = location.pathname.startsWith("/grade");
   const isAdminTeachersActive = location.pathname.startsWith("/admin/teachers");
   const isProfileActive = location.pathname.startsWith("/profile");
+  const isStudentResultsActive = location.pathname.startsWith("/student/results");
 
-  const displayName = user?.fullName || user?.teacher?.fullName || user?.email || "Người dùng";
+  const displayName = user?.fullName || user?.teacher?.fullName || user?.student?.fullName || user?.email || "Người dùng";
   const initials = getInitials(displayName, user?.email);
 
   return (
@@ -59,7 +62,7 @@ export default function AppHeader() {
           {/* Left: Brand & Nav */}
           <div className="flex items-center gap-8">
             <Link
-              to={isAdmin ? "/admin/teachers" : "/exams"}
+              to={isAdmin ? "/admin/teachers" : isStudent ? "/student/results" : "/exams"}
               className="flex items-center gap-3 group focus:outline-none"
             >
               <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/30 group-hover:bg-blue-700 transition-colors">
@@ -70,7 +73,7 @@ export default function AppHeader() {
                   Digital Exam Grading
                 </span>
                 <span className="text-[11px] font-medium text-slate-500 tracking-wide">
-                  {isAdmin ? "Hệ thống Quản trị" : "Hệ thống chấm thi OMR"}
+                  {isAdmin ? "Hệ thống Quản trị" : isStudent ? "Cổng thông tin học sinh" : "Hệ thống chấm thi OMR"}
                 </span>
               </div>
             </Link>
@@ -102,6 +105,20 @@ export default function AppHeader() {
                     <span>Chấm bài</span>
                   </Link>
                 </>
+              )}
+
+              {isStudent && (
+                <Link
+                  to="/student/results"
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isStudentResultsActive
+                      ? "bg-blue-50 text-blue-700 font-semibold"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  <Award className="w-4 h-4" />
+                  <span>Kết quả của tôi</span>
+                </Link>
               )}
 
               {isAdmin && (
@@ -285,6 +302,21 @@ export default function AppHeader() {
                   <span>Hồ sơ cá nhân</span>
                 </Link>
               </>
+            )}
+
+            {isStudent && (
+              <Link
+                to="/student/results"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium ${
+                  isStudentResultsActive
+                    ? "bg-blue-50 text-blue-700 font-semibold"
+                    : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <Award className="w-5 h-5 text-blue-600" />
+                <span>Kết quả của tôi</span>
+              </Link>
             )}
 
             {isAdmin && (

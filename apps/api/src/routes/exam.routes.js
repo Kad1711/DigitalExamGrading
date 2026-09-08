@@ -22,6 +22,8 @@ import answerSheetRoutes from "./answer-sheet.routes.js";
 import gradingRoutes from "./grading.routes.js";
 import examSubmissionListRoutes from "./exam-submission-list.routes.js";
 import resultPublicationRoutes from "./result-publication.routes.js";
+import examCandidateRoutes from "./exam-candidate.routes.js";
+import examAnalyticsRoutes from "./exam-analytics.routes.js";
 
 const router = Router();
 
@@ -60,5 +62,11 @@ router.use("/", examSubmissionListRoutes);
 
 // Phase 8: Result Publication & Export
 router.use("/", resultPublicationRoutes);
+
+// Phase 9: Candidate Management
+router.use("/", examCandidateRoutes);
+
+// Phase 10: Exam Analytics
+router.use("/", examAnalyticsRoutes);
 
 export default router;

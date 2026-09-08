@@ -240,12 +240,84 @@ async function main() {
       console.log("Teacher B profile updated: TCH002 - Trần Thị Minh");
     }
 
+    // Student Development Account
+    const studentEmail = "student@digitalexam.local";
+    const studentPassword = "Student@123456";
+
+    let studentUser = await prisma.user.findUnique({
+      where: { email: studentEmail },
+    });
+
+    if (!studentUser) {
+      const passwordHash = await bcrypt.hash(studentPassword, SALT_ROUNDS);
+
+      studentUser = await prisma.user.create({
+        data: {
+          email: studentEmail,
+          passwordHash,
+          role: "STUDENT",
+          status: "ACTIVE",
+        },
+      });
+
+      console.log("Student user created: " + studentEmail);
+    } else {
+      console.log("Student user already exists: " + studentEmail);
+    }
+
+    let studentProfile = await prisma.student.findUnique({
+      where: { userId: studentUser.id },
+    });
+
+    if (!studentProfile) {
+      studentProfile = await prisma.student.create({
+        data: {
+          userId: studentUser.id,
+          studentCode: "HS0001",
+          fullName: "Nguyễn Hoàng Nam",
+        },
+      });
+      console.log("Student profile created: HS0001 - Nguyễn Hoàng Nam");
+    } else {
+      console.log("Student profile already exists: HS0001");
+    }
+
+    const class11A1 = await prisma.class.findUnique({
+      where: {
+        name_academicYearId: {
+          name: "11A1",
+          academicYearId: academicYear.id,
+        },
+      },
+    });
+
+    if (class11A1) {
+      await prisma.studentEnrollment.upsert({
+        where: {
+          studentId_academicYearId: {
+            studentId: studentProfile.id,
+            academicYearId: academicYear.id,
+          },
+        },
+        update: {
+          classId: class11A1.id,
+        },
+        create: {
+          studentId: studentProfile.id,
+          classId: class11A1.id,
+          academicYearId: academicYear.id,
+        },
+      });
+      console.log("Student enrolled in class 11A1.");
+    }
+
     console.log("Database seed completed successfully.");
     console.log("");
     console.log("=== Development Accounts ===");
     console.log("Admin:     admin@digitalexam.local    / Admin@123456");
     console.log("Teacher A: teacher@digitalexam.local  / Teacher@123456");
     console.log("Teacher B: teacher2@digitalexam.local / Teacher@123456");
+    console.log("Student:   student@digitalexam.local  / Student@123456");
     console.log("============================");
   } else {
     console.log("Production environment detected. Skipping development accounts & test class seed.");

@@ -105,6 +105,22 @@ export const ERROR_MESSAGES = {
     "Kết quả kỳ thi này đã được công bố trước đó.",
   RESULTS_NOT_PUBLISHED:
     "Kết quả kỳ thi chưa được công bố. Chỉ có thể xuất sau khi đã công bố.",
+  STUDENT_PROFILE_NOT_FOUND:
+    "Tài khoản học sinh chưa được liên kết với hồ sơ học sinh.",
+  STUDENT_RESULT_NOT_AVAILABLE:
+    "Kết quả chưa được công bố hoặc không tồn tại.",
+  RESULT_IDENTITY_CONFLICT:
+    "Không thể xác định duy nhất kết quả của bạn. Vui lòng liên hệ giáo viên.",
+  EXAM_CANDIDATE_NOT_FOUND:
+    "Không tìm thấy thông tin thí sinh trong kỳ thi.",
+  EXAM_CANDIDATE_DUPLICATE_STUDENT:
+    "Học sinh này đã được gán số báo danh trong kỳ thi.",
+  EXAM_CANDIDATE_DUPLICATE_NUMBER:
+    "Số báo danh này đã được cấp cho một học sinh khác trong kỳ thi.",
+  EXAM_CANDIDATE_ACCESS_DENIED:
+    "Bạn không có quyền quản lý thí sinh của kỳ thi này.",
+  ANALYTICS_DATA_INCONSISTENT:
+    "Dữ liệu bài thi không đồng nhất để tổng hợp thống kê.",
 };
 
 export const QUALITY_WARNING_MESSAGES = {
