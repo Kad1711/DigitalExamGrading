@@ -94,6 +94,19 @@ export async function deleteExamController(req, res, next) {
   }
 }
 
+export async function cloneExamController(req, res, next) {
+  try {
+    const cloned = await examService.cloneExam(req.params.examId, req.user);
+    return res.status(201).json({
+      success: true,
+      message: "Nhan ban ky thi thanh cong.",
+      data: cloned,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function publishExamController(req, res, next) {
   try {
     const published = await examService.publishExam(req.params.examId, req.user);

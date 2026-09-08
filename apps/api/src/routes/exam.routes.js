@@ -7,6 +7,7 @@ import {
   getExamController,
   updateExamController,
   deleteExamController,
+  cloneExamController,
   publishExamController,
   closeExamController,
   archiveExamController,
@@ -31,6 +32,7 @@ router.get("/", denyStudent, listExamsController);
 router.get("/:examId", denyStudent, getExamController);
 router.patch("/:examId", denyStudent, updateExamController);
 router.delete("/:examId", denyStudent, deleteExamController);
+router.post("/:examId/clone", denyStudent, cloneExamController);
 
 // Exam lifecycle
 router.post("/:examId/publish", denyStudent, publishExamController);

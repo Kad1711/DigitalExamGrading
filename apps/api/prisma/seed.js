@@ -19,9 +19,9 @@ async function main() {
   // =====================================================
 
   const grades = [
-    { level: 10, name: "Khoi 10" },
-    { level: 11, name: "Khoi 11" },
-    { level: 12, name: "Khoi 12" },
+    { level: 10, name: "Khối 10" },
+    { level: 11, name: "Khối 11" },
+    { level: 12, name: "Khối 12" },
   ];
 
   for (const grade of grades) {
@@ -50,7 +50,7 @@ async function main() {
   // SEMESTERS
   // =====================================================
 
-  const semesters = ["Hoc ky 1", "Hoc ky 2"];
+  const semesters = ["Học kỳ 1", "Học kỳ 2"];
 
   for (const semesterName of semesters) {
     await prisma.semester.upsert({
@@ -75,17 +75,17 @@ async function main() {
   // =====================================================
 
   const subjects = [
-    { code: "TOAN", name: "Toan" },
-    { code: "NGUVAN", name: "Ngu van" },
-    { code: "TIENGANH", name: "Tieng Anh" },
-    { code: "VATLY", name: "Vat ly" },
-    { code: "HOAHOC", name: "Hoa hoc" },
-    { code: "SINHHOC", name: "Sinh hoc" },
-    { code: "LICHSU", name: "Lich su" },
-    { code: "DIALY", name: "Dia ly" },
-    { code: "GDKTPL", name: "Giao duc Kinh te va Phap luat" },
-    { code: "TINHOC", name: "Tin hoc" },
-    { code: "CONGNGHE", name: "Cong nghe" },
+    { code: "TOAN", name: "Toán" },
+    { code: "NGUVAN", name: "Ngữ văn" },
+    { code: "TIENGANH", name: "Tiếng Anh" },
+    { code: "VATLY", name: "Vật lý" },
+    { code: "HOAHOC", name: "Hóa học" },
+    { code: "SINHHOC", name: "Sinh học" },
+    { code: "LICHSU", name: "Lịch sử" },
+    { code: "DIALY", name: "Địa lý" },
+    { code: "GDKTPL", name: "Giáo dục Kinh tế và Pháp luật" },
+    { code: "TINHOC", name: "Tin học" },
+    { code: "CONGNGHE", name: "Công nghệ" },
   ];
 
   for (const subject of subjects) {
@@ -183,12 +183,16 @@ async function main() {
         data: {
           userId: teacherUser.id,
           teacherCode: "TCH001",
-          fullName: "Giao vien Development",
+          fullName: "Nguyễn Văn An",
         },
       });
       console.log("Teacher profile created: TCH001");
     } else {
-      console.log("Teacher profile already exists: TCH001");
+      await prisma.teacher.update({
+        where: { id: existingTeacherProfile.id },
+        data: { fullName: "Nguyễn Văn An" },
+      });
+      console.log("Teacher profile updated: TCH001 - Nguyễn Văn An");
     }
 
     // Teacher B Development Account (de test ownership)
@@ -224,12 +228,16 @@ async function main() {
         data: {
           userId: teacherBUser.id,
           teacherCode: "TCH002",
-          fullName: "Giao vien B Development",
+          fullName: "Trần Thị Minh",
         },
       });
       console.log("Teacher B profile created: TCH002");
     } else {
-      console.log("Teacher B profile already exists: TCH002");
+      await prisma.teacher.update({
+        where: { id: existingTeacherBProfile.id },
+        data: { fullName: "Trần Thị Minh" },
+      });
+      console.log("Teacher B profile updated: TCH002 - Trần Thị Minh");
     }
 
     console.log("Database seed completed successfully.");

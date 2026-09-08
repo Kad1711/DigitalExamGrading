@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeExamCode } from "../utils/exam-code.js";
 
 // =====================================================
 // EXAM SCHEMAS
@@ -37,9 +38,21 @@ export const updateExamSchema = z.object({
 
 export const createExamCodeSchema = z.object({
   code: z
-    .string()
-    .min(1, "code khong duoc de trong.")
-    .max(50, "code khong duoc vuot qua 50 ky tu."),
+    .union([z.string(), z.number()])
+    .refine(
+      (val) => {
+        try {
+          normalizeExamCode(val);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      {
+        message: "Mã đề phải là số từ 000 đến 999 (tối đa 3 chữ số).",
+      }
+    )
+    .transform((val) => normalizeExamCode(val)),
 });
 
 // =====================================================

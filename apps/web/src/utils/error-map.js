@@ -26,7 +26,45 @@ export const ERROR_MESSAGES = {
   IMAGE_TYPE_INVALID:
     "Chỉ hỗ trợ ảnh JPG hoặc PNG.",
   EXAM_NOT_AVAILABLE_FOR_GRADING:
-    "Kỳ thi này hiện chưa thể chấm bài (chỉ hỗ trợ kỳ thi ở trạng thái PUBLISHED).",
+    "Kỳ thi này hiện chưa thể chấm bài (chỉ hỗ trợ kỳ thi đã phát hành).",
+  VALIDATION_ERROR:
+    "Dữ liệu nhập vào chưa hợp lệ. Vui lòng kiểm tra lại các trường.",
+  EXAM_NOT_FOUND:
+    "Kỳ thi không tồn tại hoặc đã bị xóa.",
+  EXAM_ACCESS_DENIED:
+    "Bạn không có quyền truy cập hoặc chỉnh sửa kỳ thi này.",
+  EXAM_NOT_DRAFT:
+    "Kỳ thi không ở trạng thái Nháp nên không thể thực hiện thao tác này.",
+  EXAM_FIELD_LOCKED:
+    "Trường thông tin này đã bị khóa sau khi kỳ thi được phát hành.",
+  EXAM_DELETE_NOT_ALLOWED:
+    "Chỉ có thể xóa vĩnh viễn kỳ thi ở trạng thái Nháp.",
+  EXAM_ALREADY_PUBLISHED:
+    "Kỳ thi đã được phát hành.",
+  EXAM_INVALID_STATUS:
+    "Trạng thái kỳ thi không hợp lệ cho thao tác này.",
+  EXAM_CODE_REQUIRED:
+    "Kỳ thi phải có ít nhất 1 mã đề trước khi phát hành.",
+  EXAM_CODE_DUPLICATE:
+    "Mã đề này đã tồn tại trong kỳ thi.",
+  EXAM_CODE_NOT_FOUND:
+    "Mã đề không tồn tại.",
+  EXAM_CODE_NOT_OMR_COMPATIBLE:
+    "Mã đề OMR phải là các chữ số từ 0-9 và tối đa 3 chữ số.",
+  ANSWER_KEY_INCOMPLETE:
+    "Các mã đề chưa có đủ đáp án hoặc tổng điểm chưa khớp với thang điểm.",
+  INVALID_QUESTION_COUNT:
+    "Số lượng đáp án không khớp với số câu hỏi của kỳ thi.",
+  CUSTOM_SCORE_TOTAL_MISMATCH:
+    "Tổng điểm các câu không bằng thang điểm tối đa của kỳ thi.",
+  ANSWER_SHEET_TEMPLATE_NOT_FOUND:
+    "Chưa có phiếu trả lời OMR nào được tạo cho kỳ thi này.",
+  ANSWER_KEY_FILE_REQUIRED:
+    "Vui lòng chọn file Excel (.xlsx) hoặc CSV để tải lên.",
+  ANSWER_KEY_FILE_TYPE_INVALID:
+    "Chỉ chấp nhận file định dạng .xlsx hoặc .csv.",
+  ANSWER_KEY_FILE_TOO_LARGE:
+    "Dung lượng file vượt quá giới hạn 5MB.",
 };
 
 export const QUALITY_WARNING_MESSAGES = {

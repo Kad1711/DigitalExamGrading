@@ -24,11 +24,31 @@ export async function gradeImageController(req, res, next) {
       );
     }
 
+    let reviewOverrides = null;
+    if (req.body.reviewOverrides) {
+      if (typeof req.body.reviewOverrides === "string") {
+        try {
+          reviewOverrides = JSON.parse(req.body.reviewOverrides);
+        } catch {
+          return next(
+            new AppError(
+              "Định dạng reviewOverrides không hợp lệ (cần là mảng JSON).",
+              400,
+              "INVALID_REVIEW_OVERRIDES_FORMAT"
+            )
+          );
+        }
+      } else if (Array.isArray(req.body.reviewOverrides)) {
+        reviewOverrides = req.body.reviewOverrides;
+      }
+    }
+
     const result = await gradeExamImage(
       examId,
       req.file.buffer,
       req.file.originalname || "sheet.png",
-      req.user
+      req.user,
+      reviewOverrides
     );
 
     return res.status(200).json({

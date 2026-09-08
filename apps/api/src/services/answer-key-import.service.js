@@ -7,6 +7,7 @@ import {
   generateCsvTemplate,
   generateXlsxTemplate,
 } from "../utils/answer-key-file-parser.js";
+import { normalizeExamCode } from "../utils/exam-code.js";
 
 /**
  * Tinh score tham khao moi cau khi EQUAL de hien thi / luu tru.
@@ -78,7 +79,12 @@ export function validateImportRows(rows, exam, existingCodes) {
   const errors = [];
   const validAnswers = new Set(["A", "B", "C", "D"]);
   const codeMap = new Map(); // code -> examCode object
-  existingCodes.forEach((c) => codeMap.set(c.code, c));
+  existingCodes.forEach((c) => {
+    codeMap.set(c.code, c);
+    try {
+      codeMap.set(normalizeExamCode(c.code), c);
+    } catch {}
+  });
 
   const seen = new Set(); // "code:qn"
   const groupedByCode = new Map(); // code -> array of rows
@@ -96,7 +102,14 @@ export function validateImportRows(rows, exam, existingCodes) {
       continue;
     }
 
-    if (!codeMap.has(examCode)) {
+    let targetCode = codeMap.get(examCode);
+    if (!targetCode) {
+      try {
+        targetCode = codeMap.get(normalizeExamCode(examCode));
+      } catch {}
+    }
+
+    if (!targetCode) {
       errors.push({
         row: rowNumber,
         field: "examCode",
@@ -125,7 +138,7 @@ export function validateImportRows(rows, exam, existingCodes) {
     }
 
     // 3. Duplicate check
-    const dupKey = `${examCode}:${questionNumber}`;
+    const dupKey = `${targetCode.id}:${questionNumber}`;
     if (seen.has(dupKey)) {
       errors.push({
         row: rowNumber,
@@ -158,12 +171,13 @@ export function validateImportRows(rows, exam, existingCodes) {
       }
     }
 
-    if (!groupedByCode.has(examCode)) {
-      groupedByCode.set(examCode, []);
+    const groupKey = targetCode.code;
+    if (!groupedByCode.has(groupKey)) {
+      groupedByCode.set(groupKey, []);
     }
-    groupedByCode.get(examCode).push({
-      examCodeId: codeMap.get(examCode).id,
-      code: examCode,
+    groupedByCode.get(groupKey).push({
+      examCodeId: targetCode.id,
+      code: targetCode.code,
       questionNumber,
       correctAnswer,
       score,

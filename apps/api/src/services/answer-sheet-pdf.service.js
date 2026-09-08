@@ -1,12 +1,80 @@
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
+import fs from "fs";
 import { PT_PER_MM } from "../utils/answer-sheet-layout.js";
+import { AppError } from "../middlewares/error.middleware.js";
 
 /**
  * Helper to convert mm to PDF points.
  */
 function toPt(mm) {
   return mm * PT_PER_MM;
+}
+
+/**
+ * Resolves available system/runtime TrueType font supporting Vietnamese Unicode.
+ * Checks env vars, standard Windows and Linux locations.
+ * Returns { regular, bold } or null if none found.
+ */
+export function resolveUnicodeFont() {
+  const customRegular = process.env.OMR_PDF_FONT_REGULAR;
+  const customBold = process.env.OMR_PDF_FONT_BOLD;
+  if (customRegular && customBold) {
+    try {
+      if (fs.existsSync(customRegular) && fs.existsSync(customBold)) {
+        return { regular: customRegular, bold: customBold };
+      }
+    } catch {}
+  }
+
+  const candidates = [
+    // Windows standard fonts
+    {
+      regular: "C:/Windows/Fonts/arial.ttf",
+      bold: "C:/Windows/Fonts/arialbd.ttf",
+    },
+    {
+      regular: "C:/Windows/Fonts/tahoma.ttf",
+      bold: "C:/Windows/Fonts/tahomabd.ttf",
+    },
+    {
+      regular: "C:/Windows/Fonts/segoeui.ttf",
+      bold: "C:/Windows/Fonts/segoeuib.ttf",
+    },
+    {
+      regular: "C:/Windows/Fonts/times.ttf",
+      bold: "C:/Windows/Fonts/timesbd.ttf",
+    },
+    // Linux standard fonts (Debian/Ubuntu fonts-dejavu-core, fonts-liberation, Alpine/RHEL)
+    {
+      regular: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+      bold: "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    },
+    {
+      regular: "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+      bold: "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    },
+    {
+      regular: "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+      bold: "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+    },
+    {
+      regular: "/usr/share/fonts/liberation-sans/LiberationSans-Regular.ttf",
+      bold: "/usr/share/fonts/liberation-sans/LiberationSans-Bold.ttf",
+    },
+  ];
+
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c.regular) && fs.existsSync(c.bold)) {
+        return c;
+      }
+    } catch {
+      // ignore access error
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -22,10 +90,25 @@ export async function renderAnswerSheetPdf(layoutJson) {
         margin: 0,
         autoFirstPage: false,
         info: {
-          Title: `Phieu Tra Loi - ${layoutJson.examId}`,
+          Title: `Phiếu Trả Lời - ${layoutJson.examId}`,
           Author: "DigitalExamGrading",
         },
       });
+
+      // Register Unicode font (fail clearly if unavailable)
+      const fontCandidate = resolveUnicodeFont();
+      if (!fontCandidate) {
+        throw new AppError(
+          "Không tìm thấy font chữ Unicode hỗ trợ tiếng Việt trên hệ thống máy chủ (cần cài đặt TrueType font như DejaVuSans, LiberationSans hoặc Arial).",
+          500,
+          "UNICODE_FONT_NOT_CONFIGURED"
+        );
+      }
+
+      doc.registerFont("AppUnicodeFont", fontCandidate.regular);
+      doc.registerFont("AppUnicodeFont-Bold", fontCandidate.bold);
+      const fontRegular = "AppUnicodeFont";
+      const fontBold = "AppUnicodeFont-Bold";
 
       const buffers = [];
       doc.on("data", (chunk) => buffers.push(chunk));
@@ -38,7 +121,7 @@ export async function renderAnswerSheetPdf(layoutJson) {
         const page = pages[pIndex];
         doc.addPage({ size: "A4", margin: 0 });
 
-        // 1. Draw 4 Corner Alignment Markers
+        // 1. Draw 4 Corner Alignment Markers (Identical Canonical Geometry)
         doc.save();
         doc.fillColor("#000000");
         for (const m of markers) {
@@ -46,24 +129,24 @@ export async function renderAnswerSheetPdf(layoutJson) {
         }
         doc.restore();
 
-        // 2. Draw Header Text
+        // 2. Draw Header Text (Vietnamese Unicode Supported)
         doc.save();
-        doc.font("Helvetica-Bold").fontSize(13).fillColor("#000000");
-        doc.text("PHIEU TRA LOI TRAC NGHIEM", toPt(20), toPt(16), { width: toPt(140) });
+        doc.font(fontBold).fontSize(13).fillColor("#000000");
+        doc.text("PHIẾU TRẢ LỜI TRẮC NGHIỆM", toPt(20), toPt(16), { width: toPt(140) });
 
-        doc.font("Helvetica").fontSize(9).fillColor("#333333");
-        const titleStr = page.header.examTitle ? `Ky thi: ${page.header.examTitle}` : "";
-        const subStr = page.header.subjectName ? `Mon: ${page.header.subjectName}` : "";
-        const clsStr = page.header.className ? ` - Lop: ${page.header.className}` : "";
+        doc.font(fontRegular).fontSize(9).fillColor("#333333");
+        const titleStr = page.header.examTitle ? `Kỳ thi: ${page.header.examTitle}` : "";
+        const subStr = page.header.subjectName ? `Môn: ${page.header.subjectName}` : "";
+        const clsStr = page.header.className ? ` - Lớp: ${page.header.className}` : "";
         doc.text(`${titleStr}`, toPt(20), toPt(23), { width: toPt(140) });
         doc.text(`${subStr}${clsStr}`, toPt(20), toPt(28), { width: toPt(140) });
 
         // Page indicator
-        doc.font("Helvetica-Bold").fontSize(8).fillColor("#555555");
+        doc.font(fontBold).fontSize(8).fillColor("#555555");
         doc.text(`TRANG ${page.pageNumber} / ${page.totalPages}`, toPt(20), toPt(34));
         doc.restore();
 
-        // 3. Draw QR Code
+        // 3. Draw QR Code (Identical Geometry & Placement)
         if (page.qr && page.qr.payload) {
           const qrBuffer = await QRCode.toBuffer(JSON.stringify(page.qr.payload), {
             errorCorrectionLevel: "M",
@@ -77,28 +160,28 @@ export async function renderAnswerSheetPdf(layoutJson) {
           });
         }
 
-        // 4. Instructions Box
+        // 4. Instructions Box (Vietnamese Unicode Supported)
         doc.save();
         const instX = toPt(90);
         const instY = toPt(42);
         const instW = toPt(100);
         const instH = toPt(56);
         doc.rect(instX, instY, instW, instH).lineWidth(0.8).strokeColor("#666666").stroke();
-        doc.font("Helvetica-Bold").fontSize(8).fillColor("#000000");
-        doc.text("HUONG DAN TO PHIEU:", instX + 6, instY + 5);
-        doc.font("Helvetica").fontSize(7.5).fillColor("#333333");
-        doc.text("1. Dung but chi 2B de to tron cac o.", instX + 6, instY + 16);
-        doc.text("2. To dam va kin o, khong to ngoai vien.", instX + 6, instY + 25);
-        doc.text("3. Tay sach bang gom neu sua dap an.", instX + 6, instY + 34);
-        doc.text("4. Giu phieu phang, khong gap, khong lam rach.", instX + 6, instY + 43);
+        doc.font(fontBold).fontSize(8).fillColor("#000000");
+        doc.text("HƯỚNG DẪN TÔ PHIẾU:", instX + 6, instY + 5);
+        doc.font(fontRegular).fontSize(7.5).fillColor("#333333");
+        doc.text("1. Dùng bút chì 2B để tô tròn các ô.", instX + 6, instY + 16);
+        doc.text("2. Tô đậm và kín ô, không tô ngoài viền.", instX + 6, instY + 25);
+        doc.text("3. Tẩy sạch bằng gôm nếu sửa đáp án.", instX + 6, instY + 34);
+        doc.text("4. Giữ phiếu phẳng, không gập, không làm rách.", instX + 6, instY + 43);
         doc.restore();
 
-        // 5. Draw SBD Grid
+        // 5. Draw SBD Grid (Identical Geometry & Placement)
         if (page.studentNumber) {
           const sn = page.studentNumber;
           doc.save();
-          doc.font("Helvetica-Bold").fontSize(8).fillColor("#000000");
-          doc.text("SO BAO DANH", toPt(sn.xMm), toPt(sn.yMm - 5));
+          doc.font(fontBold).fontSize(8).fillColor("#000000");
+          doc.text("SỐ BÁO DANH", toPt(sn.xMm), toPt(sn.yMm - 5));
 
           // Draw columns
           for (const col of sn.columns) {
@@ -112,19 +195,19 @@ export async function renderAnswerSheetPdf(layoutJson) {
               const cy = toPt(b.centerY);
               const r = toPt(b.radiusMm);
               doc.circle(cx, cy, r).lineWidth(0.6).strokeColor("#000000").stroke();
-              doc.font("Helvetica").fontSize(6).fillColor("#000000");
+              doc.font(fontRegular).fontSize(6).fillColor("#000000");
               doc.text(String(b.digit), cx - 2, cy - 3, { width: 4, align: "center" });
             }
           }
           doc.restore();
         }
 
-        // 6. Draw Exam Code Grid
+        // 6. Draw Exam Code Grid (Identical Geometry & Placement)
         if (page.examCode) {
           const ec = page.examCode;
           doc.save();
-          doc.font("Helvetica-Bold").fontSize(8).fillColor("#000000");
-          doc.text("MA DE", toPt(ec.xMm), toPt(ec.yMm - 5));
+          doc.font(fontBold).fontSize(8).fillColor("#000000");
+          doc.text("MÃ ĐỀ", toPt(ec.xMm), toPt(ec.yMm - 5));
 
           for (const col of ec.columns) {
             doc.rect(toPt(col.writeBox.xMm), toPt(col.writeBox.yMm), toPt(col.writeBox.widthMm), toPt(col.writeBox.heightMm))
@@ -135,7 +218,7 @@ export async function renderAnswerSheetPdf(layoutJson) {
               const cy = toPt(b.centerY);
               const r = toPt(b.radiusMm);
               doc.circle(cx, cy, r).lineWidth(0.6).strokeColor("#000000").stroke();
-              doc.font("Helvetica").fontSize(6).fillColor("#000000");
+              doc.font(fontRegular).fontSize(6).fillColor("#000000");
               doc.text(String(b.digit), cx - 2, cy - 3, { width: 4, align: "center" });
             }
           }
@@ -144,9 +227,9 @@ export async function renderAnswerSheetPdf(layoutJson) {
 
         // 7. Column Headers for Answers Area
         doc.save();
-        doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#000000");
+        doc.font(fontBold).fontSize(7.5).fillColor("#000000");
         // Column 1 header
-        doc.text("CAU", toPt(20), toPt(101));
+        doc.text("CÂU", toPt(20), toPt(101));
         doc.text("A", toPt(36), toPt(101));
         doc.text("B", toPt(45), toPt(101));
         doc.text("C", toPt(54), toPt(101));
@@ -155,7 +238,7 @@ export async function renderAnswerSheetPdf(layoutJson) {
         // Column 2 header (if questions exist in col 2)
         const hasCol2 = page.answers.some((q) => q.column === 2);
         if (hasCol2) {
-          doc.text("CAU", toPt(112), toPt(101));
+          doc.text("CÂU", toPt(112), toPt(101));
           doc.text("A", toPt(128), toPt(101));
           doc.text("B", toPt(137), toPt(101));
           doc.text("C", toPt(146), toPt(101));
@@ -163,11 +246,11 @@ export async function renderAnswerSheetPdf(layoutJson) {
         }
         doc.restore();
 
-        // 8. Draw Answer Questions & Bubbles
+        // 8. Draw Answer Questions & Bubbles (Identical Geometry)
         doc.save();
         for (const q of page.answers) {
           // Question number
-          doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#000000");
+          doc.font(fontBold).fontSize(7.5).fillColor("#000000");
           const qNumStr = q.questionNumber < 10 ? `0${q.questionNumber}` : String(q.questionNumber);
           doc.text(qNumStr, toPt(q.labelBox.xMm), toPt(q.labelBox.yMm + 1.2), {
             width: toPt(12),
@@ -186,7 +269,7 @@ export async function renderAnswerSheetPdf(layoutJson) {
             doc.circle(cx, cy, r).lineWidth(0.6).strokeColor("#000000").stroke();
 
             // Inner letter
-            doc.font("Helvetica").fontSize(5.5).fillColor("#000000");
+            doc.font(fontRegular).fontSize(5.5).fillColor("#000000");
             doc.text(letter, cx - 2.2, cy - 2.8, { width: 4.4, align: "center" });
           }
         }
@@ -194,7 +277,7 @@ export async function renderAnswerSheetPdf(layoutJson) {
 
         // 9. Footer line
         doc.save();
-        doc.font("Helvetica").fontSize(6.5).fillColor("#777777");
+        doc.font(fontRegular).fontSize(6.5).fillColor("#777777");
         doc.text(
           `DigitalExamGrading OMR - Template Version: ${layoutJson.templateVersion} - Page ${page.pageNumber}/${page.totalPages}`,
           toPt(20),

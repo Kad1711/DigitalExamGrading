@@ -47,7 +47,19 @@ function tokenExpiresAt(token) {
 // =====================================================
 
 export async function login(email, password) {
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: {
+      teacher: {
+        select: {
+          id: true,
+          teacherCode: true,
+          fullName: true,
+          phone: true,
+        },
+      },
+    },
+  });
 
   if (!user) {
     throw new AppError(
@@ -89,6 +101,8 @@ export async function login(email, password) {
       email: user.email,
       role: user.role,
       status: user.status,
+      fullName: user.teacher?.fullName || null,
+      teacher: user.teacher || null,
     },
     accessToken,
     refreshToken,

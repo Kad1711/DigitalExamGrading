@@ -1,4 +1,5 @@
 import cv2
+import base64
 import numpy as np
 from pathlib import Path
 from app.config import (
@@ -186,10 +187,22 @@ def process_omr_sheet(image_bytes: bytes, layout_json: dict) -> dict:
 
     for q in answers_mapped:
         ans_res = read_answer_question(canonical_gray, q)
-        answers_results.append(ans_res)
 
         if ans_res["status"] in ("MULTIPLE", "UNCERTAIN"):
             needs_review_questions.append(ans_res["questionNumber"])
+            # Generate in-memory visual review crop for the teacher
+            opts = q.get("options", {})
+            if opts:
+                min_x = max(0, min(opt["centerX_px"] - opt["radius_px"] for opt in opts.values()) - 45)
+                max_x = min(canonical_bgr.shape[1], max(opt["centerX_px"] + opt["radius_px"] for opt in opts.values()) + 20)
+                min_y = max(0, min(opt["centerY_px"] - opt["radius_px"] for opt in opts.values()) - 14)
+                max_y = min(canonical_bgr.shape[0], max(opt["centerY_px"] + opt["radius_px"] for opt in opts.values()) + 14)
+                crop = canonical_bgr[min_y:max_y, min_x:max_x]
+                if crop.size > 0:
+                    _, buf = cv2.imencode('.jpg', crop, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                    ans_res["reviewCropDataUrl"] = "data:image/jpeg;base64," + base64.b64encode(buf).decode("utf-8")
+
+        answers_results.append(ans_res)
 
     # 11. Determine Overall Page Status
     if needs_review_questions or student_number_status != "OK" or exam_code_status != "OK":

@@ -25,6 +25,12 @@ EMPTY_FILL_RATIO: float = float(os.getenv("OMR_EMPTY_FILL_RATIO", "0.15"))
 MIN_SELECTION_MARGIN: float = float(os.getenv("OMR_MIN_SELECTION_MARGIN", "0.12"))
 INNER_RADIUS_RATIO: float = float(os.getenv("OMR_INNER_RADIUS_RATIO", "0.70"))
 
+# Dominant Bubble Classification Thresholds (Printed Glyph Baseline Resilience)
+DOMINANCE_MIN_FILL: float = float(os.getenv("OMR_DOMINANCE_MIN_FILL", "0.60"))
+DOMINANCE_MARGIN: float = float(os.getenv("OMR_DOMINANCE_MARGIN", "0.28"))
+MAX_GLYPH_BASELINE: float = float(os.getenv("OMR_MAX_GLYPH_BASELINE", "0.45"))
+MAX_ALIGNMENT_DRIFT_PX: int = int(os.getenv("OMR_MAX_ALIGNMENT_DRIFT_PX", "12"))
+
 # QR Code ROI Configuration by Template Version
 QR_ROI_BY_TEMPLATE_VERSION: dict[str, dict] = {
     "OMR_V1": {

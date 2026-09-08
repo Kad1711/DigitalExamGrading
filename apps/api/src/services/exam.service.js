@@ -161,14 +161,37 @@ export async function getExamById(examId, reqUser) {
 export async function updateExam(examId, data, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
 
-  if (exam.status !== "DRAFT") {
-    const lockedFields = ["questionCount", "scoringType", "maxScore"];
+  if (exam.status === "CLOSED") {
+    throw new AppError(
+      "Không thể chỉnh sửa kỳ thi đã đóng.",
+      409,
+      "EXAM_FIELD_LOCKED"
+    );
+  }
+
+  if (exam.status === "ARCHIVED") {
+    throw new AppError(
+      "Không thể chỉnh sửa kỳ thi đã lưu trữ.",
+      409,
+      "EXAM_FIELD_LOCKED"
+    );
+  }
+
+  if (exam.status === "PUBLISHED") {
+    // In PUBLISHED state, only safe metadata (title, description, allowStudentViewAnswers, allowStudentViewImage) are allowed!
+    const lockedFields = [
+      "subjectId",
+      "classId",
+      "questionCount",
+      "maxScore",
+      "scoringType",
+    ];
     for (const field of lockedFields) {
       if (data[field] !== undefined) {
         throw new AppError(
-          `Khong the thay doi '${field}' khi ky thi khong o trang thai DRAFT.`,
+          `Trường '${field}' đã bị khóa sau khi kỳ thi được phát hành.`,
           409,
-          "EXAM_NOT_DRAFT"
+          "EXAM_FIELD_LOCKED"
         );
       }
     }
@@ -197,8 +220,90 @@ export async function updateExam(examId, data, reqUser) {
 
 export async function deleteExam(examId, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
-  assertExamDraft(exam);
+  if (exam.status !== "DRAFT") {
+    throw new AppError(
+      "Chỉ có thể xóa vĩnh viễn kỳ thi ở trạng thái Nháp.",
+      409,
+      "EXAM_DELETE_NOT_ALLOWED"
+    );
+  }
   await prisma.exam.delete({ where: { id: examId } });
+}
+
+export async function cloneExam(examId, reqUser) {
+  const sourceExam = await assertExamAccess(examId, reqUser);
+
+  // Fetch all ExamCodes of source exam with their AnswerKeys
+  const sourceCodes = await prisma.examCode.findMany({
+    where: { examId },
+    include: {
+      answerKeys: {
+        orderBy: { questionNumber: "asc" },
+      },
+    },
+    orderBy: { code: "asc" },
+  });
+
+  // Default title: "<old title> - Bản sao" (clamped to 255 chars)
+  let clonedTitle = `${sourceExam.title} - Bản sao`;
+  if (clonedTitle.length > 255) {
+    clonedTitle = clonedTitle.slice(0, 255);
+  }
+
+  // Atomic transaction
+  const clonedExam = await prisma.$transaction(async (tx) => {
+    // 1. Create new exam in DRAFT state
+    const newExam = await tx.exam.create({
+      data: {
+        title: clonedTitle,
+        description: sourceExam.description,
+        teacherId: sourceExam.teacherId,
+        subjectId: sourceExam.subjectId,
+        classId: sourceExam.classId,
+        questionCount: sourceExam.questionCount,
+        maxScore: sourceExam.maxScore,
+        scoringType: sourceExam.scoringType,
+        allowStudentViewAnswers: sourceExam.allowStudentViewAnswers,
+        allowStudentViewImage: sourceExam.allowStudentViewImage,
+        status: "DRAFT",
+        publishedAt: null,
+      },
+      include: {
+        subject: { select: { id: true, name: true, code: true } },
+        class: { select: { id: true, name: true } },
+        teacher: { select: { id: true, fullName: true, teacherCode: true } },
+      },
+    });
+
+    // 2. Clone ExamCodes and their AnswerKeys
+    for (const sc of sourceCodes) {
+      const newCode = await tx.examCode.create({
+        data: {
+          examId: newExam.id,
+          code: sc.code,
+        },
+      });
+
+      if (sc.answerKeys.length > 0) {
+        await tx.answerKey.createMany({
+          data: sc.answerKeys.map((ak) => ({
+            examCodeId: newCode.id,
+            questionNumber: ak.questionNumber,
+            correctAnswer: ak.correctAnswer,
+            score: ak.score,
+          })),
+        });
+      }
+    }
+
+    // NOTE: AnswerSheetTemplate is INTENTIONALLY NOT CLONED!
+    // The clone intentionally has no template. Teacher must generate a new OMR template
+    // to bind with the new examId, new templateId, and new QR metadata.
+
+    return newExam;
+  });
+
+  return clonedExam;
 }
 
 // =====================================================

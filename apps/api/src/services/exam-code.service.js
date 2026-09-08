@@ -1,15 +1,28 @@
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import { assertExamAccess, assertExamDraft } from "./exam.service.js";
+import { normalizeExamCode } from "../utils/exam-code.js";
 
 export async function createExamCode(examId, code, reqUser) {
+  const canonicalCode = normalizeExamCode(code);
   const exam = await assertExamAccess(examId, reqUser);
   assertExamDraft(exam);
 
-  const existing = await prisma.examCode.findUnique({
-    where: { examId_code: { examId, code } },
+  // Kiem tra xem co ma de nao da ton tai sau khi chuan hoa
+  const existingCodes = await prisma.examCode.findMany({
+    where: { examId },
+    select: { code: true },
   });
-  if (existing) {
+
+  const duplicate = existingCodes.some((ec) => {
+    try {
+      return normalizeExamCode(ec.code) === canonicalCode;
+    } catch {
+      return ec.code === canonicalCode;
+    }
+  });
+
+  if (duplicate) {
     throw new AppError(
       `Ma de '${code}' da ton tai trong ky thi nay.`,
       409,
@@ -17,7 +30,7 @@ export async function createExamCode(examId, code, reqUser) {
     );
   }
 
-  return prisma.examCode.create({ data: { examId, code } });
+  return prisma.examCode.create({ data: { examId, code: canonicalCode } });
 }
 
 export async function listExamCodes(examId, reqUser) {

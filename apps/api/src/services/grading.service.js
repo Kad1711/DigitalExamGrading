@@ -3,6 +3,7 @@ import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import { assertExamAccess } from "./exam.service.js";
 import { analyzeOmrSheet } from "./omr-client.service.js";
+import { normalizeExamCode } from "../utils/exam-code.js";
 
 /**
  * Pure evaluation function for student answers against answer keys.
@@ -55,43 +56,87 @@ export function evaluateSubmission({ exam, answerKeys, omrAnswers }) {
     let isCorrect = null;
     let scoreEarned = null;
 
-    if (omrStatus === "MARKED") {
-      if (detectedAnswer === correctAnswer) {
-        isCorrect = true;
-        correctCount++;
-        if (scoringType === "CUSTOM" && key) {
-          const keyScore = new Prisma.Decimal(key.score);
-          customScoreDecimal = customScoreDecimal.plus(keyScore);
-          scoreEarned = keyScore.toNumber();
-        } else if (scoringType === "EQUAL") {
-          scoreEarned = Math.round((maxScore / questionCount) * 10000) / 10000;
+    if (omr.resolvedByTeacher) {
+      const resolution =
+        omr.teacherResolution ||
+        (omr.resolvedAnswer ? "ANSWER" : omr.resolvedAnswer === null ? "BLANK" : null);
+
+      if (resolution === "ANSWER") {
+        const teacherAns = omr.resolvedAnswer;
+        if (teacherAns === correctAnswer) {
+          isCorrect = true;
+          correctCount++;
+          if (scoringType === "CUSTOM" && key) {
+            const keyScore = new Prisma.Decimal(key.score);
+            customScoreDecimal = customScoreDecimal.plus(keyScore);
+            scoreEarned = keyScore.toNumber();
+          } else if (scoringType === "EQUAL") {
+            scoreEarned = Math.round((maxScore / questionCount) * 10000) / 10000;
+          }
+        } else {
+          isCorrect = false;
+          incorrectCount++;
+          scoreEarned = 0;
         }
-      } else {
+      } else if (resolution === "BLANK") {
+        isCorrect = false;
+        blankCount++;
+        scoreEarned = 0;
+      } else if (resolution === "MULTIPLE_INVALID") {
         isCorrect = false;
         incorrectCount++;
         scoreEarned = 0;
       }
-    } else if (omrStatus === "BLANK") {
-      isCorrect = false;
-      blankCount++;
-      scoreEarned = 0;
     } else {
-      // MULTIPLE or UNCERTAIN or other unresolved states
-      // candidate MUST NEVER be graded as final answer!
-      isCorrect = null;
-      unresolvedCount++;
-      scoreEarned = null;
+      if (omrStatus === "MARKED") {
+        if (detectedAnswer === correctAnswer) {
+          isCorrect = true;
+          correctCount++;
+          if (scoringType === "CUSTOM" && key) {
+            const keyScore = new Prisma.Decimal(key.score);
+            customScoreDecimal = customScoreDecimal.plus(keyScore);
+            scoreEarned = keyScore.toNumber();
+          } else if (scoringType === "EQUAL") {
+            scoreEarned = Math.round((maxScore / questionCount) * 10000) / 10000;
+          }
+        } else {
+          isCorrect = false;
+          incorrectCount++;
+          scoreEarned = 0;
+        }
+      } else if (omrStatus === "BLANK") {
+        isCorrect = false;
+        blankCount++;
+        scoreEarned = 0;
+      } else {
+        // MULTIPLE or UNCERTAIN or other unresolved states
+        // candidate MUST NEVER be graded as final answer!
+        isCorrect = null;
+        unresolvedCount++;
+        scoreEarned = null;
+      }
     }
 
     gradedQuestions.push({
       questionNumber: qn,
-      detectedAnswer,
+      detectedAnswer:
+        omr.resolvedByTeacher && omr.teacherResolution === "ANSWER"
+          ? omr.resolvedAnswer
+          : detectedAnswer,
       candidate,
       omrStatus,
       correctAnswer,
       isCorrect,
       confidence,
       scoreEarned,
+      fillRatios: omr.fillRatios || null,
+      reviewCropDataUrl: omr.reviewCropDataUrl || null,
+      resolvedByTeacher: omr.resolvedByTeacher || false,
+      teacherResolution: omr.teacherResolution || undefined,
+      resolvedAnswer: omr.resolvedAnswer !== undefined ? omr.resolvedAnswer : undefined,
+      originalOmrStatus: omr.originalOmrStatus || omrStatus,
+      originalCandidates: omr.originalCandidates || undefined,
+      needsReview: !omr.resolvedByTeacher && (omrStatus === "MULTIPLE" || omrStatus === "UNCERTAIN"),
     });
   }
 
@@ -123,6 +168,157 @@ export function evaluateSubmission({ exam, answerKeys, omrAnswers }) {
 }
 
 /**
+ * Applies teacher review overrides onto OMR answers (stateless manual review).
+ *
+ * Supported resolutions:
+ * - "ANSWER": requires valid "A", "B", "C", or "D" answer.
+ * - "BLANK": student left blank. Answer must not be supplied.
+ * - "MULTIPLE_INVALID": student marked multiple bubbles. Answer must not be supplied.
+ * - "UNRESOLVED": student mark cannot be determined. Answer must not be supplied.
+ *
+ * @param {object} params
+ * @param {object} params.exam - { id, questionCount }
+ * @param {object} params.omrData - OMR recognition output { answers, needsReviewQuestions, ... }
+ * @param {Array<object>} params.reviewOverrides - list of override items
+ * @returns {object} updated omrData
+ */
+export function applyReviewOverrides({ exam, omrData, reviewOverrides }) {
+  if (!reviewOverrides || !Array.isArray(reviewOverrides) || reviewOverrides.length === 0) {
+    return omrData;
+  }
+
+  const seenQuestions = new Set();
+  const VALID_RESOLUTIONS = ["ANSWER", "BLANK", "MULTIPLE_INVALID", "UNRESOLVED"];
+
+  for (const ro of reviewOverrides) {
+    if (!ro || typeof ro !== "object") {
+      throw new AppError(
+        "Mục xác nhận bài thi không đúng định dạng đối tượng.",
+        400,
+        "INVALID_REVIEW_OVERRIDE_ITEM"
+      );
+    }
+
+    const qn = Number(ro.questionNumber);
+    if (!Number.isInteger(qn) || qn < 1 || qn > exam.questionCount) {
+      throw new AppError(
+        `Số thứ tự câu hỏi không hợp lệ trong yêu cầu xác nhận: ${ro.questionNumber}`,
+        400,
+        "INVALID_OVERRIDE_QUESTION_NUMBER"
+      );
+    }
+    if (seenQuestions.has(qn)) {
+      throw new AppError(
+        `Trùng lặp câu hỏi số ${qn} trong danh sách xác nhận.`,
+        400,
+        "DUPLICATE_REVIEW_OVERRIDE"
+      );
+    }
+    seenQuestions.add(qn);
+
+    const targetAns = omrData.answers.find((a) => a.questionNumber === qn);
+    if (!targetAns) {
+      throw new AppError(
+        `Không tìm thấy kết quả nhận diện của câu hỏi ${qn}.`,
+        404,
+        "OMR_QUESTION_NOT_FOUND"
+      );
+    }
+
+    // SECURITY RULE: Only MULTIPLE or UNCERTAIN questions can be manually resolved
+    if (!["MULTIPLE", "UNCERTAIN"].includes(targetAns.status)) {
+      throw new AppError(
+        `Không thể can thiệp câu hỏi ${qn} vì câu hỏi này đã được AI nhận diện rõ ràng (${targetAns.status}).`,
+        400,
+        "CANNOT_OVERRIDE_RESOLVED_QUESTION"
+      );
+    }
+
+    const resolution = ro.resolution;
+    if (!VALID_RESOLUTIONS.includes(resolution)) {
+      throw new AppError(
+        `Loại xác nhận không hợp lệ cho câu ${qn}: ${resolution}. Các loại hợp lệ: ${VALID_RESOLUTIONS.join(", ")}`,
+        400,
+        "INVALID_REVIEW_RESOLUTION"
+      );
+    }
+
+    // Preserve original OMR state for teacher-resolution metadata
+    targetAns.originalOmrStatus = targetAns.originalOmrStatus || targetAns.status;
+    targetAns.originalCandidates = targetAns.originalCandidates || (
+      targetAns.candidate
+        ? [targetAns.candidate]
+        : targetAns.fillRatios
+        ? Object.keys(targetAns.fillRatios).filter((k) => targetAns.fillRatios[k] >= 0.35)
+        : []
+    );
+
+    if (resolution === "ANSWER") {
+      const ans = ro.answer ? String(ro.answer).toUpperCase() : null;
+      if (!ans || !["A", "B", "C", "D"].includes(ans)) {
+        throw new AppError(
+          `Phương án xác nhận không hợp lệ cho câu ${qn}: ${ro.answer}. Khi chọn ANSWER, bắt buộc phải chọn A, B, C hoặc D.`,
+          400,
+          "INVALID_OVERRIDE_ANSWER"
+        );
+      }
+
+      targetAns.resolvedByTeacher = true;
+      targetAns.teacherResolution = "ANSWER";
+      targetAns.resolvedAnswer = ans;
+
+      omrData.needsReviewQuestions = (omrData.needsReviewQuestions || []).filter((qNum) => qNum !== qn);
+    } else if (resolution === "BLANK") {
+      if (ro.answer !== undefined && ro.answer !== null) {
+        throw new AppError(
+          `Không được cung cấp đáp án (answer) khi chọn xác nhận BLANK cho câu ${qn}.`,
+          400,
+          "INVALID_OVERRIDE_ANSWER"
+        );
+      }
+
+      targetAns.resolvedByTeacher = true;
+      targetAns.teacherResolution = "BLANK";
+      targetAns.resolvedAnswer = null;
+
+      omrData.needsReviewQuestions = (omrData.needsReviewQuestions || []).filter((qNum) => qNum !== qn);
+    } else if (resolution === "MULTIPLE_INVALID") {
+      if (ro.answer !== undefined && ro.answer !== null) {
+        throw new AppError(
+          `Không được cung cấp đáp án (answer) khi chọn xác nhận MULTIPLE_INVALID cho câu ${qn}.`,
+          400,
+          "INVALID_OVERRIDE_ANSWER"
+        );
+      }
+
+      targetAns.resolvedByTeacher = true;
+      targetAns.teacherResolution = "MULTIPLE_INVALID";
+      targetAns.resolvedAnswer = null;
+
+      omrData.needsReviewQuestions = (omrData.needsReviewQuestions || []).filter((qNum) => qNum !== qn);
+    } else if (resolution === "UNRESOLVED") {
+      if (ro.answer !== undefined && ro.answer !== null) {
+        throw new AppError(
+          `Không được cung cấp đáp án (answer) khi trạng thái là UNRESOLVED cho câu ${qn}.`,
+          400,
+          "INVALID_OVERRIDE_ANSWER"
+        );
+      }
+
+      targetAns.resolvedByTeacher = false;
+      targetAns.teacherResolution = "UNRESOLVED";
+      targetAns.resolvedAnswer = null;
+
+      if (!omrData.needsReviewQuestions.includes(qn)) {
+        omrData.needsReviewQuestions.push(qn);
+      }
+    }
+  }
+
+  return omrData;
+}
+
+/**
  * Complete grading orchestration pipeline:
  * Exam ownership -> exam status -> template lookup -> FastAPI call -> QR verification
  * -> ExamCode lookup -> AnswerKey lookup -> grading
@@ -131,9 +327,10 @@ export function evaluateSubmission({ exam, answerKeys, omrAnswers }) {
  * @param {Buffer} imageBuffer
  * @param {string} filename
  * @param {object} reqUser
+ * @param {Array<object>} reviewOverrides
  * @returns {Promise<object>} Full response payload
  */
-export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
+export async function gradeExamImage(examId, imageBuffer, filename, reqUser, reviewOverrides = null) {
   const t0 = performance.now();
 
   // 1. Exam access & ownership
@@ -142,7 +339,7 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
   // 2. Exam status check (Only PUBLISHED exams can be graded in Phase 5)
   if (exam.status !== "PUBLISHED") {
     throw new AppError(
-      "Chỉ có thể chấm bài cho kỳ thi ở trạng thái PUBLISHED.",
+      "Chỉ có thể chấm bài cho kỳ thi đã phát hành.",
       409,
       "EXAM_NOT_AVAILABLE_FOR_GRADING"
     );
@@ -203,6 +400,8 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
       `[GRADE] examId=${exam.id} status=NEEDS_REVIEW reason=EXAM_CODE_UNCERTAIN omrMs=${omrTimeMs} totalMs=${totalTimeMs}`
     );
     return {
+      status: "NEEDS_REVIEW",
+      reason: "EXAM_CODE_UNCERTAIN",
       exam: {
         id: exam.id,
         title: exam.title,
@@ -219,8 +418,6 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
         identityNeedsReview,
       },
       grading: null,
-      status: "NEEDS_REVIEW",
-      reason: "EXAM_CODE_UNCERTAIN",
       meta: {
         processingTimeMs: totalTimeMs,
         omrTimeMs,
@@ -230,13 +427,16 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
   }
 
   const detectedCode = omrData.examCode.value;
-  const examCode = await prisma.examCode.findUnique({
-    where: {
-      examId_code: {
-        examId,
-        code: detectedCode,
-      },
-    },
+  let normalizedDetectedCode;
+  try {
+    normalizedDetectedCode = normalizeExamCode(detectedCode);
+  } catch {
+    normalizedDetectedCode = detectedCode;
+  }
+
+  // Load tat ca ma de cua ky thi de so sanh ca ma goc va ma da chuan hoa (vi du: "001" khop voi "01")
+  const allExamCodes = await prisma.examCode.findMany({
+    where: { examId },
     include: {
       answerKeys: {
         orderBy: { questionNumber: "asc" },
@@ -244,12 +444,25 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
     },
   });
 
+  const examCode = allExamCodes.find((ec) => {
+    try {
+      return normalizeExamCode(ec.code) === normalizedDetectedCode;
+    } catch {
+      return ec.code === detectedCode;
+    }
+  });
+
   if (!examCode) {
     throw new AppError(
-      `Mã đề '${detectedCode}' không tồn tại trong kỳ thi này.`,
+      `Mã đề '${detectedCode}' (chuẩn hóa: '${normalizedDetectedCode}') không tồn tại trong kỳ thi này.`,
       404,
       "OMR_EXAM_CODE_NOT_FOUND"
     );
+  }
+
+  // 6b. Apply Teacher Review Overrides (stateless manual review)
+  if (reviewOverrides && Array.isArray(reviewOverrides) && reviewOverrides.length > 0) {
+    applyReviewOverrides({ exam, omrData, reviewOverrides });
   }
 
   // 7. Grade submission with timing
@@ -267,6 +480,7 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
   );
 
   return {
+    status: grading.status,
     exam: {
       id: exam.id,
       title: exam.title,

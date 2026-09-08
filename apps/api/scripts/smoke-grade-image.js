@@ -58,9 +58,15 @@ async function smokeTest() {
   assert.ok(publishedExams.length > 0, "Không có kỳ thi nào ở trạng thái PUBLISHED");
   console.log(`   ✓ Tìm thấy ${publishedExams.length} kỳ thi PUBLISHED.`);
 
-  // Find target 40-question exam or first available
+  // Stable selection strategy:
+  // 1. Prefer exam matching process.env.TEST_EXAM_ID or known dev fixture exam ID (matching the QR in the synthetic test image)
+  // 2. Fallback to finding a published 40-question EQUAL exam
+  const preferredExamId = process.env.TEST_EXAM_ID || "cmtrppwdw002luouezxhplff5";
   const exam =
-    publishedExams.find((e) => e.questionCount === 40) || publishedExams[0];
+    publishedExams.find((e) => e.id === preferredExamId) ||
+    publishedExams.find((e) => e.questionCount === 40 && e.scoringType === "EQUAL") ||
+    publishedExams[0];
+  assert.ok(exam, "Không tìm thấy kỳ thi phù hợp để chạy smoke test");
   console.log(`   ✓ Chọn kỳ thi: "${exam.title}" (ID: ${exam.id})`);
 
   // 4. Download AnswerSheetTemplate PDF from DB

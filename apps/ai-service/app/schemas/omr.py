@@ -34,6 +34,7 @@ class AnswerResult(BaseModel):
     status: str
     confidence: float
     fillRatios: Dict[str, float]
+    reviewCropDataUrl: Optional[str] = None
 
 class OMRAnalysisData(BaseModel):
     status: str  # "OK" | "NEEDS_REVIEW" | "FAILED"

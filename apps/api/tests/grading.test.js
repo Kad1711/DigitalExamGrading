@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Prisma } from "@prisma/client";
-import { evaluateSubmission } from "../src/services/grading.service.js";
+import { evaluateSubmission, applyReviewOverrides } from "../src/services/grading.service.js";
 import { analyzeOmrSheet } from "../src/services/omr-client.service.js";
 
 test("Grading Engine - EQUAL scoring: 40 questions, 32 correct, maxScore 10 -> exactly 8.0", () => {
@@ -241,4 +241,251 @@ test("Grading Orchestrator - Exam and Template ID mismatch verification logic", 
 
   assert.notEqual(omrExamMismatch.template.examId, currentExamId);
   assert.notEqual(omrTemplateMismatch.template.templateId, currentTemplateId);
+});
+
+test("Manual Review - evaluateSubmission preserves crop and teacher resolution metadata", () => {
+  const exam = {
+    questionCount: 4,
+    maxScore: 10,
+    scoringType: "EQUAL",
+  };
+
+  const answerKeys = [
+    { questionNumber: 1, correctAnswer: "A", score: new Prisma.Decimal("2.5") },
+    { questionNumber: 2, correctAnswer: "B", score: new Prisma.Decimal("2.5") },
+    { questionNumber: 3, correctAnswer: "C", score: new Prisma.Decimal("2.5") },
+    { questionNumber: 4, correctAnswer: "D", score: new Prisma.Decimal("2.5") },
+  ];
+
+  // Q1 is MARKED A (correct)
+  // Q2 is resolved by teacher to B (originally MULTIPLE)
+  // Q3 is resolved by teacher to null (BLANK, originally UNCERTAIN)
+  // Q4 is MARKED D (correct)
+  const omrAnswers = [
+    { questionNumber: 1, answer: "A", candidate: "A", status: "MARKED", confidence: 0.99 },
+    {
+      questionNumber: 2,
+      answer: "B",
+      candidate: "B",
+      status: "MARKED",
+      confidence: 1.0,
+      resolvedByTeacher: true,
+      teacherResolution: "ANSWER",
+      resolvedAnswer: "B",
+      originalOmrStatus: "MULTIPLE",
+      originalCandidates: ["B", "C"],
+      reviewCropDataUrl: "data:image/jpeg;base64,fakecropq2",
+    },
+    {
+      questionNumber: 3,
+      answer: null,
+      candidate: null,
+      status: "BLANK",
+      confidence: 1.0,
+      resolvedByTeacher: true,
+      teacherResolution: "BLANK",
+      resolvedAnswer: null,
+      originalOmrStatus: "UNCERTAIN",
+      originalCandidates: ["C"],
+      reviewCropDataUrl: "data:image/jpeg;base64,fakecropq3",
+    },
+    { questionNumber: 4, answer: "D", candidate: "D", status: "MARKED", confidence: 0.95 },
+  ];
+
+  const result = evaluateSubmission({ exam, answerKeys, omrAnswers });
+
+  assert.equal(result.status, "FINAL");
+  assert.equal(result.unresolvedCount, 0);
+  assert.equal(result.correctCount, 3); // Q1 (A), Q2 (B), Q4 (D)
+  assert.equal(result.blankCount, 1);   // Q3 (blank)
+  assert.equal(result.finalScore, 7.5); // 3/4 * 10 = 7.5
+
+  const q2 = result.questions.find((q) => q.questionNumber === 2);
+  assert.equal(q2.resolvedByTeacher, true);
+  assert.equal(q2.resolvedAnswer, "B");
+  assert.equal(q2.originalOmrStatus, "MULTIPLE");
+  assert.equal(q2.reviewCropDataUrl, "data:image/jpeg;base64,fakecropq2");
+  assert.equal(q2.isCorrect, true);
+
+  const q3 = result.questions.find((q) => q.questionNumber === 3);
+  assert.equal(q3.resolvedByTeacher, true);
+  assert.equal(q3.resolvedAnswer, null);
+  assert.equal(q3.originalOmrStatus, "UNCERTAIN");
+  assert.equal(q3.isCorrect, false);
+});
+
+test("Manual Review - Security & Business Rules: A through H", () => {
+  const exam = { id: "exam-test", questionCount: 4, maxScore: 10, scoringType: "EQUAL" };
+  const answerKeys = [
+    { questionNumber: 1, correctAnswer: "A", score: new Prisma.Decimal("2.5") },
+    { questionNumber: 2, correctAnswer: "B", score: new Prisma.Decimal("2.5") },
+    { questionNumber: 3, correctAnswer: "C", score: new Prisma.Decimal("2.5") },
+    { questionNumber: 4, correctAnswer: "D", score: new Prisma.Decimal("2.5") },
+  ];
+
+  const getBaseOmr = () => ({
+    status: "SUCCESS",
+    answers: [
+      { questionNumber: 1, answer: "A", status: "MARKED", confidence: 0.95 },
+      { questionNumber: 2, answer: null, status: "MULTIPLE", candidate: "B", confidence: 0.8 },
+      { questionNumber: 3, answer: null, status: "UNCERTAIN", candidate: "C", confidence: 0.5 },
+      { questionNumber: 4, answer: null, status: "MULTIPLE", candidate: "D", confidence: 0.8 },
+    ],
+    needsReviewQuestions: [2, 3, 4],
+  });
+
+  // A. MULTIPLE -> MULTIPLE_INVALID -> resolved -> 0 score (original omrStatus remains MULTIPLE)
+  {
+    const omr = getBaseOmr();
+    applyReviewOverrides({
+      exam,
+      omrData: omr,
+      reviewOverrides: [{ questionNumber: 2, resolution: "MULTIPLE_INVALID" }],
+    });
+    const result = evaluateSubmission({ exam, answerKeys, omrAnswers: omr.answers });
+    const q2 = result.questions.find((q) => q.questionNumber === 2);
+    assert.equal(q2.omrStatus, "MULTIPLE"); // Original OMR status preserved
+    assert.equal(q2.originalOmrStatus, "MULTIPLE");
+    assert.equal(q2.teacherResolution, "MULTIPLE_INVALID");
+    assert.equal(q2.resolvedByTeacher, true);
+    assert.equal(q2.resolvedAnswer, null);
+    assert.equal(q2.scoreEarned, 0);
+    assert.equal(q2.isCorrect, false);
+    assert.equal(q2.confidence, 0.8); // Original confidence preserved
+    assert.equal(q2.needsReview, false);
+    assert.equal(omr.needsReviewQuestions.includes(2), false);
+  }
+
+  // B. UNCERTAIN -> BLANK -> resolved -> blankCount increments (original omrStatus remains UNCERTAIN)
+  {
+    const omr = getBaseOmr();
+    applyReviewOverrides({
+      exam,
+      omrData: omr,
+      reviewOverrides: [{ questionNumber: 3, resolution: "BLANK" }],
+    });
+    const result = evaluateSubmission({ exam, answerKeys, omrAnswers: omr.answers });
+    const q3 = result.questions.find((q) => q.questionNumber === 3);
+    assert.equal(q3.omrStatus, "UNCERTAIN"); // Original OMR status preserved
+    assert.equal(q3.originalOmrStatus, "UNCERTAIN");
+    assert.equal(q3.teacherResolution, "BLANK");
+    assert.equal(q3.resolvedByTeacher, true);
+    assert.equal(q3.resolvedAnswer, null);
+    assert.equal(q3.scoreEarned, 0);
+    assert.equal(q3.isCorrect, false);
+    assert.equal(q3.confidence, 0.5); // Original confidence preserved
+    assert.equal(q3.needsReview, false);
+    assert.equal(result.blankCount, 1);
+  }
+
+  // C. UNCERTAIN -> ANSWER C -> allowed if teacher resolution (original omrStatus remains UNCERTAIN)
+  {
+    const omr = getBaseOmr();
+    applyReviewOverrides({
+      exam,
+      omrData: omr,
+      reviewOverrides: [{ questionNumber: 3, resolution: "ANSWER", answer: "C" }],
+    });
+    const result = evaluateSubmission({ exam, answerKeys, omrAnswers: omr.answers });
+    const q3 = result.questions.find((q) => q.questionNumber === 3);
+    assert.equal(q3.omrStatus, "UNCERTAIN"); // Original OMR status preserved
+    assert.equal(q3.originalOmrStatus, "UNCERTAIN");
+    assert.equal(q3.teacherResolution, "ANSWER");
+    assert.equal(q3.resolvedByTeacher, true);
+    assert.equal(q3.resolvedAnswer, "C");
+    assert.equal(q3.detectedAnswer, "C");
+    assert.equal(q3.isCorrect, true);
+    assert.equal(q3.scoreEarned, 2.5);
+    assert.equal(q3.confidence, 0.5); // Original confidence preserved
+    assert.equal(q3.needsReview, false);
+  }
+
+  // D. MARKED clear question override -> rejected
+  {
+    const omr = getBaseOmr();
+    assert.throws(
+      () => {
+        applyReviewOverrides({
+          exam,
+          omrData: omr,
+          reviewOverrides: [{ questionNumber: 1, resolution: "ANSWER", answer: "B" }],
+        });
+      },
+      (err) => {
+        assert.equal(err.code, "CANNOT_OVERRIDE_RESOLVED_QUESTION");
+        return true;
+      }
+    );
+  }
+
+  // E. Malformed ANSWER without A-D -> rejected
+  {
+    const omr = getBaseOmr();
+    assert.throws(
+      () => {
+        applyReviewOverrides({
+          exam,
+          omrData: omr,
+          reviewOverrides: [{ questionNumber: 2, resolution: "ANSWER", answer: "XYZ" }],
+        });
+      },
+      (err) => {
+        assert.equal(err.code, "INVALID_OVERRIDE_ANSWER");
+        return true;
+      }
+    );
+  }
+
+  // F. MULTIPLE_INVALID with answer supplied -> rejected
+  {
+    const omr = getBaseOmr();
+    assert.throws(
+      () => {
+        applyReviewOverrides({
+          exam,
+          omrData: omr,
+          reviewOverrides: [{ questionNumber: 2, resolution: "MULTIPLE_INVALID", answer: "C" }],
+        });
+      },
+      (err) => {
+        assert.equal(err.code, "INVALID_OVERRIDE_ANSWER");
+        return true;
+      }
+    );
+  }
+
+  // G. UNRESOLVED remains provisional
+  {
+    const omr = getBaseOmr();
+    applyReviewOverrides({
+      exam,
+      omrData: omr,
+      reviewOverrides: [{ questionNumber: 2, resolution: "UNRESOLVED" }],
+    });
+    const result = evaluateSubmission({ exam, answerKeys, omrAnswers: omr.answers });
+    assert.equal(result.status, "PROVISIONAL");
+    assert.equal(omr.needsReviewQuestions.includes(2), true);
+  }
+
+  // H. All review items resolved as blank/invalid/answer -> FINAL
+  {
+    const omr = getBaseOmr();
+    applyReviewOverrides({
+      exam,
+      omrData: omr,
+      reviewOverrides: [
+        { questionNumber: 2, resolution: "MULTIPLE_INVALID" },
+        { questionNumber: 3, resolution: "BLANK" },
+        { questionNumber: 4, resolution: "ANSWER", answer: "D" },
+      ],
+    });
+    const result = evaluateSubmission({ exam, answerKeys, omrAnswers: omr.answers });
+    assert.equal(result.status, "FINAL");
+    assert.equal(result.unresolvedCount, 0);
+    assert.equal(result.correctCount, 2); // Q1 (A), Q4 (D)
+    assert.equal(result.incorrectCount, 1); // Q2 (MULTIPLE_INVALID)
+    assert.equal(result.blankCount, 1); // Q3 (BLANK)
+    assert.equal(result.finalScore, 5.0); // 2/4 * 10 = 5.0
+    assert.equal(result.provisionalScore, null);
+  }
 });
