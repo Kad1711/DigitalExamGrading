@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { authenticate, authorizeRoles } from "../middlewares/auth.middleware.js";
+import { authenticate } from "../middlewares/auth.middleware.js";
+import { authorizeRoles } from "../middlewares/role.middleware.js";
 import {
   getStudentResults,
   getStudentResultByExam,

@@ -114,7 +114,7 @@ async function run() {
   console.log("\n--- TEST 2: Verify DB Row Counts & Snapshots ---");
   const dbSub = await prisma.examSubmission.findUnique({
     where: { id: sub.id },
-    include: { answers: true, auditLogs: true },
+    include: { answers: true, auditLogs: { orderBy: { createdAt: "asc" } } },
   });
   console.log(`DB Submission Found: ${Boolean(dbSub)}`);
   console.log(`DB Answers Count: ${dbSub.answers.length} (Expected: 40)`);

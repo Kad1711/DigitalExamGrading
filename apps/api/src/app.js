@@ -4,6 +4,7 @@ import helmet from "helmet";
 
 import apiRouter from "./routes/index.js";
 import { notFoundHandler, globalErrorHandler } from "./middlewares/error.middleware.js";
+import { createCorsMiddleware } from "./config/cors.config.js";
 
 const app = express();
 
@@ -12,7 +13,7 @@ const app = express();
 // =====================================================
 
 app.use(helmet());
-app.use(cors());
+app.use(createCorsMiddleware());
 app.use(express.json({ limit: "1mb" }));
 
 // =====================================================
