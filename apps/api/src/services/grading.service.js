@@ -134,6 +134,8 @@ export function evaluateSubmission({ exam, answerKeys, omrAnswers }) {
  * @returns {Promise<object>} Full response payload
  */
 export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
+  const t0 = performance.now();
+
   // 1. Exam access & ownership
   const exam = await assertExamAccess(examId, reqUser);
 
@@ -170,8 +172,10 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
     );
   }
 
-  // 4. Call FastAPI OMR service
+  // 4. Call FastAPI OMR service with timing
+  const omrStart = performance.now();
   const omrData = await analyzeOmrSheet(imageBuffer, template.layoutJson, filename);
+  const omrTimeMs = Math.round(performance.now() - omrStart);
 
   // 5. Strict QR / Template Integrity Verification
   if (!omrData.template || omrData.template.examId !== exam.id) {
@@ -194,6 +198,10 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
 
   // 6. ExamCode resolution
   if (!omrData.examCode?.value) {
+    const totalTimeMs = Math.round(performance.now() - t0);
+    console.log(
+      `[GRADE] examId=${exam.id} status=NEEDS_REVIEW reason=EXAM_CODE_UNCERTAIN omrMs=${omrTimeMs} totalMs=${totalTimeMs}`
+    );
     return {
       exam: {
         id: exam.id,
@@ -213,6 +221,11 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
       grading: null,
       status: "NEEDS_REVIEW",
       reason: "EXAM_CODE_UNCERTAIN",
+      meta: {
+        processingTimeMs: totalTimeMs,
+        omrTimeMs,
+        gradingTimeMs: 0,
+      },
     };
   }
 
@@ -239,12 +252,19 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
     );
   }
 
-  // 7. Grade submission
+  // 7. Grade submission with timing
+  const gradingStart = performance.now();
   const grading = evaluateSubmission({
     exam,
     answerKeys: examCode.answerKeys,
     omrAnswers: omrData.answers,
   });
+  const gradingTimeMs = Math.round(performance.now() - gradingStart);
+  const totalTimeMs = Math.round(performance.now() - t0);
+
+  console.log(
+    `[GRADE] examId=${exam.id} code=${detectedCode} status=${grading.status} score=${grading.finalScore ?? grading.provisionalScore} omrMs=${omrTimeMs} gradingMs=${gradingTimeMs} totalMs=${totalTimeMs}`
+  );
 
   return {
     exam: {
@@ -263,5 +283,10 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser) {
       identityNeedsReview,
     },
     grading,
+    meta: {
+      processingTimeMs: totalTimeMs,
+      omrTimeMs,
+      gradingTimeMs,
+    },
   };
 }

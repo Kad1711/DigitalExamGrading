@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/client";
+import { getErrorMessage, mapQualityWarning } from "../utils/error-map";
 
 export default function GradingPage() {
   const navigate = useNavigate();
@@ -11,13 +12,30 @@ export default function GradingPage() {
   const [loadingExams, setLoadingExams] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState("");
 
+  // Template readiness state: 'loading' | 'ready' | 'missing' | 'multipage' | 'error'
+  const [templateStatus, setTemplateStatus] = useState("loading");
+  const [templateData, setTemplateData] = useState(null);
+  const [templateErrorMsg, setTemplateErrorMsg] = useState("");
+
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [imageMeta, setImageMeta] = useState(null); // { name, sizeStr, width, height }
   const [isDragActive, setIsDragActive] = useState(false);
 
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [gradingLoading, setGradingLoading] = useState(false);
   const [gradingResult, setGradingResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [pdfErrorMsg, setPdfErrorMsg] = useState("");
+
+  // Clean up preview object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        window.URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   // Check auth and load published exams
   useEffect(() => {
@@ -47,12 +65,69 @@ export default function GradingPage() {
       if (list.length > 0) {
         setSelectedExamId(list[0].id);
       }
-    } catch (err) {
+    } catch {
       setErrorMsg("Không thể tải danh sách kỳ thi đã phát hành.");
     } finally {
       setLoadingExams(false);
     }
   };
+
+  // Check template readiness whenever selectedExamId changes (with AbortController to prevent stale async overwrite)
+  useEffect(() => {
+    if (!selectedExamId) {
+      setTemplateStatus("missing");
+      setTemplateData(null);
+      return;
+    }
+
+    // Clear previous file, image preview, results, and errors
+    setSelectedFile(null);
+    if (previewUrl) {
+      window.URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setImageMeta(null);
+    setGradingResult(null);
+    setErrorMsg("");
+    setPdfErrorMsg("");
+    setTemplateErrorMsg("");
+
+    const controller = new AbortController();
+    setTemplateStatus("loading");
+
+    api
+      .get(`/exams/${selectedExamId}/answer-sheet-template`, {
+        signal: controller.signal,
+      })
+      .then((res) => {
+        const tpl = res.data.data;
+        setTemplateData(tpl);
+        if (tpl && tpl.pageCount > 1) {
+          setTemplateStatus("multipage");
+        } else {
+          setTemplateStatus("ready");
+        }
+      })
+      .catch((err) => {
+        if (err.name === "CanceledError" || err.code === "ERR_CANCELED") {
+          // Request aborted due to rapid exam switching; ignore stale result
+          return;
+        }
+        setTemplateData(null);
+        if (err.response?.status === 404) {
+          setTemplateStatus("missing");
+        } else {
+          setTemplateStatus("error");
+          setTemplateErrorMsg(
+            err.response?.data?.error?.message || "Lỗi kiểm tra mẫu phiếu trả lời."
+          );
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [selectedExamId]);
 
   const handleLogout = () => {
     sessionStorage.clear();
@@ -62,31 +137,62 @@ export default function GradingPage() {
   const handleFileChange = (file) => {
     if (!file) return;
 
+    if (templateStatus !== "ready") {
+      setErrorMsg("Kỳ thi này chưa có phiếu trả lời OMR hoặc không hợp lệ để chấm.");
+      return;
+    }
+
     const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
     const ext = (file.name || "").toLowerCase();
     const isValidExt = ext.endsWith(".jpg") || ext.endsWith(".jpeg") || ext.endsWith(".png");
 
     if (!allowedTypes.includes(file.type) && !isValidExt) {
-      setErrorMsg("Chỉ chấp nhận file ảnh định dạng .jpg, .jpeg, hoặc .png.");
+      setErrorMsg(getErrorMessage("IMAGE_TYPE_INVALID"));
       return;
     }
 
     if (file.size > 15 * 1024 * 1024) {
-      setErrorMsg("Dung lượng ảnh vượt quá giới hạn cho phép (15MB).");
+      setErrorMsg(getErrorMessage("IMAGE_TOO_LARGE"));
       return;
     }
 
     setErrorMsg("");
     setSelectedFile(file);
+
+    // Clear previous grading result to avoid showing stale state
     setGradingResult(null);
 
-    const url = URL.createObjectURL(file);
+    // Revoke previous object URL to prevent memory leak
+    if (previewUrl) {
+      window.URL.revokeObjectURL(previewUrl);
+    }
+
+    const url = window.URL.createObjectURL(file);
     setPreviewUrl(url);
+
+    // Format size
+    const sizeStr =
+      file.size > 1024 * 1024
+        ? (file.size / (1024 * 1024)).toFixed(1) + " MB"
+        : Math.round(file.size / 1024) + " KB";
+
+    // Read image dimensions
+    const img = new Image();
+    img.onload = () => {
+      setImageMeta({
+        name: file.name,
+        sizeStr,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      });
+    };
+    img.src = url;
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragActive(false);
+    if (templateStatus !== "ready") return;
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileChange(e.dataTransfer.files[0]);
     }
@@ -94,6 +200,7 @@ export default function GradingPage() {
 
   const handleDragOver = (e) => {
     e.preventDefault();
+    if (templateStatus !== "ready") return;
     setIsDragActive(true);
   };
 
@@ -102,9 +209,53 @@ export default function GradingPage() {
     setIsDragActive(false);
   };
 
+  // Download real Answer Sheet PDF from DB
+  const handleDownloadPdf = async () => {
+    if (!selectedExamId || templateStatus === "missing") return;
+
+    try {
+      setDownloadingPdf(true);
+      setPdfErrorMsg("");
+
+      const res = await api.get(`/exams/${selectedExamId}/answer-sheet-template/pdf`, {
+        responseType: "blob",
+      });
+
+      const cleanTitle = (selectedExam?.title || "exam")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.setAttribute("download", `answer-sheet-${cleanTitle}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      if (err.response?.status === 404) {
+        setPdfErrorMsg("Kỳ thi này chưa có mẫu phiếu trả lời được tạo trong hệ thống.");
+      } else {
+        setPdfErrorMsg("Không thể tải file PDF mẫu phiếu. Vui lòng thử lại sau.");
+      }
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   const handleGrade = async () => {
     if (!selectedExamId) {
       setErrorMsg("Vui lòng chọn kỳ thi cần chấm.");
+      return;
+    }
+
+    if (templateStatus !== "ready") {
+      setErrorMsg("Kỳ thi này chưa có phiếu trả lời OMR. Hãy tạo phiếu trả lời trước khi chấm bài.");
       return;
     }
 
@@ -129,27 +280,7 @@ export default function GradingPage() {
     } catch (err) {
       const code = err.response?.data?.error?.code;
       const rawMsg = err.response?.data?.error?.message;
-
-      // Map to clear Vietnamese error messages
-      if (code === "OMR_SERVICE_UNAVAILABLE" || err.response?.status === 503) {
-        setErrorMsg("Dịch vụ AI chấm thi (FastAPI OMR) hiện không khả dụng. Vui lòng thử lại sau.");
-      } else if (code === "OMR_EXAM_MISMATCH") {
-        setErrorMsg("Mã kỳ thi trên mã QR của phiếu không khớp với kỳ thi đang chọn.");
-      } else if (code === "OMR_TEMPLATE_MISMATCH") {
-        setErrorMsg("Mẫu phiếu trả lời không khớp với mẫu đề thi chuẩn trong hệ thống.");
-      } else if (code === "OMR_EXAM_CODE_NOT_FOUND") {
-        setErrorMsg(rawMsg || "Mã đề nhận diện từ phiếu không tồn tại trong kỳ thi này.");
-      } else if (code === "MULTI_PAGE_GRADING_NOT_SUPPORTED_YET") {
-        setErrorMsg("Phiếu nhiều trang chưa được hỗ trợ trong chế độ chấm một ảnh.");
-      } else if (code === "CORNER_MARKERS_NOT_FOUND" || code === "MARKERS_NOT_FOUND") {
-        setErrorMsg("Không tìm thấy đủ 4 marker trên phiếu. Hãy chụp lại toàn bộ tờ giấy.");
-      } else if (code === "QR_NOT_FOUND") {
-        setErrorMsg("Không tìm thấy mã QR định danh trên phiếu. Hãy đảm bảo góc trên bên phải không bị che khuất.");
-      } else if (code === "EXAM_NOT_AVAILABLE_FOR_GRADING") {
-        setErrorMsg("Kỳ thi này hiện chưa thể chấm bài (chỉ hỗ trợ kỳ thi ở trạng thái PUBLISHED).");
-      } else {
-        setErrorMsg(rawMsg || "Có lỗi xảy ra trong quá trình chấm bài thi.");
-      }
+      setErrorMsg(getErrorMessage(code, rawMsg));
     } finally {
       setGradingLoading(false);
     }
@@ -163,11 +294,11 @@ export default function GradingPage() {
       <header className="app-header">
         <div className="brand-title">
           <span>📝</span>
-          <span>Hệ Thống Chấm Điểm Bài Thi Trắc Nghiệm THPT (OMR)</span>
+          <span>Digital Exam Grading (OMR)</span>
         </div>
         <div className="user-nav">
-          <span style={{ fontSize: "0.875rem", color: "var(--gray-600)" }}>
-            {currentUser?.email} ({currentUser?.role})
+          <span className="user-badge">
+            👤 {currentUser?.email} ({currentUser?.role})
           </span>
           <button onClick={handleLogout} className="btn-logout">
             Đăng xuất
@@ -175,11 +306,12 @@ export default function GradingPage() {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main Dashboard Layout (Wide ~1500px) */}
       <main className="main-container">
-        <div className="grid-two-cols">
-          {/* Left Column: Exam & Upload Form */}
+        <div className="grid-dashboard">
+          {/* Left Panel (~35%): Exam & Upload */}
           <div>
+            {/* Exam Selector Panel */}
             <div className="card">
               <h2 className="card-title">1. Chọn kỳ thi</h2>
               <div className="form-group">
@@ -188,7 +320,7 @@ export default function GradingPage() {
                   <p style={{ fontSize: "0.875rem", color: "var(--gray-500)" }}>Đang tải danh sách...</p>
                 ) : exams.length === 0 ? (
                   <p style={{ fontSize: "0.875rem", color: "var(--danger)" }}>
-                    Không có kỳ thi nào đang ở trạng thái PUBLISHED.
+                    Chưa có kỳ thi nào được phát hành để chấm bài.
                   </p>
                 ) : (
                   <select
@@ -196,12 +328,11 @@ export default function GradingPage() {
                     value={selectedExamId}
                     onChange={(e) => {
                       setSelectedExamId(e.target.value);
-                      setGradingResult(null);
                     }}
                   >
                     {exams.map((ex) => (
                       <option key={ex.id} value={ex.id}>
-                        {ex.title} ({ex.subject?.name || "Môn học"} - {ex.class?.name || "Lớp"} | {ex.questionCount} câu)
+                        {ex.title} ({ex.subject?.name || "Môn"} - {ex.class?.name || "Lớp"} | {ex.questionCount} câu)
                       </option>
                     ))}
                   </select>
@@ -209,45 +340,172 @@ export default function GradingPage() {
               </div>
 
               {selectedExam && (
-                <div style={{ fontSize: "0.85rem", color: "var(--gray-600)", background: "var(--gray-50)", padding: "0.75rem", borderRadius: "6px" }}>
+                <div style={{ fontSize: "0.85rem", color: "var(--gray-600)", background: "var(--gray-50)", padding: "0.85rem", borderRadius: "6px", border: "1px solid var(--gray-200)" }}>
                   <div><strong>Môn học:</strong> {selectedExam.subject?.name}</div>
                   <div><strong>Lớp:</strong> {selectedExam.class?.name}</div>
                   <div><strong>Số câu hỏi:</strong> {selectedExam.questionCount} câu</div>
                   <div><strong>Hình thức tính điểm:</strong> {selectedExam.scoringType} (Tối đa: {Number(selectedExam.maxScore)}đ)</div>
+
+                  {/* Template Readiness Status */}
+                  {templateStatus === "loading" && (
+                    <div style={{ marginTop: "0.75rem", fontSize: "0.825rem", color: "var(--gray-500)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      <span>⏳</span>
+                      <span>Đang kiểm tra mẫu phiếu OMR...</span>
+                    </div>
+                  )}
+
+                  {templateStatus === "ready" && (
+                    <div style={{ marginTop: "0.75rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                        <span className="badge badge-correct" style={{ fontSize: "0.825rem", padding: "0.25rem 0.6rem" }}>
+                          ✓ Sẵn sàng chấm OMR
+                        </span>
+                        <span style={{ fontSize: "0.8rem", color: "var(--gray-500)" }}>
+                          (Mẫu v{templateData?.version} • {selectedExam.questionCount} câu)
+                        </span>
+                      </div>
+
+                      {/* Real Answer Sheet PDF Download */}
+                      <button
+                        className="btn-pdf-download"
+                        onClick={handleDownloadPdf}
+                        disabled={downloadingPdf}
+                      >
+                        <span>📄</span>
+                        <span>{downloadingPdf ? "Đang tải PDF..." : "TẢI PHIẾU TRẢ LỜI PDF (OMR)"}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {templateStatus === "missing" && (
+                    <div style={{ marginTop: "0.75rem" }}>
+                      <div className="alert alert-warning" style={{ margin: 0, fontSize: "0.825rem", padding: "0.6rem 0.8rem" }}>
+                        ⚠️ <strong>Kỳ thi này chưa có phiếu trả lời OMR.</strong> Hãy tạo phiếu trả lời trước khi chấm bài.
+                      </div>
+                      <button
+                        className="btn-pdf-download"
+                        disabled
+                        style={{ opacity: 0.5, cursor: "not-allowed", backgroundColor: "var(--gray-100)", borderColor: "var(--gray-300)", color: "var(--gray-500)", marginTop: "0.5rem" }}
+                      >
+                        <span>📄</span>
+                        <span>Chưa có file PDF phiếu</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {templateStatus === "multipage" && (
+                    <div style={{ marginTop: "0.75rem" }}>
+                      <div className="alert alert-warning" style={{ margin: 0, fontSize: "0.825rem", padding: "0.6rem 0.8rem" }}>
+                        ⚠️ <strong>Phiếu thi có {templateData?.pageCount} trang.</strong> Chế độ chấm một ảnh hiện chỉ hỗ trợ phiếu một trang.
+                      </div>
+                      <button
+                        className="btn-pdf-download"
+                        onClick={handleDownloadPdf}
+                        disabled={downloadingPdf}
+                        style={{ marginTop: "0.5rem" }}
+                      >
+                        <span>📄</span>
+                        <span>{downloadingPdf ? "Đang tải PDF..." : "TẢI PHIẾU TRẢ LỜI PDF (OMR)"}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {templateStatus === "error" && (
+                    <div className="alert alert-danger" style={{ marginTop: "0.75rem", marginBottom: 0, fontSize: "0.825rem", padding: "0.6rem 0.8rem" }}>
+                      ⚠️ {templateErrorMsg || "Không thể tải thông tin phiếu trả lời."}
+                    </div>
+                  )}
+
+                  {pdfErrorMsg && (
+                    <p style={{ fontSize: "0.8rem", color: "var(--danger)", marginTop: "0.4rem" }}>{pdfErrorMsg}</p>
+                  )}
                 </div>
               )}
             </div>
 
+            {/* Image Upload Panel */}
             <div className="card">
-              <h2 className="card-title">2. Tải ảnh phiếu thi</h2>
+              <div className="card-title">
+                <span>2. Tải ảnh bài thi</span>
+                {previewUrl && (
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      if (templateStatus === "ready") {
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                    disabled={templateStatus !== "ready"}
+                  >
+                    Chọn ảnh khác
+                  </button>
+                )}
+              </div>
+
               <div
-                className={`dropzone ${isDragActive ? "drag-active" : ""}`}
+                className={`dropzone ${isDragActive ? "drag-active" : ""} ${templateStatus !== "ready" ? "disabled" : ""}`}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (templateStatus === "ready") {
+                    fileInputRef.current?.click();
+                  }
+                }}
               >
                 <input
                   type="file"
                   ref={fileInputRef}
                   style={{ display: "none" }}
                   accept="image/jpeg,image/png,image/jpg"
+                  disabled={templateStatus !== "ready"}
                   onChange={(e) => handleFileChange(e.target.files[0])}
                 />
                 <div className="dropzone-icon">📷</div>
-                <p style={{ fontWeight: 600, color: "var(--gray-700)" }}>
-                  Nhấp để chọn ảnh hoặc kéo thả ảnh vào đây
+                <p style={{ fontWeight: 600, color: templateStatus === "ready" ? "var(--gray-700)" : "var(--gray-400)" }}>
+                  {templateStatus === "ready"
+                    ? "Nhấp để chọn ảnh hoặc kéo thả ảnh vào đây"
+                    : templateStatus === "missing"
+                    ? "Kỳ thi chưa có phiếu trả lời OMR"
+                    : "Đang kiểm tra trạng thái phiếu..."}
                 </p>
                 <p style={{ fontSize: "0.8rem", color: "var(--gray-500)", marginTop: "0.25rem" }}>
-                  Hỗ trợ JPG, PNG (tối đa 15MB)
+                  {templateStatus === "ready"
+                    ? "Hỗ trợ định dạng JPG, PNG (tối đa 15MB)"
+                    : "Vui lòng chọn kỳ thi có phiếu OMR hợp lệ"}
                 </p>
               </div>
 
+              {/* Large Image Preview with Dimensions and Size */}
               {previewUrl && (
-                <div className="preview-container">
-                  <img src={previewUrl} alt="Preview" className="preview-img" />
+                <div className="preview-card">
+                  <div className="preview-header">
+                    <span style={{ fontWeight: 600 }}>Ảnh bài thi đã chọn</span>
+                    <div className="preview-meta">
+                      {imageMeta?.width && <span>{imageMeta.width} × {imageMeta.height} px</span>}
+                      {imageMeta?.sizeStr && <span>{imageMeta.sizeStr}</span>}
+                    </div>
+                  </div>
+                  <div className="preview-container">
+                    <img src={previewUrl} alt="Preview" className="preview-img" />
+                  </div>
                 </div>
               )}
+
+              {/* Photo Guidance Checklist */}
+              <div className="checklist-card">
+                <div className="checklist-title">
+                  <span>💡</span>
+                  <span>Để nhận diện OMR tốt nhất:</span>
+                </div>
+                <ul className="checklist-list">
+                  <li>Chụp toàn bộ tờ giấy, không bị mất góc hoặc mép.</li>
+                  <li>Thấy rõ đủ 4 marker vuông màu đen ở 4 góc phiếu.</li>
+                  <li>Không để ngón tay hoặc vật cản che khuất mã QR.</li>
+                  <li>Hạn chế bóng đổ, đảm bảo chụp đủ ánh sáng.</li>
+                  <li>Không crop sát mép viền của phiếu thi.</li>
+                </ul>
+              </div>
 
               {errorMsg && (
                 <div className="alert alert-danger" style={{ marginTop: "1rem" }}>
@@ -259,102 +517,180 @@ export default function GradingPage() {
                 <button
                   className="btn-primary"
                   onClick={handleGrade}
-                  disabled={gradingLoading || !selectedFile || !selectedExamId}
+                  disabled={templateStatus !== "ready" || gradingLoading || !selectedFile || !selectedExamId}
+                  title={
+                    templateStatus !== "ready"
+                      ? "Kỳ thi chưa có phiếu OMR hợp lệ để chấm"
+                      : !selectedFile
+                      ? "Vui lòng tải ảnh bài thi trước khi chấm"
+                      : ""
+                  }
                 >
-                  {gradingLoading ? "Đang nhận diện bài thi..." : "CHẤM BÀI"}
+                  <span>{gradingLoading ? "⏳" : "🔍"}</span>
+                  <span>{gradingLoading ? "Đang nhận diện bài thi..." : "CHẤM BÀI"}</span>
                 </button>
+                {gradingLoading && (
+                  <p style={{ textAlign: "center", fontSize: "0.8rem", color: "var(--gray-500)", marginTop: "0.5rem" }}>
+                    Đang gửi ảnh và xử lý OMR...
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Right Column: Grading Results */}
+          {/* Right Panel (~65%): Result Dashboard */}
           <div>
             {!gradingResult && !gradingLoading && (
-              <div className="card" style={{ textAlign: "center", padding: "3rem 1.5rem", color: "var(--gray-500)" }}>
-                <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>📋</div>
+              <div className="card" style={{ textAlign: "center", padding: "4rem 2rem", color: "var(--gray-500)" }}>
+                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📋</div>
                 <h3>Chưa có kết quả chấm bài</h3>
-                <p style={{ fontSize: "0.9rem", marginTop: "0.5rem" }}>
-                  Hãy chọn kỳ thi, tải ảnh phiếu trả lời và bấm "CHẤM BÀI" để xem kết quả chi tiết.
+                <p style={{ fontSize: "0.9rem", marginTop: "0.5rem", maxWidth: "480px", margin: "0.5rem auto 0" }}>
+                  Chọn kỳ thi ở khung bên trái, tải ảnh phiếu thi đã tô và bấm <strong>"CHẤM BÀI"</strong>. Kết quả điểm số và phân tích từng câu sẽ hiển thị tại đây.
                 </p>
               </div>
             )}
 
             {gradingLoading && (
-              <div className="card" style={{ textAlign: "center", padding: "3rem 1.5rem" }}>
-                <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>⏳</div>
+              <div className="card" style={{ textAlign: "center", padding: "4rem 2rem" }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>⚙️</div>
                 <h3>Đang nhận diện và chấm điểm...</h3>
                 <p style={{ fontSize: "0.9rem", color: "var(--gray-500)", marginTop: "0.5rem" }}>
-                  Hệ thống đang đọc mã QR, số báo danh, mã đề và các ô tô trắc nghiệm.
+                  Hệ thống đang đọc mã QR, số báo danh, mã đề và quét các ô tròn trắc nghiệm.
                 </p>
               </div>
             )}
 
             {gradingResult && (
               <div>
-                {/* Result Status Banner */}
+                {/* 1. Final Result Banner */}
                 {gradingResult.grading?.status === "FINAL" && (
-                  <div className="result-header-final">
+                  <div className="result-banner-final">
                     <div>
-                      <span className="badge" style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "#ffffff", marginBottom: "0.5rem" }}>
-                        ✓ KẾT QUẢ CHÍNH THỨC (FINAL)
+                      <span className="badge" style={{ backgroundColor: "rgba(255,255,255,0.25)", color: "#ffffff", marginBottom: "0.5rem" }}>
+                        ✓ KẾT QUẢ CHÍNH THỨC (ĐÃ HOÀN TẤT)
                       </span>
-                      <div className="score-display">
+                      <div className="score-number">
                         {gradingResult.grading.finalScore.toFixed(2)} / {gradingResult.exam.maxScore}
                       </div>
-                      <div className="score-sub">Điểm bài thi hoàn tất nhận diện</div>
+                      <div className="score-caption">Bài thi nhận diện rõ ràng, không có câu cần kiểm tra</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div><strong>SBD:</strong> {gradingResult.omr.studentNumber?.value || "Chưa rõ"}</div>
-                      <div><strong>Mã đề:</strong> {gradingResult.omr.examCode?.value || "Chưa rõ"}</div>
+                      <div style={{ fontSize: "1.1rem" }}><strong>SBD:</strong> {gradingResult.omr.studentNumber?.value || "Chưa rõ"}</div>
+                      <div style={{ fontSize: "1.1rem" }}><strong>Mã đề:</strong> {gradingResult.omr.examCode?.value || "Chưa rõ"}</div>
                     </div>
                   </div>
                 )}
 
+                {/* 2. Provisional Result Banner */}
                 {gradingResult.grading?.status === "PROVISIONAL" && (
-                  <div className="result-header-provisional">
+                  <div className="result-banner-provisional">
                     <div>
-                      <span className="badge" style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "#ffffff", marginBottom: "0.5rem" }}>
+                      <span className="badge" style={{ backgroundColor: "rgba(255,255,255,0.25)", color: "#ffffff", marginBottom: "0.5rem" }}>
                         ⚠️ KẾT QUẢ TẠM TÍNH (PROVISIONAL)
                       </span>
-                      <div className="score-display">
+                      <div className="score-number">
                         {gradingResult.grading.provisionalScore.toFixed(2)} / {gradingResult.exam.maxScore}
                       </div>
-                      <div className="score-sub">
-                        Kết quả tạm tính: Còn {gradingResult.grading.unresolvedCount} câu cần giáo viên kiểm tra.
+                      <div className="score-caption">
+                        <strong>Kết quả tạm tính:</strong> Còn {gradingResult.grading.unresolvedCount} câu cần giáo viên kiểm tra.
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div><strong>SBD:</strong> {gradingResult.omr.studentNumber?.value || "Chưa rõ"}</div>
-                      <div><strong>Mã đề:</strong> {gradingResult.omr.examCode?.value || "Chưa rõ"}</div>
+                      <div style={{ fontSize: "1.1rem" }}><strong>SBD:</strong> {gradingResult.omr.studentNumber?.value || "Chưa rõ"}</div>
+                      <div style={{ fontSize: "1.1rem" }}><strong>Mã đề:</strong> {gradingResult.omr.examCode?.value || "Chưa rõ"}</div>
                     </div>
                   </div>
                 )}
 
+                {/* 3. Exam Code Uncertain Alert */}
                 {gradingResult.status === "NEEDS_REVIEW" && (
                   <div className="alert alert-danger" style={{ fontSize: "1rem", padding: "1.25rem" }}>
-                    <h3 style={{ marginBottom: "0.5rem" }}>⚠️ CẦN GIÁO VIÊN KIỂM TRA MÃ ĐỀ</h3>
+                    <h3 style={{ marginBottom: "0.5rem" }}>⚠️ KHÔNG THỂ XÁC ĐỊNH CHẮC CHẮN MÃ ĐỀ</h3>
                     <p>Hệ thống không thể xác định chính xác mã đề từ phiếu thi (Mã đề chưa rõ ràng hoặc bị tô mờ/nhiều ô).</p>
-                    <p style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
-                      Gợi ý nhận diện: <code>{gradingResult.omr.examCode?.candidateValue || "Không rõ"}</code>
+                    <p style={{ marginTop: "0.5rem", fontWeight: 600 }}>
+                      Cần kiểm tra mã đề trước khi hệ thống có thể chấm điểm.
                     </p>
+                    {gradingResult.omr.examCode?.candidateValue && (
+                      <p style={{ marginTop: "0.25rem", fontSize: "0.85rem", color: "var(--gray-700)" }}>
+                        Gợi ý nhận diện: <code>{gradingResult.omr.examCode.candidateValue}</code>
+                      </p>
+                    )}
                   </div>
                 )}
 
-                {/* Identity Alert */}
+                {/* 4. SBD Uncertain Alert */}
                 {gradingResult.omr.identityNeedsReview && (
                   <div className="alert alert-warning">
-                    ⚠️ <strong>Lưu ý:</strong> Số báo danh (SBD) chưa được nhận diện rõ ràng (Giá trị gợi ý: {gradingResult.omr.studentNumber?.candidateValue || "Không rõ"}). Giáo viên cần kiểm tra lại thủ công.
+                    ⚠️ <strong>Lưu ý về Số báo danh:</strong> Không xác định chắc chắn số báo danh.
+                    {gradingResult.omr.studentNumber?.candidateValue ? (
+                      <span> Gợi ý nhận diện: <strong>{gradingResult.omr.studentNumber.candidateValue}</strong>.</span>
+                    ) : null}
+                    <span> Giáo viên cần kiểm tra và xác nhận thủ công.</span>
                   </div>
                 )}
 
-                {/* Quality Warnings */}
+                {/* 5. Quality Warnings */}
                 {gradingResult.omr.quality?.warnings?.length > 0 && (
                   <div className="alert alert-warning">
-                    <strong>Cảnh báo chất lượng ảnh:</strong> {gradingResult.omr.quality.warnings.join(", ")}
+                    <strong>Cảnh báo chất lượng ảnh chụp:</strong>
+                    <ul style={{ paddingLeft: "1.25rem", marginTop: "0.25rem" }}>
+                      {gradingResult.omr.quality.warnings.map((w, idx) => (
+                        <li key={idx}>{mapQualityWarning(w)}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
 
-                {/* Stats Breakdown */}
+                {/* 6. Technical Observability Accordion */}
+                <details className="accordion-details">
+                  <summary className="accordion-summary">
+                    ⚙️ Thông tin kỹ thuật & Thời gian xử lý (Observability)
+                  </summary>
+                  <div className="accordion-body">
+                    <div className="tech-grid">
+                      {gradingResult.meta?.processingTimeMs !== undefined && (
+                        <div className="tech-item">
+                          <div className="tech-label">Tổng thời gian xử lý</div>
+                          <div className="tech-val">{gradingResult.meta.processingTimeMs} ms</div>
+                        </div>
+                      )}
+                      {gradingResult.meta?.omrTimeMs !== undefined && (
+                        <div className="tech-item">
+                          <div className="tech-label">Thời gian OMR (FastAPI)</div>
+                          <div className="tech-val">{gradingResult.meta.omrTimeMs} ms</div>
+                        </div>
+                      )}
+                      {gradingResult.meta?.gradingTimeMs !== undefined && (
+                        <div className="tech-item">
+                          <div className="tech-label">Thời gian chấm (Node)</div>
+                          <div className="tech-val">{gradingResult.meta.gradingTimeMs} ms</div>
+                        </div>
+                      )}
+                      {gradingResult.omr.quality?.width && (
+                        <div className="tech-item">
+                          <div className="tech-label">Kích thước ảnh OMR</div>
+                          <div className="tech-val">
+                            {gradingResult.omr.quality.width} × {gradingResult.omr.quality.height} px
+                          </div>
+                        </div>
+                      )}
+                      {gradingResult.omr.quality?.blurScore !== undefined && (
+                        <div className="tech-item">
+                          <div className="tech-label">Độ nét (Blur Score)</div>
+                          <div className="tech-val">{gradingResult.omr.quality.blurScore.toFixed(0)}</div>
+                        </div>
+                      )}
+                      {gradingResult.omr.quality?.brightness !== undefined && (
+                        <div className="tech-item">
+                          <div className="tech-label">Độ sáng (Brightness)</div>
+                          <div className="tech-val">{gradingResult.omr.quality.brightness.toFixed(0)} / 255</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </details>
+
+                {/* 7. Stats Breakdown Grid */}
                 {gradingResult.grading && (
                   <div className="card">
                     <h3 className="card-title">Thống kê chi tiết</h3>
@@ -385,18 +721,20 @@ export default function GradingPage() {
                       </div>
                     </div>
 
+                    {/* Question Breakdown Table */}
                     <h3 className="card-title" style={{ marginTop: "1rem" }}>Bảng kết quả từng câu</h3>
                     <div className="table-responsive">
                       <table className="data-table">
                         <thead>
                           <tr>
                             <th>Câu</th>
-                            <th>Đáp án tô</th>
+                            <th>Nhận diện</th>
                             <th>Gợi ý AI</th>
                             <th>Đáp án đúng</th>
-                            <th>Trạng thái OMR</th>
+                            <th>Trạng thái</th>
                             <th>Độ tin cậy</th>
                             <th>Kết quả</th>
+                            <th>Điểm</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -414,7 +752,7 @@ export default function GradingPage() {
                               }
                             } else if (q.omrStatus === "MULTIPLE") {
                               badgeClass = "badge-multiple";
-                              statusText = "Nhiều đáp án";
+                              statusText = "Tô nhiều đáp án";
                             } else if (q.omrStatus === "UNCERTAIN") {
                               badgeClass = "badge-uncertain";
                               statusText = "Cần kiểm tra";
@@ -430,6 +768,11 @@ export default function GradingPage() {
                                 <td>{(q.confidence * 100).toFixed(0)}%</td>
                                 <td>
                                   <span className={`badge ${badgeClass}`}>{statusText}</span>
+                                </td>
+                                <td>
+                                  {q.scoreEarned !== null && q.scoreEarned !== undefined
+                                    ? q.scoreEarned.toFixed(2)
+                                    : "—"}
                                 </td>
                               </tr>
                             );
