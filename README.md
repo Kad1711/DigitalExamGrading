@@ -100,9 +100,9 @@ Hệ thống đã sẵn sàng để thử nghiệm với phiếu in giấy và �
    - Kiểm tra điểm số, các thông số nhận diện OMR, cảnh báo chất lượng ảnh và bảng kết quả từng câu.
 
 ### 2. Ma trận kịch bản thử nghiệm (Test Matrix):
-- **Kịch bản A (Ảnh chuẩn):** Chụp thẳng, đủ sáng, tô chuẩn $\to$ Kỳ vọng điểm tuyệt đối, trạng thái `FINAL`.
-- **Kịch bản B (Góc nghiêng nhẹ):** Chụp hơi nghiêng góc $\to$ Kiểm tra thuật toán homography nắn góc.
-- **Kịch bản C (Ánh sáng yếu):** Chụp môi trường hơi tối $\to$ Kiểm tra threshold nhị phân hóa và cảnh báo `IMAGE_TOO_DARK`.
-- **Kịch bản D (Câu để trống):** Để trống 1 câu $\to$ Kỳ vọng `blankCount = 1`, bài thi vẫn đạt `FINAL`.
-- **Kịch bản E (Tô nhiều đáp án):** Tô 2 ô trong 1 câu $\to$ Kỳ vọng phát hiện `MULTIPLE`, trạng thái chuyển `PROVISIONAL`.
-- **Kịch bản F (Tô mờ/Tẩy không sạch):** Tô rất mờ hoặc tẩy sót $\to$ Kỳ vọng phát hiện `UNCERTAIN`, trạng thái `PROVISIONAL`, candidate không bị tính điểm.
+- Kịch bản A (Ảnh chuẩn):** Chụp thẳng, đủ sáng, tô chuẩn $\to$ Kỳ vọng điểm tuyệt đối, trạng thái `FINAL`.
+- Kịch bản B (Góc nghiêng nhẹ):** Chụp hơi nghiêng góc $\to$ Kiểm tra thuật toán homography nắn góc.
+- Kịch bản C (Ánh sáng yếu):** Chụp môi trường hơi tối $\to$ Kiểm tra threshold nhị phân hóa và cảnh báo `IMAGE_TOO_DARK`.
+- Kịch bản D (Câu để trống):** Để trống 1 câu $\to$ Kỳ vọng `blankCount = 1`, bài thi vẫn đạt `FINAL`.
+- Kịch bản E (Tô nhiều đáp án):** Tô 2 ô trong 1 câu $\to$ Kỳ vọng phát hiện `MULTIPLE`, trạng thái chuyển `PROVISIONAL`.
+- Kịch bản F (Tô mờ/Tẩy không sạch):** Tô rất mờ hoặc tẩy sót $\to$ Kỳ vọng phát hiện `UNCERTAIN`, trạng thái `PROVISIONAL`, candidate không bị tính điểm.
