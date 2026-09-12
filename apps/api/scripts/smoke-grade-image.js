@@ -14,7 +14,24 @@ import fs from "fs";
 import path from "path";
 import assert from "assert/strict";
 
-const API_BASE = process.env.API_BASE_URL || "http://127.0.0.1:5000/api";
+const args = process.argv.slice(2);
+const allowDevApi = args.includes("--allow-dev-api");
+const testApiBase = process.env.TEST_API_BASE_URL;
+
+if (!testApiBase && !allowDevApi) {
+  console.error("==================================================");
+  console.error("SAFETY REFUSAL: smoke-grade-image.js");
+  console.error("Refused to run against normal development API without explicit opt-in.");
+  console.error("To target test API server: set TEST_API_BASE_URL=<url>");
+  console.error("To intentionally run against local development API: pass --allow-dev-api");
+  console.error("==================================================");
+  process.exit(1);
+}
+
+const rawApiBase = testApiBase || process.env.API_BASE_URL || "http://127.0.0.1:5000/api";
+const API_BASE = rawApiBase.replace(/\/+$/, "").endsWith("/api")
+  ? rawApiBase.replace(/\/+$/, "")
+  : `${rawApiBase.replace(/\/+$/, "")}/api`;
 const TEACHER_EMAIL = process.env.TEACHER_EMAIL || "teacher@digitalexam.local";
 const TEACHER_PASSWORD = process.env.TEACHER_PASSWORD || "Teacher@123456";
 

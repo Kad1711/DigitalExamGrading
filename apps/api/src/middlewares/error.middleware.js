@@ -23,7 +23,7 @@ export function notFoundHandler(req, res) {
     success: false,
     error: {
       code: "NOT_FOUND",
-      message: `Khong tim thay route: ${req.method} ${req.originalUrl}`,
+      message: `Không tìm thấy đường dẫn: ${req.method} ${req.originalUrl}`,
     },
   });
 }
@@ -58,7 +58,7 @@ export function globalErrorHandler(err, req, res, next) {
       success: false,
       error: {
         code: "CONFLICT",
-        message: "Du lieu da ton tai.",
+        message: "Dữ liệu đã tồn tại.",
       },
     });
   }
@@ -68,7 +68,7 @@ export function globalErrorHandler(err, req, res, next) {
       success: false,
       error: {
         code: "VALIDATION_ERROR",
-        message: "Du lieu khong hop le.",
+        message: "Dữ liệu không hợp lệ.",
         details: err.errors,
       },
     });
@@ -78,7 +78,7 @@ export function globalErrorHandler(err, req, res, next) {
     success: false,
     error: {
       code: "INTERNAL_SERVER_ERROR",
-      message: "Loi may chu noi bo. Vui long thu lai sau.",
+      message: "Hệ thống đang gặp sự cố. Vui lòng thử lại sau.",
     },
   });
 }

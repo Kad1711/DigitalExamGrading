@@ -10,6 +10,8 @@ export class LocalStorageService {
   constructor(customDir) {
     if (customDir) {
       this.rootDir = path.resolve(customDir);
+    } else if (process.env.NODE_ENV === "test" && process.env.TEST_SUBMISSION_STORAGE_DIR) {
+      this.rootDir = path.resolve(process.env.TEST_SUBMISSION_STORAGE_DIR);
     } else if (process.env.SUBMISSION_STORAGE_DIR) {
       this.rootDir = path.resolve(process.env.SUBMISSION_STORAGE_DIR);
     } else {

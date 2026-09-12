@@ -46,10 +46,32 @@ export default function LoginPage() {
         setErrorMsg("Vai trò tài khoản không hợp lệ.");
       }
     } catch (err) {
-      const msg =
-        err.response?.data?.error?.message ||
-        "Đăng nhập không thành công. Vui lòng kiểm tra lại email và mật khẩu.";
-      setErrorMsg(msg);
+      if (!err.response) {
+        // Network / API unreachable
+        setErrorMsg("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
+      } else {
+        const status = err.response.status;
+        const errData = err.response.data?.error;
+        const errCode = errData?.code;
+        const errMsg = errData?.message;
+
+        if (status === 401 || errCode === "INVALID_CREDENTIALS") {
+          setErrorMsg("Email hoặc mật khẩu không chính xác.");
+        } else if (status === 403 || errCode === "ACCOUNT_INACTIVE" || errCode === "ACCOUNT_LOCKED") {
+          setErrorMsg(
+            errMsg && typeof errMsg === "string" && !errMsg.toLowerCase().includes("loi")
+              ? errMsg
+              : "Tài khoản của bạn đã bị khóa hoặc chưa được kích hoạt."
+          );
+        } else if (status >= 500 || errCode === "INTERNAL_SERVER_ERROR") {
+          // Never expose Prisma/ECONNREFUSED/stack traces to user
+          setErrorMsg("Hệ thống đang gặp sự cố. Vui lòng thử lại sau.");
+        } else if (errMsg && typeof errMsg === "string" && !errMsg.includes("Prisma") && !errMsg.includes("ECONNREFUSED")) {
+          setErrorMsg(errMsg);
+        } else {
+          setErrorMsg("Đăng nhập không thành công. Vui lòng kiểm tra lại email và mật khẩu.");
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -82,7 +104,7 @@ export default function LoginPage() {
           <div className="mb-6">
             <h2 className="text-lg font-bold text-slate-900">Đăng nhập</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Dành cho Giáo viên và Quản trị viên nhà trường
+              Đăng nhập vào hệ thống Digital Exam Grading
             </p>
           </div>
 
@@ -111,7 +133,10 @@ export default function LoginPage() {
                   autoFocus
                   disabled={loading}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errorMsg) setErrorMsg("");
+                  }}
                   placeholder="teacher@school.edu.vn"
                   className="block w-full pl-10 pr-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all disabled:bg-slate-50"
                 />
@@ -135,7 +160,10 @@ export default function LoginPage() {
                   required
                   disabled={loading}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errorMsg) setErrorMsg("");
+                  }}
                   placeholder="••••••••"
                   className="block w-full pl-10 pr-10 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all disabled:bg-slate-50"
                 />
@@ -160,9 +188,10 @@ export default function LoginPage() {
                 variant="primary"
                 size="lg"
                 loading={loading}
+                disabled={loading}
                 className="w-full"
               >
-                {loading ? "Đang xác thực..." : "Đăng nhập hệ thống"}
+                {loading ? "Đang đăng nhập..." : "Đăng nhập hệ thống"}
               </Button>
             </div>
           </form>

@@ -1,9 +1,31 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import dotenv from "dotenv";
+
+dotenv.config({ path: path.resolve(import.meta.dirname, "../.env") });
+
 import prisma from "../src/config/prisma.js";
 import jwt from "jsonwebtoken";
-const API_URL = "http://localhost:5000/api";
+
+const args = process.argv.slice(2);
+const allowDevDb = args.includes("--allow-dev-db");
+const isTestEnv = process.env.NODE_ENV === "test";
+
+if (!isTestEnv && !allowDevDb) {
+  console.error("==================================================");
+  console.error("SAFETY REFUSAL: test-phase6-persistence.js");
+  console.error("Refused to run against development DB without explicit opt-in flag.");
+  console.error("To run in automated test environment: NODE_ENV=test node scripts/test-phase6-persistence.js");
+  console.error("To intentionally run manual real-paper verification on dev DB: node scripts/test-phase6-persistence.js --allow-dev-db");
+  console.error("==================================================");
+  process.exit(1);
+}
+
+const rawApiUrl = process.env.TEST_API_BASE_URL || process.env.API_BASE_URL || "http://localhost:5000/api";
+const API_URL = rawApiUrl.replace(/\/+$/, "").endsWith("/api")
+  ? rawApiUrl.replace(/\/+$/, "")
+  : `${rawApiUrl.replace(/\/+$/, "")}/api`;
 
 async function run() {
   console.log("==================================================");
@@ -128,7 +150,10 @@ async function run() {
   // Verify Storage Files
   console.log("\n--- TEST 3: Verify Disk Storage (Zero Blobs in DB) ---");
   console.log(`originalImageStorageKey in DB: ${dbSub.originalImageStorageKey}`);
-  const originalFile = path.resolve("D:/DigitalExamGrading/apps/api/storage", dbSub.originalImageStorageKey);
+  const storageBaseDir = (isTestEnv && process.env.TEST_SUBMISSION_STORAGE_DIR)
+    ? path.resolve(process.env.TEST_SUBMISSION_STORAGE_DIR)
+    : (process.env.SUBMISSION_STORAGE_DIR ? path.resolve(process.env.SUBMISSION_STORAGE_DIR) : path.resolve("D:/DigitalExamGrading/apps/api/storage"));
+  const originalFile = path.resolve(storageBaseDir, dbSub.originalImageStorageKey);
   const subStorageDir = path.dirname(originalFile);
   console.log(`Storage Dir: ${subStorageDir}`);
   console.log(`Original file exists: ${fs.existsSync(originalFile)} (${fs.statSync(originalFile).size} bytes)`);

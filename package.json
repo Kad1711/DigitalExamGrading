@@ -1,0 +1,15 @@
+{
+  "private": true,
+  "scripts": {
+    "dev:db": "docker compose up -d --wait",
+    "dev:stop": "docker compose stop",
+    "dev:banner": "node scripts/dev-banner.js",
+    "dev:web": "npm --prefix apps/web run dev -- --host 0.0.0.0",
+    "dev:api": "npm --prefix apps/api start",
+    "dev:ai": "cd apps/ai-service && .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
+    "dev": "npm run dev:db && npm run dev:banner && concurrently -c \"cyan.bold,green.bold,magenta.bold\" -n WEB,API,AI \"npm run dev:web\" \"npm run dev:api\" \"npm run dev:ai\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

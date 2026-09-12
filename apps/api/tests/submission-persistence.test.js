@@ -67,7 +67,7 @@ async function setupTestContext() {
 test("Phase 6 Submission Persistence, Security & Semantic Suite", async (t) => {
   const ctx = await setupTestContext();
   const testRunId = "run_" + Date.now();
-  const testStorageDir = path.resolve("D:/DigitalExamGrading/apps/api/storage/submissions", testRunId);
+  const testStorageDir = path.resolve(storageService.getStorageRoot(), "submissions", testRunId);
 
   // Prepare test dummy files for storage streaming
   fs.mkdirSync(path.join(testStorageDir, "review"), { recursive: true });

@@ -63,7 +63,7 @@ export async function login(email, password) {
 
   if (!user) {
     throw new AppError(
-      "Email hoac mat khau khong chinh xac.",
+      "Email hoặc mật khẩu không chính xác.",
       401,
       "INVALID_CREDENTIALS"
     );
@@ -72,7 +72,7 @@ export async function login(email, password) {
   const passwordMatch = await bcrypt.compare(password, user.passwordHash);
   if (!passwordMatch) {
     throw new AppError(
-      "Email hoac mat khau khong chinh xac.",
+      "Email hoặc mật khẩu không chính xác.",
       401,
       "INVALID_CREDENTIALS"
     );
@@ -80,7 +80,7 @@ export async function login(email, password) {
 
   if (user.status !== "ACTIVE") {
     throw new AppError(
-      "Tai khoan cua ban da bi khoa hoac chua kich hoat.",
+      "Tài khoản của bạn đã bị khóa hoặc chưa được kích hoạt.",
       403,
       "ACCOUNT_INACTIVE"
     );
@@ -116,34 +116,34 @@ export async function refreshAccessToken(refreshToken) {
   } catch (err) {
     if (err.name === "TokenExpiredError") {
       throw new AppError(
-        "Refresh token da het han. Vui long dang nhap lai.",
+        "Refresh token đã hết hạn. Vui lòng đăng nhập lại.",
         401,
         "REFRESH_TOKEN_EXPIRED"
       );
     }
-    throw new AppError("Refresh token khong hop le.", 401, "INVALID_REFRESH_TOKEN");
+    throw new AppError("Refresh token không hợp lệ.", 401, "INVALID_REFRESH_TOKEN");
   }
 
   const tokenHash = hashToken(refreshToken);
   const stored = await prisma.refreshToken.findUnique({ where: { tokenHash } });
 
   if (!stored) {
-    throw new AppError("Refresh token khong ton tai.", 401, "INVALID_REFRESH_TOKEN");
+    throw new AppError("Refresh token không tồn tại.", 401, "INVALID_REFRESH_TOKEN");
   }
   if (stored.revokedAt) {
-    throw new AppError("Refresh token da bi thu hoi.", 401, "REFRESH_TOKEN_REVOKED");
+    throw new AppError("Refresh token đã bị thu hồi.", 401, "REFRESH_TOKEN_REVOKED");
   }
   if (stored.expiresAt < new Date()) {
-    throw new AppError("Refresh token da het han.", 401, "REFRESH_TOKEN_EXPIRED");
+    throw new AppError("Refresh token đã hết hạn.", 401, "REFRESH_TOKEN_EXPIRED");
   }
 
   const user = await prisma.user.findUnique({ where: { id: payload.sub } });
   if (!user) {
-    throw new AppError("Nguoi dung khong ton tai.", 401, "USER_NOT_FOUND");
+    throw new AppError("Người dùng không tồn tại.", 401, "USER_NOT_FOUND");
   }
   if (user.status !== "ACTIVE") {
     throw new AppError(
-      "Tai khoan cua ban da bi khoa hoac chua kich hoat.",
+      "Tài khoản của bạn đã bị khóa hoặc chưa được kích hoạt.",
       403,
       "ACCOUNT_INACTIVE"
     );

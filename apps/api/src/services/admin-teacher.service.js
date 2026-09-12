@@ -8,11 +8,12 @@ const SALT_ROUNDS = 12;
  * Danh sach giao vien danh cho Quan tri vien.
  */
 export async function listTeachers({ search, status } = {}) {
-  const where = {};
-
-  if (status) {
-    where.user = { status };
-  }
+  const where = {
+    user: {
+      role: "TEACHER",
+      ...(status ? { status } : {}),
+    },
+  };
 
   if (search && search.trim() !== "") {
     const term = search.trim();
