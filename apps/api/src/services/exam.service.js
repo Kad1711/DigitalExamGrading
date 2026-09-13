@@ -227,7 +227,45 @@ export async function deleteExam(examId, reqUser) {
       "EXAM_DELETE_NOT_ALLOWED"
     );
   }
-  await prisma.exam.delete({ where: { id: examId } });
+
+  await prisma.$transaction(async (tx) => {
+    const subIds = (await tx.examSubmission.findMany({ where: { examId }, select: { id: true } })).map(s => s.id);
+    if (subIds.length > 0) {
+      await tx.submissionAnswer.deleteMany({ where: { submissionId: { in: subIds } } });
+      await tx.examSubmissionAuditLog.deleteMany({ where: { submissionId: { in: subIds } } });
+      await tx.examSubmission.deleteMany({ where: { id: { in: subIds } } });
+    }
+    await tx.examResultPublicationLog.deleteMany({ where: { examId } });
+    await tx.examCandidate.deleteMany({ where: { examId } });
+    const examCodes = await tx.examCode.findMany({ where: { examId }, select: { id: true } });
+    await tx.answerKey.deleteMany({ where: { examCodeId: { in: examCodes.map(c => c.id) } } });
+    await tx.examCode.deleteMany({ where: { examId } });
+    await tx.answerSheetTemplate.deleteMany({ where: { examId } });
+    await tx.exam.delete({ where: { id: examId } });
+  });
+
+  return { id: examId, title: exam.title, message: `Đã xóa kỳ thi "${exam.title}" thành công.` };
+}
+
+export async function bulkDeleteExams(examIds = [], reqUser) {
+  if (!Array.isArray(examIds) || examIds.length === 0) {
+    throw new AppError("Danh sách kỳ thi cần xóa không hợp lệ.", 400, "INVALID_EXAM_IDS");
+  }
+
+  let deletedCount = 0;
+  for (const id of examIds) {
+    try {
+      await deleteExam(id, reqUser);
+      deletedCount++;
+    } catch (err) {
+      console.warn(`Could not delete exam ${id}:`, err.message);
+    }
+  }
+
+  return {
+    deletedCount,
+    message: `Đã xóa thành công ${deletedCount} kỳ thi.`,
+  };
 }
 
 export async function cloneExam(examId, reqUser) {

@@ -77,12 +77,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickFill = (demoEmail, demoPass) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setErrorMsg("");
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8">
       <div className="w-full max-w-md">
@@ -196,65 +190,6 @@ export default function LoginPage() {
             </div>
           </form>
 
-          {/* Quick Login Helper Box (CHỈ HIỂN THỊ Ở MÔI TRƯỜNG PHÁT TRIỂN / DEVELOPMENT) */}
-          {import.meta.env.DEV && (
-            <div className="mt-6 pt-5 border-t border-slate-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  Tài khoản mẫu phát triển (DEV Only)
-                </span>
-                <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-mono">
-                  DEV
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleQuickFill("teacher@digitalexam.local", "Teacher@123456")
-                  }
-                  className="text-left p-2 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-blue-50 hover:border-blue-200 transition-colors cursor-pointer group"
-                >
-                  <div className="text-xs font-semibold text-slate-800 group-hover:text-blue-700 truncate">
-                    Giáo viên
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-mono truncate">
-                    teacher@...
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleQuickFill("admin@digitalexam.local", "Admin@123456")
-                  }
-                  className="text-left p-2 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-blue-50 hover:border-blue-200 transition-colors cursor-pointer group"
-                >
-                  <div className="text-xs font-semibold text-slate-800 group-hover:text-blue-700 truncate">
-                    Quản trị
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-mono truncate">
-                    admin@...
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleQuickFill("student@digitalexam.local", "Student@123456")
-                  }
-                  className="text-left p-2 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-blue-50 hover:border-blue-200 transition-colors cursor-pointer group"
-                >
-                  <div className="text-xs font-semibold text-slate-800 group-hover:text-blue-700 truncate">
-                    Học sinh
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-mono truncate">
-                    student@...
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer info */}

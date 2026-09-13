@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/role.middleware.js";
 import * as adminTeacherController from "../controllers/admin-teacher.controller.js";
+import * as adminDashboardController from "../controllers/admin-dashboard.controller.js";
 
 const router = Router();
 
@@ -22,6 +23,12 @@ router.get("/test", (req, res) => {
 });
 
 /**
+ * GET /api/admin/dashboard
+ * Tong quan thong ke he thong danh rieng cho ADMIN.
+ */
+router.get("/dashboard", adminDashboardController.getAdminDashboardController);
+
+/**
  * Quan ly tai khoan giao vien
  */
 router.get("/teachers", adminTeacherController.listTeachersController);
@@ -34,5 +41,7 @@ router.post(
   "/teachers/:teacherId/reset-password",
   adminTeacherController.resetTeacherPasswordController
 );
+router.delete("/teachers/:teacherId", adminTeacherController.deleteTeacherController);
+router.post("/teachers/bulk-delete-locked", adminTeacherController.bulkDeleteLockedTeachersController);
 
 export default router;

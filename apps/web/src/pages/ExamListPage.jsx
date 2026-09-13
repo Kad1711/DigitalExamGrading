@@ -23,6 +23,7 @@ import {
   BarChart3,
   Clock,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -35,8 +36,16 @@ export default function ExamListPage() {
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Deletion States
+  const [selectedDraftExamIds, setSelectedDraftExamIds] = useState([]);
+  const [examToDelete, setExamToDelete] = useState(null);
+  const [deletingExam, setDeletingExam] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [deletingBulkExams, setDeletingBulkExams] = useState(false);
 
   // Teacher Dashboard State (Phase 10)
   const [dashboard, setDashboard] = useState(null);
@@ -112,6 +121,68 @@ export default function ExamListPage() {
     const classMatch = (ex.class?.name || "").toLowerCase().includes(term);
     return titleMatch || subjectMatch || classMatch;
   });
+
+  const draftExams = filteredExams.filter((ex) => ex.status === "DRAFT");
+
+  const toggleSelectDraftExam = (examId) => {
+    setSelectedDraftExamIds((prev) =>
+      prev.includes(examId)
+        ? prev.filter((id) => id !== examId)
+        : [...prev, examId]
+    );
+  };
+
+  const toggleSelectAllDraftExams = () => {
+    if (draftExams.length === 0) return;
+    const allDraftIds = draftExams.map((e) => e.id);
+    const isAllSelected = allDraftIds.every((id) => selectedDraftExamIds.includes(id));
+    if (isAllSelected) {
+      setSelectedDraftExamIds((prev) => prev.filter((id) => !allDraftIds.includes(id)));
+    } else {
+      setSelectedDraftExamIds((prev) => Array.from(new Set([...prev, ...allDraftIds])));
+    }
+  };
+
+  const handleDeleteSingleExam = async () => {
+    if (!examToDelete) return;
+    try {
+      setDeletingExam(true);
+      setErrorMsg("");
+      await api.delete(`/exams/${examToDelete.id}`);
+      setExams((prev) => prev.filter((e) => e.id !== examToDelete.id));
+      setSelectedDraftExamIds((prev) => prev.filter((id) => id !== examToDelete.id));
+      setSuccessMsg(`Đã xóa kỳ thi nháp "${examToDelete.title}" thành công.`);
+      setExamToDelete(null);
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      const raw = err.response?.data?.error?.message;
+      setErrorMsg(getErrorMessage(code, raw || "Không thể xóa kỳ thi."));
+    } finally {
+      setDeletingExam(false);
+    }
+  };
+
+  const handleBulkDeleteDraftExams = async () => {
+    if (selectedDraftExamIds.length === 0) return;
+    try {
+      setDeletingBulkExams(true);
+      setErrorMsg("");
+      const res = await api.post("/exams/bulk-delete", {
+        examIds: selectedDraftExamIds,
+      });
+      const deletedCount = res.data?.data?.deletedCount ?? selectedDraftExamIds.length;
+      setExams((prev) => prev.filter((e) => !selectedDraftExamIds.includes(e.id)));
+      setSuccessMsg(`Đã xóa ${deletedCount} bài thi nháp thành công.`);
+      setSelectedDraftExamIds([]);
+      setShowBulkDeleteModal(false);
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      const raw = err.response?.data?.error?.message;
+      setErrorMsg(getErrorMessage(code, raw || "Không thể xóa các bài thi đã chọn."));
+    } finally {
+      setDeletingBulkExams(false);
+    }
+  };
 
   const filterTabs = [
     { id: "ALL", label: "Tất cả" },
@@ -268,6 +339,41 @@ export default function ExamListPage() {
             {errorMsg}
           </Alert>
         )}
+        {successMsg && (
+          <Alert variant="success" className="mb-6" onClose={() => setSuccessMsg("")}>
+            {successMsg}
+          </Alert>
+        )}
+
+        {/* Bulk Action Banner */}
+        {selectedDraftExamIds.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 mb-6 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 animate-in fade-in duration-150">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span className="text-xs font-semibold">
+                Đã chọn <strong>{selectedDraftExamIds.length}</strong> bài thi nháp
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedDraftExamIds([])}
+                className="text-xs text-rose-700 hover:bg-rose-100"
+              >
+                Bỏ chọn
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                icon={Trash2}
+                onClick={() => setShowBulkDeleteModal(true)}
+              >
+                Xóa {selectedDraftExamIds.length} bài thi đã chọn
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Content Container */}
         {loading ? (
@@ -316,6 +422,17 @@ export default function ExamListPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                      <th className="py-3.5 px-3 w-10 text-center">
+                        {draftExams.length > 0 && (
+                          <input
+                            type="checkbox"
+                            checked={draftExams.length > 0 && draftExams.every((e) => selectedDraftExamIds.includes(e.id))}
+                            onChange={toggleSelectAllDraftExams}
+                            title="Chọn tất cả bài thi nháp"
+                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                        )}
+                      </th>
                       <th className="py-3.5 px-4 font-semibold">Tên kỳ thi</th>
                       <th className="py-3.5 px-4 font-semibold">Môn học</th>
                       <th className="py-3.5 px-4 font-semibold">Lớp</th>
@@ -333,6 +450,18 @@ export default function ExamListPage() {
                         key={exam.id}
                         className="hover:bg-slate-50/70 transition-colors group"
                       >
+                        <td className="py-4 px-3 text-center">
+                          {exam.status === "DRAFT" ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedDraftExamIds.includes(exam.id)}
+                              onChange={() => toggleSelectDraftExam(exam.id)}
+                              className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          ) : (
+                            <span className="text-slate-300 text-xs">&mdash;</span>
+                          )}
+                        </td>
                         <td className="py-4 px-4 font-medium text-slate-900 max-w-xs">
                           <Link
                             to={examDetailPath(exam)}
@@ -367,14 +496,26 @@ export default function ExamListPage() {
                         <td className="py-4 px-4 text-right whitespace-nowrap">
                           <div className="inline-flex items-center justify-end gap-1.5">
                             {exam.status === "DRAFT" ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                icon={Settings}
-                                onClick={() => navigate(examDetailPath(exam))}
-                              >
-                                Thiết lập
-                              </Button>
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  icon={Settings}
+                                  onClick={() => navigate(examDetailPath(exam))}
+                                >
+                                  Thiết lập
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  icon={Trash2}
+                                  onClick={() => setExamToDelete(exam)}
+                                  className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                                  title="Xóa kỳ thi nháp"
+                                >
+                                  Xóa
+                                </Button>
+                              </>
                             ) : (
                               <Button
                                 variant="outline"
@@ -445,12 +586,23 @@ export default function ExamListPage() {
                   className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <Link
-                      to={examDetailPath(exam)}
-                      className="font-bold text-slate-900 hover:text-blue-600 text-base leading-snug"
-                    >
-                      {exam.title}
-                    </Link>
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      {exam.status === "DRAFT" && (
+                        <input
+                          type="checkbox"
+                          checked={selectedDraftExamIds.includes(exam.id)}
+                          onChange={() => toggleSelectDraftExam(exam.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-1 shrink-0"
+                          title="Chọn bài thi nháp"
+                        />
+                      )}
+                      <Link
+                        to={examDetailPath(exam)}
+                        className="font-bold text-slate-900 hover:text-blue-600 text-base leading-snug"
+                      >
+                        {exam.title}
+                      </Link>
+                    </div>
                     <ExamStatusBadge status={exam.status} size="sm" />
                   </div>
 
@@ -483,14 +635,26 @@ export default function ExamListPage() {
                     </span>
                     <div className="flex items-center gap-1.5">
                       {exam.status === "DRAFT" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          icon={Settings}
-                          onClick={() => navigate(examDetailPath(exam))}
-                        >
-                          Thiết lập
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            icon={Settings}
+                            onClick={() => navigate(examDetailPath(exam))}
+                          >
+                            Thiết lập
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            icon={Trash2}
+                            onClick={() => setExamToDelete(exam)}
+                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                            title="Xóa bài thi nháp"
+                          >
+                            Xóa
+                          </Button>
+                        </>
                       ) : (
                         <Button
                           variant="outline"
@@ -532,6 +696,85 @@ export default function ExamListPage() {
           </>
         )}
       </main>
+
+      {/* Delete Single Draft Exam Modal */}
+      <Modal
+        isOpen={Boolean(examToDelete)}
+        onClose={() => !deletingExam && setExamToDelete(null)}
+        title={`Xóa kỳ thi nháp "${examToDelete?.title}"?`}
+        description="Kỳ thi nháp này chưa có bài làm nào nộp lên. Bạn có chắc chắn muốn xóa không?"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExamToDelete(null)}
+              disabled={deletingExam}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleDeleteSingleExam}
+              loading={deletingExam}
+            >
+              Xác nhận xóa
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 text-xs text-slate-600">
+          <p>
+            Hành động này sẽ xóa hoàn toàn bản nháp kỳ thi <strong>{examToDelete?.title}</strong> cùng các mã đề và đáp án đã tạo.
+          </p>
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
+            Dữ liệu này sẽ không thể khôi phục sau khi xóa.
+          </div>
+        </div>
+      </Modal>
+
+      {/* Bulk Delete Draft Exams Modal */}
+      <Modal
+        isOpen={showBulkDeleteModal}
+        onClose={() => !deletingBulkExams && setShowBulkDeleteModal(false)}
+        title={`Xóa ${selectedDraftExamIds.length} bài thi nháp đã chọn?`}
+        description="Xác nhận xóa vĩnh viễn các bài thi nháp đã chọn khỏi hệ thống."
+        footer={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBulkDeleteModal(false)}
+              disabled={deletingBulkExams}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              icon={Trash2}
+              onClick={handleBulkDeleteDraftExams}
+              loading={deletingBulkExams}
+            >
+              Xác nhận xóa {selectedDraftExamIds.length} bài thi
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 text-xs text-slate-600">
+          <p>
+            Bạn có chắc chắn muốn xóa <strong>{selectedDraftExamIds.length}</strong> bài thi nháp đã chọn không?
+          </p>
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-rose-900">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>Hành động này không thể hoàn tác!</span>
+            </div>
+            <div>&bull; Toàn bộ cấu hình mã đề và đáp án của các bản nháp này sẽ bị xóa.</div>
+          </div>
+        </div>
+      </Modal>
 
       {/* Clone Confirmation Modal */}
       <Modal

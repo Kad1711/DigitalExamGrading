@@ -45,4 +45,20 @@ router.get("/classes", denyStudent, async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/grades
+ * Minimal read-only endpoint returning grades for class setup dropdowns.
+ */
+router.get("/grades", denyStudent, async (req, res, next) => {
+  try {
+    const grades = await prisma.grade.findMany({
+      select: { id: true, level: true, name: true },
+      orderBy: { level: "asc" },
+    });
+    return res.status(200).json({ success: true, data: grades });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

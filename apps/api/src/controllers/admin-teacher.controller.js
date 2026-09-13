@@ -123,3 +123,31 @@ export async function resetTeacherPasswordController(req, res, next) {
     next(err);
   }
 }
+
+export async function deleteTeacherController(req, res, next) {
+  try {
+    const { teacherId } = req.params;
+    const result = await adminTeacherService.deleteTeacher(teacherId);
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bulkDeleteLockedTeachersController(req, res, next) {
+  try {
+    const { teacherIds } = req.body;
+    const result = await adminTeacherService.bulkDeleteLockedTeachers(teacherIds);
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}

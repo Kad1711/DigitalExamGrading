@@ -87,8 +87,18 @@ export async function updateExamController(req, res, next) {
 
 export async function deleteExamController(req, res, next) {
   try {
-    await examService.deleteExam(req.params.examId, req.user);
-    return res.status(200).json({ success: true, message: "Da xoa ky thi." });
+    const result = await examService.deleteExam(req.params.examId, req.user);
+    return res.status(200).json({ success: true, message: result?.message || "Đã xóa kỳ thi thành công.", data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bulkDeleteExamsController(req, res, next) {
+  try {
+    const { examIds } = req.body;
+    const result = await examService.bulkDeleteExams(examIds, req.user);
+    return res.status(200).json({ success: true, message: result.message, data: result });
   } catch (err) {
     next(err);
   }

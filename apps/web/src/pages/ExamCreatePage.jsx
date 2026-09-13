@@ -13,17 +13,35 @@ import {
   Award,
   Calculator,
   Loader2,
+  Plus,
+  Layers,
+  Sparkles,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Alert from "../components/ui/Alert";
+import Modal from "../components/ui/Modal";
 import Breadcrumbs from "../components/ui/Breadcrumbs";
 
 export default function ExamCreatePage() {
   const navigate = useNavigate();
 
+  const [loadingData, setLoadingData] = useState(true);
   const [subjects, setSubjects] = useState([]);
   const [classes, setClasses] = useState([]);
-  const [loadingData, setLoadingData] = useState(true);
+  const [grades, setGrades] = useState([]);
+
+  // Quick Create Class Modal State
+  const [showCreateClassModal, setShowCreateClassModal] = useState(false);
+  const [createClassMode, setCreateClassMode] = useState("BATCH"); // "BATCH" or "SINGLE"
+  const [newClassName, setNewClassName] = useState("");
+  const [batchClassNamesInput, setBatchClassNamesInput] = useState("");
+  const [seriesPrefix, setSeriesPrefix] = useState("12A");
+  const [seriesFrom, setSeriesFrom] = useState(1);
+  const [seriesTo, setSeriesTo] = useState(12);
+  const [seriesPadZeroes, setSeriesPadZeroes] = useState(true);
+  const [newClassGradeId, setNewClassGradeId] = useState("");
+  const [creatingClass, setCreatingClass] = useState(false);
+  const [createClassError, setCreateClassError] = useState("");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -45,19 +63,23 @@ export default function ExamCreatePage() {
       setLoadingData(true);
       setErrorMsg("");
 
-      const [subRes, clsRes] = await Promise.all([
+      const [subRes, clsRes, grRes] = await Promise.all([
         api.get("/subjects"),
         api.get("/classes"),
+        api.get("/grades").catch(() => ({ data: { data: [] } })),
       ]);
 
       const subs = subRes.data.data || [];
       const clsList = clsRes.data.data || [];
+      const grList = grRes.data?.data || [];
 
       setSubjects(subs);
       setClasses(clsList);
+      setGrades(grList);
 
       if (subs.length > 0) setSubjectId(subs[0].id);
       if (clsList.length > 0) setClassId(clsList[0].id);
+      if (grList.length > 0) setNewClassGradeId(grList[0].id);
     } catch (err) {
       const code = err.response?.data?.error?.code;
       const raw = err.response?.data?.error?.message;
@@ -69,6 +91,169 @@ export default function ExamCreatePage() {
       );
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const parsedBatchNames = React.useMemo(() => {
+    if (!batchClassNamesInput) return [];
+    const raw = batchClassNamesInput
+      .split(/[\n,;]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const unique = [];
+    const seen = new Set();
+    for (const item of raw) {
+      const lower = item.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        unique.push(item);
+      }
+    }
+    return unique;
+  }, [batchClassNamesInput]);
+
+  const existingClassNamesSet = React.useMemo(() => {
+    const set = new Set();
+    classes.forEach((c) => set.add(c.name.trim().toLowerCase()));
+    return set;
+  }, [classes]);
+
+  const duplicateBatchNames = React.useMemo(() => {
+    return parsedBatchNames.filter((n) => existingClassNamesSet.has(n.toLowerCase()));
+  }, [parsedBatchNames, existingClassNamesSet]);
+
+  const handleFilterOutDuplicates = () => {
+    const nonDuplicates = parsedBatchNames.filter(
+      (n) => !existingClassNamesSet.has(n.toLowerCase())
+    );
+    setBatchClassNamesInput(nonDuplicates.join(", "));
+  };
+
+  const handleSelectPrefixPreset = (pfx, level) => {
+    setSeriesPrefix(pfx);
+    const gr = grades.find((g) => g.level === level);
+    if (gr) {
+      setNewClassGradeId(gr.id);
+    }
+  };
+
+  const handleBatchInput = (val) => {
+    setBatchClassNamesInput(val);
+    const firstWord = val.trim().split(/[\n,;\s]+/)[0];
+    if (firstWord) {
+      const m = firstWord.match(/^(\d{1,2})/);
+      if (m) {
+        const level = parseInt(m[1], 10);
+        const matchedGrade = grades.find((g) => g.level === level);
+        if (matchedGrade) {
+          setNewClassGradeId(matchedGrade.id);
+        }
+      }
+    }
+  };
+
+  const handleGenerateSeries = () => {
+    const from = parseInt(seriesFrom, 10) || 1;
+    const to = parseInt(seriesTo, 10) || 1;
+    if (from > to) {
+      setCreateClassError("Số bắt đầu phải nhỏ hơn hoặc bằng số kết thúc.");
+      return;
+    }
+    if (to - from > 50) {
+      setCreateClassError("Tối đa tạo dãy 50 lớp cùng lúc.");
+      return;
+    }
+    const pfx = (seriesPrefix || "").trim();
+    const generated = [];
+    for (let i = from; i <= to; i++) {
+      const numStr = seriesPadZeroes ? String(i).padStart(2, "0") : String(i);
+      generated.push(`${pfx}${numStr}`);
+    }
+    const combined = Array.from(new Set([...parsedBatchNames, ...generated]));
+    setBatchClassNamesInput(combined.join(", "));
+
+    const m = pfx.match(/^(\d{1,2})/);
+    if (m) {
+      const level = parseInt(m[1], 10);
+      const matchedGrade = grades.find((g) => g.level === level);
+      if (matchedGrade) {
+        setNewClassGradeId(matchedGrade.id);
+      }
+    }
+    setCreateClassError("");
+  };
+
+  const handleRemoveBatchTag = (tagToRemove) => {
+    const remaining = parsedBatchNames.filter((n) => n !== tagToRemove);
+    setBatchClassNamesInput(remaining.join(", "));
+  };
+
+  const handleCreateClass = async (e) => {
+    if (e) e.preventDefault();
+    if (!newClassGradeId) {
+      setCreateClassError("Vui lòng chọn khối học.");
+      return;
+    }
+
+    if (createClassMode === "BATCH") {
+      if (parsedBatchNames.length === 0) {
+        setCreateClassError("Vui lòng nhập danh sách tên lớp (ví dụ: 12A1, 12A2...).");
+        return;
+      }
+
+      try {
+        setCreatingClass(true);
+        setCreateClassError("");
+
+        const res = await api.post("/classes/batch", {
+          names: parsedBatchNames,
+          gradeId: newClassGradeId,
+        });
+
+        const { created } = res.data.data;
+        if (created && created.length > 0) {
+          setClasses((prev) => [...created, ...prev]);
+          setClassId(created[0].id);
+        }
+
+        setBatchClassNamesInput("");
+        setShowCreateClassModal(false);
+      } catch (err) {
+        const msg =
+          err.response?.data?.error?.message ||
+          "Không thể tạo danh sách lớp học. Vui lòng thử lại.";
+        setCreateClassError(msg);
+      } finally {
+        setCreatingClass(false);
+      }
+    } else {
+      if (!newClassName.trim()) {
+        setCreateClassError("Vui lòng nhập tên lớp (ví dụ: 12A1).");
+        return;
+      }
+
+      try {
+        setCreatingClass(true);
+        setCreateClassError("");
+
+        const res = await api.post("/classes", {
+          name: newClassName.trim(),
+          gradeId: newClassGradeId,
+        });
+
+        const created = res.data.data;
+        setClasses((prev) => [created, ...prev]);
+        setClassId(created.id);
+        setNewClassName("");
+        setShowCreateClassModal(false);
+      } catch (err) {
+        const msg =
+          err.response?.data?.error?.message ||
+          "Không thể tạo lớp học. Vui lòng thử lại.";
+        setCreateClassError(msg);
+      } finally {
+        setCreatingClass(false);
+      }
     }
   };
 
@@ -235,12 +420,25 @@ export default function ExamCreatePage() {
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="classId"
-                    className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
-                  >
-                    Lớp học <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label
+                      htmlFor="classId"
+                      className="block text-xs font-semibold text-slate-700 uppercase tracking-wider"
+                    >
+                      Lớp học <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreateClassError("");
+                        setShowCreateClassModal(true);
+                      }}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Tạo lớp mới
+                    </button>
+                  </div>
                   <select
                     id="classId"
                     required
@@ -251,7 +449,7 @@ export default function ExamCreatePage() {
                   >
                     {classes.map((cls) => (
                       <option key={cls.id} value={cls.id}>
-                        {cls.name} ({cls.grade?.name || "Khối"})
+                        {cls.name} ({cls.grade?.name || cls.gradeName || "Khối"})
                       </option>
                     ))}
                   </select>
@@ -400,6 +598,300 @@ export default function ExamCreatePage() {
           </div>
         )}
       </main>
+
+      {/* Quick Create Class Modal */}
+      <Modal
+        isOpen={showCreateClassModal}
+        onClose={() => !creatingClass && setShowCreateClassModal(false)}
+        title="Tạo Lớp Học Mới"
+        description="Thêm một hoặc nhiều lớp học cùng lúc vào hệ thống để tổ chức thi."
+        footer={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCreateClassModal(false)}
+              disabled={creatingClass}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleCreateClass}
+              loading={creatingClass}
+              disabled={createClassMode === "BATCH" && parsedBatchNames.length === 0}
+            >
+              {creatingClass
+                ? "Đang tạo lớp..."
+                : createClassMode === "BATCH"
+                ? parsedBatchNames.length > 0
+                  ? `Tạo ${parsedBatchNames.length} lớp học`
+                  : "Tạo danh sách lớp"
+                : "Tạo lớp học"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          {createClassError && (
+            <Alert variant="danger" onClose={() => setCreateClassError("")}>
+              {createClassError}
+            </Alert>
+          )}
+
+          {/* Mode Switcher Tabs */}
+          <div className="flex rounded-lg bg-slate-100 p-1 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setCreateClassMode("BATCH")}
+              className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                createClassMode === "BATCH"
+                  ? "bg-white text-blue-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 text-blue-600" />
+              <span>Tạo nhiều lớp (Nhanh)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreateClassMode("SINGLE")}
+              className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                createClassMode === "SINGLE"
+                  ? "bg-white text-blue-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Plus className="w-3.5 h-3.5 text-slate-500" />
+              <span>Tạo 1 lớp</span>
+            </button>
+          </div>
+
+          {createClassMode === "BATCH" ? (
+            <div className="space-y-3.5">
+              {/* Quick Series Generator Tool */}
+              <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-blue-900 flex items-center gap-1.5 uppercase tracking-wider">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    Công cụ tạo nhanh theo dãy số
+                  </span>
+                  <label className="flex items-center gap-1.5 text-[11px] text-blue-900 cursor-pointer select-none font-medium">
+                    <input
+                      type="checkbox"
+                      checked={seriesPadZeroes}
+                      onChange={(e) => setSeriesPadZeroes(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                    />
+                    <span>Thêm số 0 ở đầu (01, 02...)</span>
+                  </label>
+                </div>
+
+                {/* THCS & THPT Quick Preset Chips */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-blue-200/60 text-[11px]">
+                  <span className="text-slate-500 font-medium">Chọn nhanh khối:</span>
+                  {[
+                    { label: "6A", level: 6 },
+                    { label: "7A", level: 7 },
+                    { label: "8A", level: 8 },
+                    { label: "9A", level: 9 },
+                    { label: "10A", level: 10 },
+                    { label: "11A", level: 11 },
+                    { label: "12A", level: 12 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => handleSelectPrefixPreset(preset.label, preset.level)}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
+                        seriesPrefix === preset.label
+                          ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                          : "bg-white text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300"
+                      }`}
+                    >
+                      {preset.label} (K{preset.level})
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-600 text-[11px]">Tiền tố:</span>
+                    <input
+                      type="text"
+                      value={seriesPrefix}
+                      onChange={(e) => setSeriesPrefix(e.target.value)}
+                      placeholder="12A"
+                      className="w-16 px-2 py-1 text-xs font-semibold bg-white border border-blue-200 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-600 text-[11px]">Từ:</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={seriesFrom}
+                      onChange={(e) => setSeriesFrom(e.target.value)}
+                      className="w-14 px-2 py-1 text-xs bg-white border border-blue-200 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-600 text-[11px]">Đến:</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={seriesTo}
+                      onChange={(e) => setSeriesTo(e.target.value)}
+                      className="w-14 px-2 py-1 text-xs bg-white border border-blue-200 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateSeries}
+                    className="!py-1 !text-xs !bg-white hover:!bg-blue-100 !border-blue-300 !text-blue-700 font-semibold cursor-pointer"
+                  >
+                    + Điền dãy {seriesPrefix}
+                    {seriesPadZeroes
+                      ? String(seriesFrom).padStart(2, "0")
+                      : seriesFrom}{" "}
+                    → {seriesPrefix}
+                    {seriesPadZeroes
+                      ? String(seriesTo).padStart(2, "0")
+                      : seriesTo}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Multi-class Textarea */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Danh sách tên lớp học <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[11px] text-slate-500">
+                    Phân cách bằng dấu phẩy (,), chấm phẩy (;) hoặc xuống dòng
+                  </span>
+                </div>
+                <textarea
+                  rows={3}
+                  required
+                  autoFocus
+                  disabled={creatingClass}
+                  value={batchClassNamesInput}
+                  onChange={(e) => handleBatchInput(e.target.value)}
+                  placeholder="Ví dụ: 12A01, 12A02, 12A03, 12A04, 12A05... (hoặc dán từ Excel)"
+                  className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 font-mono"
+                />
+              </div>
+
+              {/* Duplicate classes alert */}
+              {duplicateBatchNames.length > 0 && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-[11px] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="font-bold">⚠️ Có {duplicateBatchNames.length} lớp đã tồn tại: </span>
+                    <span>{duplicateBatchNames.join(", ")}. Dữ liệu lớp cũ được bảo toàn tuyệt đối, hệ thống sẽ không ghi đè.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleFilterOutDuplicates}
+                    className="shrink-0 px-2 py-1 bg-white border border-amber-300 rounded text-amber-800 font-semibold hover:bg-amber-100 transition-colors cursor-pointer"
+                  >
+                    Lọc bỏ các lớp trùng
+                  </button>
+                </div>
+              )}
+
+              {/* Tags Preview */}
+              {parsedBatchNames.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-semibold text-slate-700">
+                      Sẽ tạo <span className="text-blue-600 font-bold">{parsedBatchNames.length}</span> lớp học:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setBatchClassNamesInput("")}
+                      className="text-[11px] text-rose-600 hover:underline cursor-pointer"
+                    >
+                      Xóa tất cả
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-2 bg-slate-50 rounded-lg border border-slate-200">
+                    {parsedBatchNames.map((name) => {
+                      const isDup = existingClassNamesSet.has(name.toLowerCase());
+                      return (
+                        <span
+                          key={name}
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold border shadow-2xs ${
+                            isDup
+                              ? "bg-amber-50 border-amber-300 text-amber-800"
+                              : "bg-white border-blue-200 text-blue-800"
+                          }`}
+                        >
+                          {name}
+                          {isDup && (
+                            <span className="text-[10px] font-normal text-amber-600">
+                              (Đã có)
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveBatchTag(name)}
+                            title={`Bỏ lớp ${name}`}
+                            className="text-slate-400 hover:text-rose-600 text-sm leading-none cursor-pointer"
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Tên lớp học <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                autoFocus
+                disabled={creatingClass}
+                value={newClassName}
+                onChange={(e) => setNewClassName(e.target.value)}
+                placeholder="Ví dụ: 12A1, 10A3..."
+                className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              Khối học <span className="text-rose-500">*</span>
+            </label>
+            <select
+              required
+              disabled={creatingClass}
+              value={newClassGradeId}
+              onChange={(e) => setNewClassGradeId(e.target.value)}
+              className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 cursor-pointer"
+            >
+              {grades.map((gr) => (
+                <option key={gr.id} value={gr.id}>
+                  {gr.name} (Khối {gr.level})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

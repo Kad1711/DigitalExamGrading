@@ -21,6 +21,8 @@ import {
   Phone,
   Mail,
   ShieldAlert,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { formatUserStatus, getInitials } from "../utils/enum-map";
 
@@ -37,7 +39,12 @@ export default function AdminTeacherListPage() {
   const [isLockOpen, setIsLockOpen] = useState(false);
   const [isUnlockOpen, setIsUnlockOpen] = useState(false);
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [selectedTeacher, setSelectedTeacher] = useState(null);
+  const [selectedLockedTeacherIds, setSelectedLockedTeacherIds] = useState([]);
+  const [formErrors, setFormErrors] = useState({});
 
   // Form states
   const [createForm, setCreateForm] = useState({
@@ -110,17 +117,41 @@ export default function AdminTeacherListPage() {
   };
 
   // Submit Create Teacher
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const PHONE_REGEX = /^0\d{9}$/;
+  const CODE_REGEX = /^[A-Za-z0-9_-]+$/;
+
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
     setModalError("");
 
-    if (
-      !createForm.fullName.trim() ||
-      !createForm.teacherCode.trim() ||
-      !createForm.email.trim() ||
-      !createForm.initialPassword
-    ) {
+    const fullName = createForm.fullName.trim();
+    const teacherCode = createForm.teacherCode.trim();
+    const email = createForm.email.trim();
+    const phone = createForm.phone.trim();
+
+    if (!fullName || !teacherCode || !email || !createForm.initialPassword) {
       setModalError("Vui lòng điền đầy đủ các trường bắt buộc (*).");
+      return;
+    }
+
+    if (fullName.length < 2) {
+      setModalError("Họ và tên giáo viên phải có ít nhất 2 ký tự.");
+      return;
+    }
+
+    if (!CODE_REGEX.test(teacherCode)) {
+      setModalError("Mã giáo viên chỉ được chứa chữ cái, số, dấu gạch ngang (-) hoặc gạch dưới (_).");
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+      setModalError("Email không đúng định dạng (ví dụ: gv@example.com).");
+      return;
+    }
+
+    if (phone && !PHONE_REGEX.test(phone)) {
+      setModalError("Số điện thoại không hợp lệ (phải gồm 10 chữ số bắt đầu bằng 0, ví dụ: 0912345678).");
       return;
     }
 
@@ -137,10 +168,10 @@ export default function AdminTeacherListPage() {
     try {
       setModalLoading(true);
       const payload = {
-        fullName: createForm.fullName.trim(),
-        teacherCode: createForm.teacherCode.trim(),
-        email: createForm.email.trim(),
-        phone: createForm.phone.trim() || null,
+        fullName,
+        teacherCode,
+        email,
+        phone: phone || null,
         initialPassword: createForm.initialPassword,
       };
 
@@ -180,24 +211,49 @@ export default function AdminTeacherListPage() {
     e.preventDefault();
     setModalError("");
 
-    if (!editForm.fullName.trim() || !editForm.teacherCode.trim() || !editForm.email.trim()) {
+    const fullName = editForm.fullName.trim();
+    const teacherCode = editForm.teacherCode.trim();
+    const email = editForm.email.trim();
+    const phone = editForm.phone.trim();
+
+    if (!fullName || !teacherCode || !email) {
       setModalError("Vui lòng điền đầy đủ họ tên, mã GV và email.");
+      return;
+    }
+
+    if (fullName.length < 2) {
+      setModalError("Họ và tên giáo viên phải có ít nhất 2 ký tự.");
+      return;
+    }
+
+    if (!CODE_REGEX.test(teacherCode)) {
+      setModalError("Mã giáo viên chỉ được chứa chữ cái, số, dấu gạch ngang (-) hoặc gạch dưới (_).");
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+      setModalError("Email không đúng định dạng (ví dụ: gv@example.com).");
+      return;
+    }
+
+    if (phone && !PHONE_REGEX.test(phone)) {
+      setModalError("Số điện thoại không hợp lệ (phải gồm 10 chữ số bắt đầu bằng 0, ví dụ: 0912345678).");
       return;
     }
 
     try {
       setModalLoading(true);
       await api.patch(`/admin/teachers/${selectedTeacher.id}`, {
-        fullName: editForm.fullName.trim(),
-        teacherCode: editForm.teacherCode.trim(),
-        email: editForm.email.trim(),
-        phone: editForm.phone.trim() || null,
+        fullName,
+        teacherCode,
+        email,
+        phone: phone || null,
       });
 
       setIsEditOpen(false);
       setAlert({
         type: "success",
-        message: `Đã cập nhật thông tin giáo viên "${editForm.fullName}".`,
+        message: `Đã cập nhật thông tin giáo viên "${fullName}".`,
       });
       fetchTeachers();
     } catch (err) {
@@ -310,6 +366,90 @@ export default function AdminTeacherListPage() {
     }
   };
 
+  // Open Delete Teacher Modal (2-step)
+  const handleOpenDelete = (t) => {
+    setSelectedTeacher(t);
+    setDeleteConfirmText("");
+    setModalError("");
+    setIsDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedTeacher) return;
+    try {
+      setModalLoading(true);
+      setModalError("");
+      const res = await api.delete(`/admin/teachers/${selectedTeacher.id}`);
+      setIsDeleteOpen(false);
+      setSelectedLockedTeacherIds((prev) =>
+        prev.filter((id) => id !== selectedTeacher.id)
+      );
+      setAlert({
+        type: "success",
+        message:
+          res.data.message ||
+          `Đã xóa vĩnh viễn giáo viên "${selectedTeacher.fullName}".`,
+      });
+      setSelectedTeacher(null);
+      fetchTeachers();
+    } catch (err) {
+      setModalError(
+        err.response?.data?.error?.message ||
+          "Không thể xóa tài khoản giáo viên. Vui lòng thử lại."
+      );
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleBulkDeleteLocked = async () => {
+    if (selectedLockedTeacherIds.length === 0) return;
+    try {
+      setModalLoading(true);
+      setModalError("");
+      const res = await api.post("/admin/teachers/bulk-delete-locked", {
+        teacherIds: selectedLockedTeacherIds,
+      });
+      setIsBulkDeleteOpen(false);
+      setAlert({
+        type: "success",
+        message:
+          res.data.message ||
+          `Đã xóa thành công ${selectedLockedTeacherIds.length} giáo viên đã bị khóa.`,
+      });
+      setSelectedLockedTeacherIds([]);
+      fetchTeachers();
+    } catch (err) {
+      setModalError(
+        err.response?.data?.error?.message ||
+          "Không thể xóa danh sách giáo viên. Vui lòng thử lại."
+      );
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const lockedTeachersList = teachers.filter((t) => t.status === "LOCKED");
+
+  const toggleSelectLockedTeacher = (teacherId) => {
+    setSelectedLockedTeacherIds((prev) =>
+      prev.includes(teacherId)
+        ? prev.filter((id) => id !== teacherId)
+        : [...prev, teacherId]
+    );
+  };
+
+  const toggleSelectAllLocked = () => {
+    if (
+      lockedTeachersList.length > 0 &&
+      selectedLockedTeacherIds.length === lockedTeachersList.length
+    ) {
+      setSelectedLockedTeacherIds([]);
+    } else {
+      setSelectedLockedTeacherIds(lockedTeachersList.map((t) => t.id));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <AppHeader />
@@ -400,6 +540,36 @@ export default function AdminTeacherListPage() {
           </div>
         </div>
 
+        {/* Floating Bulk Action Bar */}
+        {selectedLockedTeacherIds.length > 0 && (
+          <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-rose-800">
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span>Đã chọn {selectedLockedTeacherIds.length} giáo viên đã bị khóa</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="xs"
+                variant="danger"
+                icon={Trash2}
+                onClick={() => {
+                  setModalError("");
+                  setIsBulkDeleteOpen(true);
+                }}
+              >
+                Xóa tất cả đã chọn ({selectedLockedTeacherIds.length})
+              </Button>
+              <button
+                type="button"
+                onClick={() => setSelectedLockedTeacherIds([])}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2 py-1 cursor-pointer"
+              >
+                Bỏ chọn
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Content Section */}
         {loading ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 flex flex-col items-center justify-center gap-3">
@@ -430,6 +600,19 @@ export default function AdminTeacherListPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-3.5 pl-4 pr-1 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={
+                          lockedTeachersList.length > 0 &&
+                          selectedLockedTeacherIds.length === lockedTeachersList.length
+                        }
+                        onChange={toggleSelectAllLocked}
+                        disabled={lockedTeachersList.length === 0}
+                        title="Chọn tất cả giáo viên bị khóa"
+                        className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer disabled:opacity-30"
+                      />
+                    </th>
                     <th className="py-3.5 px-4 sm:px-6">Giáo viên</th>
                     <th className="py-3.5 px-4">Mã GV</th>
                     <th className="py-3.5 px-4">Email</th>
@@ -447,8 +630,26 @@ export default function AdminTeacherListPage() {
                     return (
                       <tr
                         key={t.id}
-                        className="hover:bg-slate-50/70 transition-colors"
+                        className={`transition-colors ${
+                          selectedLockedTeacherIds.includes(t.id)
+                            ? "bg-rose-50/40 hover:bg-rose-50/60"
+                            : "hover:bg-slate-50/70"
+                        }`}
                       >
+                        {/* Checkbox */}
+                        <td className="py-3.5 pl-4 pr-1 text-center">
+                          {isLocked ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedLockedTeacherIds.includes(t.id)}
+                              onChange={() => toggleSelectLockedTeacher(t.id)}
+                              className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                            />
+                          ) : (
+                            <span className="text-slate-200 text-xs">•</span>
+                          )}
+                        </td>
+
                         {/* Teacher Avatar & Name */}
                         <td className="py-3.5 px-4 sm:px-6">
                           <div className="flex items-center gap-3">
@@ -535,10 +736,31 @@ export default function AdminTeacherListPage() {
                               <button
                                 type="button"
                                 onClick={() => handleOpenLock(t)}
-                                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
+                                className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                                 title="Khóa tài khoản"
                               >
                                 <Lock className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {/* Delete Button (Requires LOCKED status) */}
+                            {isLocked ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDelete(t)}
+                                className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Xóa vĩnh viễn tài khoản (2 bước)"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                className="p-1.5 rounded-lg text-slate-300 cursor-not-allowed opacity-40"
+                                title="Cần khóa tài khoản trước khi xóa"
+                              >
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             )}
                           </div>
@@ -642,6 +864,17 @@ export default function AdminTeacherListPage() {
                           onClick={() => handleOpenLock(t)}
                         >
                           Khóa
+                        </Button>
+                      )}
+
+                      {isLocked && (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          icon={Trash2}
+                          onClick={() => handleOpenDelete(t)}
+                        >
+                          Xóa
                         </Button>
                       )}
                     </div>
@@ -1137,6 +1370,152 @@ export default function AdminTeacherListPage() {
             />
           </div>
         </form>
+      </Modal>
+
+      {/* ===================================================== */}
+      {/* MODAL 6: DELETE TEACHER (2-STEP VERIFICATION)         */}
+      {/* ===================================================== */}
+      <Modal
+        isOpen={isDeleteOpen}
+        onClose={() => !modalLoading && setIsDeleteOpen(false)}
+        title="Xóa vĩnh viễn tài khoản giáo viên"
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsDeleteOpen(false)}
+              disabled={modalLoading}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={modalLoading}
+              disabled={
+                modalLoading ||
+                (deleteConfirmText.trim() !== selectedTeacher?.teacherCode &&
+                  deleteConfirmText.trim().toUpperCase() !== "XÓA")
+              }
+              onClick={handleConfirmDelete}
+            >
+              {modalLoading ? "Đang xóa..." : "Xác nhận xóa vĩnh viễn"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="text-xs text-rose-800 leading-relaxed">
+              <strong className="block text-sm font-bold text-rose-900 mb-1">
+                Cảnh báo nguy hiểm - Bước 1:
+              </strong>
+              Hành động này sẽ <strong>xóa vĩnh viễn</strong> tài khoản giáo viên, thu hồi toàn bộ phiên đăng nhập và xóa sạch liên kết phân công giảng dạy. Dữ liệu này <strong>không thể khôi phục</strong>.
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Họ và tên:</span>
+              <strong className="text-slate-900">{selectedTeacher?.fullName}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Mã giáo viên:</span>
+              <strong className="text-rose-700 font-mono">{selectedTeacher?.teacherCode}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Email:</span>
+              <span className="text-slate-700 font-mono">{selectedTeacher?.email}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Trạng thái:</span>
+              <Badge variant="red" size="sm">Đã khóa</Badge>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100">
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              Xác nhận an toàn - Bước 2:
+            </label>
+            <p className="text-[11px] text-slate-500 mb-2">
+              Để xác nhận, vui lòng gõ đúng mã giáo viên{" "}
+              <code className="px-1.5 py-0.5 bg-rose-100 text-rose-800 rounded font-mono font-bold">
+                {selectedTeacher?.teacherCode}
+              </code>{" "}
+              hoặc chữ{" "}
+              <code className="px-1.5 py-0.5 bg-slate-200 text-slate-800 rounded font-bold">
+                XÓA
+              </code>{" "}
+              vào ô bên dưới:
+            </p>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={`Nhập ${selectedTeacher?.teacherCode || "mã giáo viên"}`}
+              className="w-full px-3.5 py-2 text-xs font-mono bg-white border border-rose-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-600 transition-all"
+            />
+          </div>
+
+          {modalError && (
+            <Alert variant="danger" className="text-xs">
+              {modalError}
+            </Alert>
+          )}
+        </div>
+      </Modal>
+
+      {/* ===================================================== */}
+      {/* MODAL 7: BULK DELETE LOCKED TEACHERS                  */}
+      {/* ===================================================== */}
+      <Modal
+        isOpen={isBulkDeleteOpen}
+        onClose={() => !modalLoading && setIsBulkDeleteOpen(false)}
+        title="Xác nhận xóa hàng loạt giáo viên đã khóa"
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsBulkDeleteOpen(false)}
+              disabled={modalLoading}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={modalLoading}
+              onClick={handleBulkDeleteLocked}
+            >
+              {modalLoading
+                ? "Đang xóa..."
+                : `Xác nhận xóa ${selectedLockedTeacherIds.length} giáo viên`}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-rose-800 leading-relaxed">
+              Bạn đang chuẩn bị xóa vĩnh viễn{" "}
+              <strong>{selectedLockedTeacherIds.length} tài khoản giáo viên</strong>{" "}
+              đã bị khóa. Toàn bộ thông tin tài khoản và dữ liệu liên quan sẽ bị loại bỏ hoàn toàn khỏi hệ thống.
+            </div>
+          </div>
+          {modalError && (
+            <Alert variant="danger" className="text-xs">
+              {modalError}
+            </Alert>
+          )}
+        </div>
       </Modal>
     </div>
   );

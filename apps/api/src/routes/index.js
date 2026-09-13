@@ -7,6 +7,7 @@ import submissionRoutes from "./submission.routes.js";
 import commonRoutes from "./common.routes.js";
 import studentResultRoutes from "./student-result.routes.js";
 import teacherDashboardRoutes from "./teacher-dashboard.routes.js";
+import classRoutes from "./class.routes.js";
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.use("/submissions", submissionRoutes);
 router.use("/profile", profileRoutes);
 router.use("/student", studentResultRoutes);
 router.use("/teacher", teacherDashboardRoutes);
+router.use("/classes", classRoutes);
 router.use("/", commonRoutes);
 
 export default router;

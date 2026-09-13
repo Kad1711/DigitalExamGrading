@@ -288,4 +288,41 @@ test("Admin Teacher Management & Teacher Profile - Phase 5.5 Test Suite", async 
     assert.ok(adminLoginRes.accessToken);
     assert.equal(adminLoginRes.user.email, testEmail);
   });
+
+  // Test 9: Delete teacher requires LOCKED status (2-step safety)
+  await t.test("9. Delete Teacher: rejecting deletion when status is ACTIVE (409 TEACHER_NOT_LOCKED)", async () => {
+    // Unlock teacher first to ensure ACTIVE
+    await adminTeacherService.unlockTeacher(createdTeacher.id);
+
+    await assert.rejects(
+      async () => {
+        await adminTeacherService.deleteTeacher(createdTeacher.id);
+      },
+      (err) => {
+        assert.equal(err.statusCode, 409);
+        assert.equal(err.code, "TEACHER_NOT_LOCKED");
+        return true;
+      }
+    );
+  });
+
+  // Test 10: Lock teacher and delete successfully
+  await t.test("10. Delete Teacher: lock teacher first, then delete succeeds completely", async () => {
+    // 1. Lock teacher
+    await adminTeacherService.lockTeacher(createdTeacher.id);
+
+    // 2. Delete teacher
+    const res = await adminTeacherService.deleteTeacher(createdTeacher.id);
+    assert.equal(res.id, createdTeacher.id);
+
+    // 3. Confirm teacher and user no longer exist in DB
+    const dbTeacher = await prisma.teacher.findUnique({ where: { id: createdTeacher.id } });
+    assert.equal(dbTeacher, null);
+
+    const dbUser = await prisma.user.findUnique({ where: { id: createdTeacher.userId } });
+    assert.equal(dbUser, null);
+
+    // Clear reference so after hook does not complain
+    createdTeacher = null;
+  });
 });

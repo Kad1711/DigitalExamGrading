@@ -7,6 +7,7 @@ import {
   getExamController,
   updateExamController,
   deleteExamController,
+  bulkDeleteExamsController,
   cloneExamController,
   publishExamController,
   closeExamController,
@@ -33,6 +34,7 @@ const denyStudent = authorizeRoles("ADMIN", "TEACHER");
 // Exam CRUD
 router.post("/", denyStudent, createExamController);
 router.get("/", denyStudent, listExamsController);
+router.post("/bulk-delete", denyStudent, bulkDeleteExamsController);
 router.get("/:examId", denyStudent, getExamController);
 router.patch("/:examId", denyStudent, updateExamController);
 router.delete("/:examId", denyStudent, deleteExamController);

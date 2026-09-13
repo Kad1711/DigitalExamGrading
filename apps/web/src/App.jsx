@@ -10,15 +10,17 @@ import ExamDetailPage from "./pages/ExamDetailPage";
 import ExamSubmissionsPage from "./pages/ExamSubmissionsPage";
 import AdminTeacherListPage from "./pages/AdminTeacherListPage";
 import TeacherProfilePage from "./pages/TeacherProfilePage";
+import TeacherClassesPage from "./pages/TeacherClassesPage";
 import StudentResultsPage from "./pages/StudentResultsPage";
 import StudentResultDetailPage from "./pages/StudentResultDetailPage";
 import ExamAnalyticsPage from "./pages/ExamAnalyticsPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
 
 function RootRedirect() {
   const { user, isAuthenticated, loading } = useAuth();
   if (loading) return null;
   if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
-  if (user.role === "ADMIN") return <Navigate to="/admin/teachers" replace />;
+  if (user.role === "ADMIN") return <Navigate to="/admin/dashboard" replace />;
   if (user.role === "STUDENT") return <Navigate to="/student/results" replace />;
   return <Navigate to="/exams" replace />;
 }
@@ -31,6 +33,14 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
 
           {/* Admin Routes */}
+          <Route
+            path="/admin/dashboard"
+            element={
+              <RequireRole roles={["ADMIN"]}>
+                <AdminDashboardPage />
+              </RequireRole>
+            }
+          />
           <Route
             path="/admin/teachers"
             element={
@@ -46,6 +56,16 @@ export default function App() {
             element={
               <RequireRole roles={["TEACHER"]}>
                 <TeacherProfilePage />
+              </RequireRole>
+            }
+          />
+
+          {/* Teacher Classes & Students */}
+          <Route
+            path="/classes"
+            element={
+              <RequireRole roles={["TEACHER"]}>
+                <TeacherClassesPage />
               </RequireRole>
             }
           />

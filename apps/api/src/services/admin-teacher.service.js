@@ -377,3 +377,93 @@ export async function resetTeacherPassword(teacherId, newPassword) {
     message: "Mat khau cua giao vien da duoc dat lai thanh cong.",
   };
 }
+
+/**
+ * Xoa tai khoan giao vien.
+ * Bat buoc: Tai khoan phai o trang thai LOCKED (duyet 2 buoc).
+ */
+export async function deleteTeacher(teacherId) {
+  const teacher = await prisma.teacher.findUnique({
+    where: { id: teacherId },
+    include: {
+      user: true,
+      exams: {
+        include: {
+          submissions: true,
+          examCodes: true,
+        },
+      },
+    },
+  });
+
+  if (!teacher) {
+    throw new AppError("Không tìm thấy giáo viên.", 404, "TEACHER_NOT_FOUND");
+  }
+
+  if (teacher.user.status !== "LOCKED") {
+    throw new AppError(
+      "Tài khoản giáo viên phải ở trạng thái ĐÃ KHÓA trước khi có thể xóa vĩnh viễn.",
+      409,
+      "TEACHER_NOT_LOCKED"
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Clean up teacher's exams if any
+    for (const exam of teacher.exams) {
+      const subIds = exam.submissions.map((s) => s.id);
+      if (subIds.length > 0) {
+        await tx.submissionAnswer.deleteMany({ where: { submissionId: { in: subIds } } });
+        await tx.examSubmissionAuditLog.deleteMany({ where: { submissionId: { in: subIds } } });
+        await tx.examSubmission.deleteMany({ where: { id: { in: subIds } } });
+      }
+      await tx.examResultPublicationLog.deleteMany({ where: { examId: exam.id } });
+      await tx.examCandidate.deleteMany({ where: { examId: exam.id } });
+      await tx.answerKey.deleteMany({ where: { examCodeId: { in: exam.examCodes.map((c) => c.id) } } });
+      await tx.examCode.deleteMany({ where: { examId: exam.id } });
+      await tx.answerSheetTemplate.deleteMany({ where: { examId: exam.id } });
+      await tx.exam.delete({ where: { id: exam.id } });
+    }
+
+    // Delete teaching assignments
+    await tx.teachingAssignment.deleteMany({ where: { teacherId } });
+
+    // Delete refresh tokens
+    await tx.refreshToken.deleteMany({ where: { userId: teacher.userId } });
+
+    // Delete teacher & user
+    await tx.teacher.delete({ where: { id: teacherId } });
+    await tx.user.delete({ where: { id: teacher.userId } });
+  });
+
+  return {
+    id: teacher.id,
+    teacherCode: teacher.teacherCode,
+    fullName: teacher.fullName,
+    message: `Đã xóa vĩnh viễn tài khoản giáo viên "${teacher.fullName}" (${teacher.teacherCode}).`,
+  };
+}
+
+/**
+ * Xoa hang loat giao vien da khoa
+ */
+export async function bulkDeleteLockedTeachers(teacherIds = []) {
+  if (!Array.isArray(teacherIds) || teacherIds.length === 0) {
+    throw new AppError("Danh sách giáo viên cần xóa không hợp lệ.", 400, "INVALID_TEACHER_IDS");
+  }
+
+  let deletedCount = 0;
+  for (const tid of teacherIds) {
+    try {
+      await deleteTeacher(tid);
+      deletedCount++;
+    } catch (err) {
+      console.warn(`Could not delete teacher ${tid}:`, err.message);
+    }
+  }
+
+  return {
+    deletedCount,
+    message: `Đã xóa thành công ${deletedCount} giáo viên đã bị khóa.`,
+  };
+}

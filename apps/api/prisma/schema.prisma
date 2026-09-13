@@ -150,6 +150,7 @@ model Student {
   studentCode String    @unique
   fullName    String
   dateOfBirth DateTime?
+  initialPassword String? @default("123456")
 
   user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   enrollments StudentEnrollment[]
