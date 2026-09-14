@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import RequireRole from "./components/RequireRole";
 import LoginPage from "./pages/LoginPage";
+import RegisterTeacherPage from "./pages/RegisterTeacherPage";
 import GradingPage from "./pages/GradingPage";
 import ExamListPage from "./pages/ExamListPage";
 import ExamCreatePage from "./pages/ExamCreatePage";
@@ -31,6 +32,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register-teacher" element={<RegisterTeacherPage />} />
 
           {/* Admin Routes */}
           <Route

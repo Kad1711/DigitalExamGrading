@@ -151,3 +151,33 @@ export async function bulkDeleteLockedTeachersController(req, res, next) {
     next(err);
   }
 }
+
+export async function approveTeacherController(req, res, next) {
+  try {
+    const { teacherId } = req.params;
+    const result = await adminTeacherService.approveTeacher(teacherId);
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function rejectTeacherController(req, res, next) {
+  try {
+    const { teacherId } = req.params;
+    const { reason } = req.body || {};
+    const result = await adminTeacherService.rejectTeacher(teacherId, { reason });
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+

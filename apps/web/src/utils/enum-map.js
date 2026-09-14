@@ -41,6 +41,7 @@ export const USER_STATUS_LABELS = {
   ACTIVE: "Hoạt động",
   LOCKED: "Đã khóa",
   INACTIVE: "Không hoạt động",
+  PENDING_APPROVAL: "Chờ phê duyệt",
 };
 
 /**

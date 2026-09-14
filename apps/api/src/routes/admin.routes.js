@@ -41,6 +41,8 @@ router.post(
   "/teachers/:teacherId/reset-password",
   adminTeacherController.resetTeacherPasswordController
 );
+router.post("/teachers/:teacherId/approve", adminTeacherController.approveTeacherController);
+router.post("/teachers/:teacherId/reject", adminTeacherController.rejectTeacherController);
 router.delete("/teachers/:teacherId", adminTeacherController.deleteTeacherController);
 router.post("/teachers/bulk-delete-locked", adminTeacherController.bulkDeleteLockedTeachersController);
 

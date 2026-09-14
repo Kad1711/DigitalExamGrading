@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { GraduationCap, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import Button from "../components/ui/Button";
@@ -57,6 +57,10 @@ export default function LoginPage() {
 
         if (status === 401 || errCode === "INVALID_CREDENTIALS") {
           setErrorMsg("Email hoặc mật khẩu không chính xác.");
+        } else if (errCode === "ACCOUNT_PENDING_APPROVAL") {
+          setErrorMsg(
+            errMsg || "Tài khoản giáo viên của bạn đang chờ Quản trị viên phê duyệt."
+          );
         } else if (status === 403 || errCode === "ACCOUNT_INACTIVE" || errCode === "ACCOUNT_LOCKED") {
           setErrorMsg(
             errMsg && typeof errMsg === "string" && !errMsg.toLowerCase().includes("loi")
@@ -190,6 +194,17 @@ export default function LoginPage() {
             </div>
           </form>
 
+          <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+            <p className="text-xs text-slate-500">
+              Bạn là giáo viên mới?{" "}
+              <Link
+                to="/register-teacher"
+                className="font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+              >
+                Đăng ký tài khoản tại đây
+              </Link>
+            </p>
+          </div>
         </div>
 
         {/* Footer info */}

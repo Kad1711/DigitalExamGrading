@@ -1,4 +1,9 @@
-import { loginSchema, refreshSchema, logoutSchema } from "../schemas/auth.schema.js";
+import {
+  loginSchema,
+  refreshSchema,
+  logoutSchema,
+  registerTeacherSchema,
+} from "../schemas/auth.schema.js";
 import * as authService from "../services/auth.service.js";
 import { AppError } from "../middlewares/error.middleware.js";
 
@@ -59,7 +64,27 @@ export async function logoutController(req, res, next) {
     }
     const { refreshToken } = parsed.data;
     await authService.logout(refreshToken);
-    return res.status(200).json({ success: true, message: "Dang xuat thanh cong." });
+    return res.status(200).json({
+      success: true,
+      message: "Dang xuat thanh cong.",
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function registerTeacherController(req, res, next) {
+  try {
+    const parsed = registerTeacherSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(new AppError(zodMsg(parsed.error), 422, "VALIDATION_ERROR"));
+    }
+    const result = await authService.registerTeacher(parsed.data);
+    return res.status(201).json({
+      success: true,
+      message: "Đăng ký tài khoản giáo viên thành công. Vui lòng chờ Quản trị viên phê duyệt.",
+      data: result,
+    });
   } catch (err) {
     next(err);
   }

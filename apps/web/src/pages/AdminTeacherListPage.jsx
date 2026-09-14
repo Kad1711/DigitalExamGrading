@@ -41,6 +41,8 @@ export default function AdminTeacherListPage() {
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isApproveOpen, setIsApproveOpen] = useState(false);
+  const [isRejectOpen, setIsRejectOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedLockedTeacherIds, setSelectedLockedTeacherIds] = useState([]);
@@ -318,6 +320,58 @@ export default function AdminTeacherListPage() {
     }
   };
 
+  // Open Approve Modal
+  const handleOpenApprove = (t) => {
+    setSelectedTeacher(t);
+    setModalError("");
+    setIsApproveOpen(true);
+  };
+
+  const handleConfirmApprove = async () => {
+    try {
+      setModalLoading(true);
+      await api.post(`/admin/teachers/${selectedTeacher.id}/approve`);
+      setIsApproveOpen(false);
+      setAlert({
+        type: "success",
+        message: `Đã phê duyệt thành công tài khoản giáo viên "${selectedTeacher.fullName}".`,
+      });
+      fetchTeachers();
+    } catch (err) {
+      setModalError(
+        err.response?.data?.error?.message || "Không thể phê duyệt tài khoản giáo viên."
+      );
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  // Open Reject Modal
+  const handleOpenReject = (t) => {
+    setSelectedTeacher(t);
+    setModalError("");
+    setIsRejectOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    try {
+      setModalLoading(true);
+      await api.post(`/admin/teachers/${selectedTeacher.id}/reject`);
+      setIsRejectOpen(false);
+      setAlert({
+        type: "warning",
+        message: `Đã từ chối yêu cầu đăng ký của "${selectedTeacher.fullName}".`,
+      });
+      fetchTeachers();
+    } catch (err) {
+      setModalError(
+        err.response?.data?.error?.message || "Không thể từ chối tài khoản giáo viên."
+      );
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   // Open Reset Password Modal
   const handleOpenResetPassword = (t) => {
     setSelectedTeacher(t);
@@ -528,6 +582,17 @@ export default function AdminTeacherListPage() {
             </button>
             <button
               type="button"
+              onClick={() => setStatusFilter("PENDING_APPROVAL")}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                statusFilter === "PENDING_APPROVAL"
+                  ? "bg-white text-amber-700 shadow-xs font-bold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Chờ phê duyệt
+            </button>
+            <button
+              type="button"
               onClick={() => setStatusFilter("LOCKED")}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                 statusFilter === "LOCKED"
@@ -695,7 +760,13 @@ export default function AdminTeacherListPage() {
                         {/* Status */}
                         <td className="py-3.5 px-4 text-center">
                           <Badge
-                            variant={isLocked ? "red" : "green"}
+                            variant={
+                              t.status === "PENDING_APPROVAL"
+                                ? "amber"
+                                : isLocked
+                                ? "red"
+                                : "green"
+                            }
                             size="sm"
                           >
                             {formatUserStatus(t.status)}
@@ -704,15 +775,33 @@ export default function AdminTeacherListPage() {
 
                         {/* Actions */}
                         <td className="py-3.5 px-4 sm:px-6 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEdit(t)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                              title="Sửa thông tin"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
+                          {t.status === "PENDING_APPROVAL" ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="xs"
+                                variant="success"
+                                onClick={() => handleOpenApprove(t)}
+                              >
+                                Phê duyệt
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="danger"
+                                onClick={() => handleOpenReject(t)}
+                              >
+                                Từ chối
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEdit(t)}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                title="Sửa thông tin"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
 
                             <button
                               type="button"
@@ -764,6 +853,7 @@ export default function AdminTeacherListPage() {
                               </button>
                             )}
                           </div>
+                          )}
                         </td>
                       </tr>
                     );
@@ -806,7 +896,13 @@ export default function AdminTeacherListPage() {
                       </div>
 
                       <Badge
-                        variant={isLocked ? "red" : "green"}
+                        variant={
+                          t.status === "PENDING_APPROVAL"
+                            ? "amber"
+                            : isLocked
+                            ? "red"
+                            : "green"
+                        }
                         size="sm"
                       >
                         {formatUserStatus(t.status)}
@@ -829,53 +925,74 @@ export default function AdminTeacherListPage() {
 
                     {/* Bottom Actions */}
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={Edit2}
-                        onClick={() => handleOpenEdit(t)}
-                      >
-                        Sửa
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={KeyRound}
-                        onClick={() => handleOpenResetPassword(t)}
-                      >
-                        Đổi MK
-                      </Button>
-
-                      {isLocked ? (
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          icon={Unlock}
-                          onClick={() => handleOpenUnlock(t)}
-                        >
-                          Mở khóa
-                        </Button>
+                      {t.status === "PENDING_APPROVAL" ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="success"
+                            onClick={() => handleOpenApprove(t)}
+                          >
+                            Phê duyệt
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => handleOpenReject(t)}
+                          >
+                            Từ chối
+                          </Button>
+                        </>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          icon={Lock}
-                          onClick={() => handleOpenLock(t)}
-                        >
-                          Khóa
-                        </Button>
-                      )}
+                        <>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            icon={Edit2}
+                            onClick={() => handleOpenEdit(t)}
+                          >
+                            Sửa
+                          </Button>
 
-                      {isLocked && (
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          icon={Trash2}
-                          onClick={() => handleOpenDelete(t)}
-                        >
-                          Xóa
-                        </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            icon={KeyRound}
+                            onClick={() => handleOpenResetPassword(t)}
+                          >
+                            Đổi MK
+                          </Button>
+
+                          {isLocked ? (
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              icon={Unlock}
+                              onClick={() => handleOpenUnlock(t)}
+                            >
+                              Mở khóa
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              icon={Lock}
+                              onClick={() => handleOpenLock(t)}
+                            >
+                              Khóa
+                            </Button>
+                          )}
+
+                          {isLocked && (
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              icon={Trash2}
+                              onClick={() => handleOpenDelete(t)}
+                            >
+                              Xóa
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -1510,6 +1627,124 @@ export default function AdminTeacherListPage() {
               đã bị khóa. Toàn bộ thông tin tài khoản và dữ liệu liên quan sẽ bị loại bỏ hoàn toàn khỏi hệ thống.
             </div>
           </div>
+          {modalError && (
+            <Alert variant="danger" className="text-xs">
+              {modalError}
+            </Alert>
+          )}
+        </div>
+      </Modal>
+
+      {/* ===================================================== */}
+      {/* MODAL 8: APPROVE TEACHER                             */}
+      {/* ===================================================== */}
+      <Modal
+        isOpen={isApproveOpen}
+        onClose={() => !modalLoading && setIsApproveOpen(false)}
+        title="Xác nhận phê duyệt tài khoản giáo viên"
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsApproveOpen(false)}
+              disabled={modalLoading}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              variant="success"
+              loading={modalLoading}
+              onClick={handleConfirmApprove}
+            >
+              {modalLoading ? "Đang xử lý..." : "Xác nhận phê duyệt"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-emerald-800 leading-relaxed">
+              Bạn có chắc chắn muốn phê duyệt tài khoản cho giáo viên{" "}
+              <strong>{selectedTeacher?.fullName}</strong>? Sau khi duyệt, giáo viên có thể đăng nhập ngay vào hệ thống.
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Họ và tên:</span>
+              <strong className="text-slate-900">{selectedTeacher?.fullName}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Mã giáo viên:</span>
+              <strong className="text-blue-700 font-mono">{selectedTeacher?.teacherCode}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Email:</span>
+              <span className="text-slate-700 font-mono">{selectedTeacher?.email}</span>
+            </div>
+          </div>
+
+          {modalError && (
+            <Alert variant="danger" className="text-xs">
+              {modalError}
+            </Alert>
+          )}
+        </div>
+      </Modal>
+
+      {/* ===================================================== */}
+      {/* MODAL 9: REJECT TEACHER                              */}
+      {/* ===================================================== */}
+      <Modal
+        isOpen={isRejectOpen}
+        onClose={() => !modalLoading && setIsRejectOpen(false)}
+        title="Từ chối yêu cầu đăng ký giáo viên"
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsRejectOpen(false)}
+              disabled={modalLoading}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={modalLoading}
+              onClick={handleConfirmReject}
+            >
+              {modalLoading ? "Đang xử lý..." : "Xác nhận từ chối"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-rose-800 leading-relaxed">
+              Bạn có chắc chắn muốn từ chối yêu cầu của{" "}
+              <strong>{selectedTeacher?.fullName}</strong>? Yêu cầu đăng ký sẽ bị loại bỏ khỏi hệ thống.
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Họ và tên:</span>
+              <strong className="text-slate-900">{selectedTeacher?.fullName}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Email:</span>
+              <span className="text-slate-700 font-mono">{selectedTeacher?.email}</span>
+            </div>
+          </div>
+
           {modalError && (
             <Alert variant="danger" className="text-xs">
               {modalError}

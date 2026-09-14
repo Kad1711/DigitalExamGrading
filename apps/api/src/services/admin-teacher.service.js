@@ -467,3 +467,63 @@ export async function bulkDeleteLockedTeachers(teacherIds = []) {
     message: `Đã xóa thành công ${deletedCount} giáo viên đã bị khóa.`,
   };
 }
+
+/**
+ * Phe duyet tai khoan giao vien dang cho duyet
+ */
+export async function approveTeacher(teacherId) {
+  const teacher = await prisma.teacher.findUnique({
+    where: { id: teacherId },
+    include: { user: true },
+  });
+
+  if (!teacher) {
+    throw new AppError("Không tìm thấy giáo viên.", 404, "TEACHER_NOT_FOUND");
+  }
+
+  if (teacher.user.status === "ACTIVE") {
+    throw new AppError("Tài khoản giáo viên này đã hoạt động.", 400, "ALREADY_ACTIVE");
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: teacher.userId },
+    data: { status: "ACTIVE" },
+  });
+
+  return {
+    id: teacher.id,
+    teacherCode: teacher.teacherCode,
+    fullName: teacher.fullName,
+    email: teacher.user.email,
+    status: updatedUser.status,
+    message: `Đã phê duyệt tài khoản giáo viên "${teacher.fullName}".`,
+  };
+}
+
+/**
+ * Tu choi tai khoan giao vien dang cho duyet
+ */
+export async function rejectTeacher(teacherId, { reason } = {}) {
+  const teacher = await prisma.teacher.findUnique({
+    where: { id: teacherId },
+    include: { user: true },
+  });
+
+  if (!teacher) {
+    throw new AppError("Không tìm thấy giáo viên.", 404, "TEACHER_NOT_FOUND");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.refreshToken.deleteMany({ where: { userId: teacher.userId } });
+    await tx.teacher.delete({ where: { id: teacherId } });
+    await tx.user.delete({ where: { id: teacher.userId } });
+  });
+
+  return {
+    id: teacherId,
+    fullName: teacher.fullName,
+    email: teacher.user.email,
+    message: `Đã từ chối yêu cầu đăng ký của "${teacher.fullName}".`,
+  };
+}
+

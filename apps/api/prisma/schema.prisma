@@ -20,6 +20,7 @@ enum UserStatus {
   ACTIVE
   INACTIVE
   LOCKED
+  PENDING_APPROVAL
 }
 
 // =====================================================

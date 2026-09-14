@@ -78,6 +78,14 @@ export async function login(email, password) {
     );
   }
 
+  if (user.status === "PENDING_APPROVAL") {
+    throw new AppError(
+      "Tài khoản giáo viên của bạn đang chờ Quản trị viên phê duyệt.",
+      403,
+      "ACCOUNT_PENDING_APPROVAL"
+    );
+  }
+
   if (user.status !== "ACTIVE") {
     throw new AppError(
       "Tài khoản của bạn đã bị khóa hoặc chưa được kích hoạt.",
@@ -175,4 +183,66 @@ export async function logout(refreshToken) {
     where: { tokenHash },
     data: { revokedAt: new Date() },
   });
+}
+
+export async function registerTeacher({ fullName, teacherCode, email, phone, password }) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
+  if (existingUser) {
+    throw new AppError("Email này đã được đăng ký trong hệ thống.", 400, "EMAIL_ALREADY_EXISTS");
+  }
+
+  let finalCode = teacherCode?.trim();
+  if (finalCode) {
+    const existingCode = await prisma.teacher.findUnique({
+      where: { teacherCode: finalCode },
+    });
+    if (existingCode) {
+      throw new AppError("Mã giáo viên đã tồn tại. Vui lòng chọn mã khác.", 400, "TEACHER_CODE_ALREADY_EXISTS");
+    }
+  } else {
+    for (let i = 0; i < 5; i++) {
+      const candidate = `GV${Math.floor(1000 + Math.random() * 9000)}`;
+      const exists = await prisma.teacher.findUnique({ where: { teacherCode: candidate } });
+      if (!exists) {
+        finalCode = candidate;
+        break;
+      }
+    }
+    if (!finalCode) {
+      finalCode = `GV${Date.now().toString().slice(-4)}`;
+    }
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  const newUser = await prisma.user.create({
+    data: {
+      email: normalizedEmail,
+      passwordHash,
+      role: "TEACHER",
+      status: "PENDING_APPROVAL",
+      teacher: {
+        create: {
+          fullName: fullName.trim(),
+          teacherCode: finalCode,
+          phone: phone?.trim() || null,
+        },
+      },
+    },
+    include: {
+      teacher: true,
+    },
+  });
+
+  return {
+    id: newUser.id,
+    email: newUser.email,
+    fullName: newUser.teacher.fullName,
+    teacherCode: newUser.teacher.teacherCode,
+    status: newUser.status,
+  };
 }

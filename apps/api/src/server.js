@@ -1,4 +1,6 @@
-﻿import "dotenv/config";
+import "dotenv/config";
+
+// Reloaded with database port 5433
 
 import app from "./app.js";
 import prisma from "./config/prisma.js";

@@ -5,6 +5,14 @@ const path = require('path');
 const MAX_WAIT_SECONDS = 120;
 const POLL_INTERVAL_MS = 2000;
 
+// Ensure Docker bin directory is in PATH on Windows if not present
+if (process.platform === 'win32') {
+  const defaultDockerBin = 'C:\\Program Files\\Docker\\Docker\\resources\\bin';
+  if (fs.existsSync(defaultDockerBin) && !(process.env.PATH || '').toLowerCase().includes('docker\\docker\\resources\\bin')) {
+    process.env.PATH = `${defaultDockerBin};${process.env.PATH}`;
+  }
+}
+
 function isDaemonReady() {
   try {
     execSync('docker info', { stdio: 'ignore', timeout: 4000 });
