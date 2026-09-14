@@ -4,8 +4,8 @@ import { authorizeRoles } from "../middlewares/role.middleware.js";
 import { getTeacherDashboardController } from "../controllers/teacher-dashboard.controller.js";
 
 const router = Router();
-const requireTeacher = [authenticate, authorizeRoles("TEACHER")];
+const requireTeacherOrAdmin = [authenticate, authorizeRoles("TEACHER", "ADMIN")];
 
-router.get("/dashboard", requireTeacher, getTeacherDashboardController);
+router.get("/dashboard", requireTeacherOrAdmin, getTeacherDashboardController);
 
 export default router;

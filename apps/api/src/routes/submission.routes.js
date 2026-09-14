@@ -12,7 +12,7 @@ import {
 
 const router = Router();
 
-router.use(authenticate, authorizeRoles("TEACHER"));
+router.use(authenticate, authorizeRoles("TEACHER", "ADMIN"));
 
 // Submission Details
 router.get("/:submissionId", getSubmissionController);

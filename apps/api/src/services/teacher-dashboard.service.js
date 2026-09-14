@@ -1,17 +1,22 @@
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 
-export async function getTeacherDashboard(teacherUserId) {
-  const teacher = await prisma.teacher.findUnique({
-    where: { userId: teacherUserId },
-  });
+export async function getTeacherDashboard(teacherUserId, userRole = "TEACHER") {
+  let where = {};
 
-  if (!teacher) {
-    throw new AppError("Không tìm thấy hồ sơ giáo viên.", 404, "TEACHER_NOT_FOUND");
+  if (userRole !== "ADMIN") {
+    const teacher = await prisma.teacher.findUnique({
+      where: { userId: teacherUserId },
+    });
+
+    if (!teacher) {
+      throw new AppError("Không tìm thấy hồ sơ giáo viên.", 404, "TEACHER_NOT_FOUND");
+    }
+    where = { teacherId: teacher.id };
   }
 
   const exams = await prisma.exam.findMany({
-    where: { teacherId: teacher.id },
+    where,
     include: {
       subject: { select: { code: true, name: true } },
       class: { select: { id: true, name: true } },

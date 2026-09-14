@@ -8,7 +8,7 @@ import { assignCandidateSchema } from "../schemas/exam-candidate.schema.js";
 
 export async function listCandidates(req, res, next) {
   try {
-    const candidates = await listExamCandidates(req.user.id, req.params.examId);
+    const candidates = await listExamCandidates(req.user.id, req.params.examId, req.user.role);
     res.json({
       success: true,
       data: candidates,
@@ -20,7 +20,7 @@ export async function listCandidates(req, res, next) {
 
 export async function listEligibleStudents(req, res, next) {
   try {
-    const students = await getEligibleStudents(req.user.id, req.params.examId);
+    const students = await getEligibleStudents(req.user.id, req.params.examId, req.user.role);
     res.json({
       success: true,
       data: students,
@@ -33,7 +33,7 @@ export async function listEligibleStudents(req, res, next) {
 export async function createCandidate(req, res, next) {
   try {
     const validated = assignCandidateSchema.parse(req.body);
-    const candidate = await assignCandidate(req.user.id, req.params.examId, validated);
+    const candidate = await assignCandidate(req.user.id, req.params.examId, validated, req.user.role);
     res.status(201).json({
       success: true,
       message: "Đã gán học sinh vào số báo danh thành công.",
@@ -46,7 +46,7 @@ export async function createCandidate(req, res, next) {
 
 export async function deleteCandidate(req, res, next) {
   try {
-    const result = await removeCandidate(req.user.id, req.params.examId, req.params.candidateId);
+    const result = await removeCandidate(req.user.id, req.params.examId, req.params.candidateId, req.user.role);
     res.json({
       success: true,
       data: result,

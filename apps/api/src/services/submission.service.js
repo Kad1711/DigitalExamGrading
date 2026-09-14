@@ -45,8 +45,12 @@ export async function assertSubmissionAccess(submissionId, reqUser) {
     throw new AppError("Không tìm thấy bài nộp trong hệ thống.", 404, "SUBMISSION_NOT_FOUND");
   }
 
+  if (reqUser.role === "ADMIN") {
+    return submission;
+  }
+
   if (reqUser.role !== "TEACHER") {
-    throw new AppError("Chỉ giáo viên sở hữu kỳ thi mới có quyền truy cập bài nộp.", 403, "FORBIDDEN");
+    throw new AppError("Chỉ giáo viên sở hữu kỳ thi hoặc Quản trị viên mới có quyền truy cập bài nộp.", 403, "FORBIDDEN");
   }
 
   const teacher = await getTeacherProfile(reqUser.id);

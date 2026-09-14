@@ -1,7 +1,7 @@
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 
-export async function verifyExamOwnership(examId, teacherUserId) {
+export async function verifyExamOwnership(examId, teacherUserId, userRole = "TEACHER") {
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
     include: { teacher: true, class: true },
@@ -11,15 +11,15 @@ export async function verifyExamOwnership(examId, teacherUserId) {
     throw new AppError("Kỳ thi không tồn tại hoặc đã bị xóa.", 404, "EXAM_NOT_FOUND");
   }
 
-  if (exam.teacher?.userId !== teacherUserId) {
+  if (userRole !== "ADMIN" && exam.teacher?.userId !== teacherUserId) {
     throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
   }
 
   return exam;
 }
 
-export async function listExamCandidates(teacherUserId, examId) {
-  await verifyExamOwnership(examId, teacherUserId);
+export async function listExamCandidates(teacherUserId, examId, userRole = "TEACHER") {
+  await verifyExamOwnership(examId, teacherUserId, userRole);
 
   const candidates = await prisma.examCandidate.findMany({
     where: { examId },
@@ -56,8 +56,8 @@ export async function listExamCandidates(teacherUserId, examId) {
   }));
 }
 
-export async function getEligibleStudents(teacherUserId, examId) {
-  const exam = await verifyExamOwnership(examId, teacherUserId);
+export async function getEligibleStudents(teacherUserId, examId, userRole = "TEACHER") {
+  const exam = await verifyExamOwnership(examId, teacherUserId, userRole);
 
   const enrollments = await prisma.studentEnrollment.findMany({
     where: { classId: exam.classId },
@@ -100,8 +100,8 @@ export async function getEligibleStudents(teacherUserId, examId) {
   }));
 }
 
-export async function assignCandidate(teacherUserId, examId, { studentId, studentNumber }) {
-  const exam = await verifyExamOwnership(examId, teacherUserId);
+export async function assignCandidate(teacherUserId, examId, { studentId, studentNumber }, userRole = "TEACHER") {
+  const exam = await verifyExamOwnership(examId, teacherUserId, userRole);
 
   if (exam.status === "ARCHIVED") {
     throw new AppError(
@@ -214,8 +214,8 @@ export async function assignCandidate(teacherUserId, examId, { studentId, studen
   }
 }
 
-export async function removeCandidate(teacherUserId, examId, candidateId) {
-  const exam = await verifyExamOwnership(examId, teacherUserId);
+export async function removeCandidate(teacherUserId, examId, candidateId, userRole = "TEACHER") {
+  const exam = await verifyExamOwnership(examId, teacherUserId, userRole);
 
   if (exam.status === "ARCHIVED") {
     throw new AppError(

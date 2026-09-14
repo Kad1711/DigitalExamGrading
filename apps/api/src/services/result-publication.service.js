@@ -116,18 +116,20 @@ export async function checkPublicationReadiness({ examId, exam }) {
  * Locks submissions against review/identity mutations after publication.
  */
 export async function publishExamResults({ examId, user, note }) {
-  if (user.role !== "TEACHER") {
-    throw new AppError("Chỉ giáo viên sở hữu kỳ thi mới có quyền công bố kết quả.", 403, "FORBIDDEN");
-  }
-  const teacher = await getTeacherProfile(user.id);
-
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
     select: { id: true, teacherId: true, title: true, status: true, resultsPublishedAt: true },
   });
   if (!exam) throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
-  if (exam.teacherId !== teacher.id) {
-    throw new AppError("Bạn không có quyền công bố kết quả kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
+
+  if (user.role !== "ADMIN") {
+    if (user.role !== "TEACHER") {
+      throw new AppError("Chỉ giáo viên sở hữu kỳ thi hoặc Quản trị viên mới có quyền công bố kết quả.", 403, "FORBIDDEN");
+    }
+    const teacher = await getTeacherProfile(user.id);
+    if (exam.teacherId !== teacher.id) {
+      throw new AppError("Bạn không có quyền công bố kết quả kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
+    }
   }
 
   if (exam.status === "ARCHIVED") {
@@ -179,18 +181,20 @@ export async function publishExamResults({ examId, user, note }) {
  * Un-publishes exam results (reverts publication).
  */
 export async function unpublishExamResults({ examId, user, note }) {
-  if (user.role !== "TEACHER") {
-    throw new AppError("Chỉ giáo viên sở hữu kỳ thi mới có quyền thu hồi công bố kết quả.", 403, "FORBIDDEN");
-  }
-  const teacher = await getTeacherProfile(user.id);
-
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
     select: { id: true, teacherId: true, title: true, status: true, resultsPublishedAt: true },
   });
   if (!exam) throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
-  if (exam.teacherId !== teacher.id) {
-    throw new AppError("Bạn không có quyền thao tác trên kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
+
+  if (user.role !== "ADMIN") {
+    if (user.role !== "TEACHER") {
+      throw new AppError("Chỉ giáo viên sở hữu kỳ thi hoặc Quản trị viên mới có quyền thu hồi công bố kết quả.", 403, "FORBIDDEN");
+    }
+    const teacher = await getTeacherProfile(user.id);
+    if (exam.teacherId !== teacher.id) {
+      throw new AppError("Bạn không có quyền thao tác trên kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
+    }
   }
 
   if (exam.status === "ARCHIVED") {
@@ -230,11 +234,6 @@ export async function unpublishExamResults({ examId, user, note }) {
  * Returns current publication status of an exam.
  */
 export async function getPublicationStatus({ examId, user }) {
-  if (user.role !== "TEACHER") {
-    throw new AppError("Chỉ giáo viên sở hữu kỳ thi mới có quyền xem trạng thái công bố.", 403, "FORBIDDEN");
-  }
-  const teacher = await getTeacherProfile(user.id);
-
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
     select: {
@@ -248,8 +247,15 @@ export async function getPublicationStatus({ examId, user }) {
     },
   });
   if (!exam) throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
-  if (exam.teacherId !== teacher.id) {
-    throw new AppError("Bạn không có quyền truy cập thông tin này.", 403, "EXAM_ACCESS_DENIED");
+
+  if (user.role !== "ADMIN") {
+    if (user.role !== "TEACHER") {
+      throw new AppError("Chỉ giáo viên sở hữu kỳ thi hoặc Quản trị viên mới có quyền xem trạng thái công bố.", 403, "FORBIDDEN");
+    }
+    const teacher = await getTeacherProfile(user.id);
+    if (exam.teacherId !== teacher.id) {
+      throw new AppError("Bạn không có quyền truy cập thông tin này.", 403, "EXAM_ACCESS_DENIED");
+    }
   }
 
   const readiness = await checkPublicationReadiness({ examId, exam });
@@ -268,18 +274,20 @@ export async function getPublicationStatus({ examId, user }) {
  * Returns chronological publication logs for an exam.
  */
 export async function getPublicationLogs({ examId, user }) {
-  if (user.role !== "TEACHER") {
-    throw new AppError("Chỉ giáo viên sở hữu kỳ thi mới có quyền xem lịch sử công bố.", 403, "FORBIDDEN");
-  }
-  const teacher = await getTeacherProfile(user.id);
-
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
     select: { id: true, teacherId: true },
   });
   if (!exam) throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
-  if (exam.teacherId !== teacher.id) {
-    throw new AppError("Bạn không có quyền truy cập lịch sử này.", 403, "EXAM_ACCESS_DENIED");
+
+  if (user.role !== "ADMIN") {
+    if (user.role !== "TEACHER") {
+      throw new AppError("Chỉ giáo viên sở hữu kỳ thi hoặc Quản trị viên mới có quyền xem lịch sử công bố.", 403, "FORBIDDEN");
+    }
+    const teacher = await getTeacherProfile(user.id);
+    if (exam.teacherId !== teacher.id) {
+      throw new AppError("Bạn không có quyền truy cập lịch sử này.", 403, "EXAM_ACCESS_DENIED");
+    }
   }
 
   const logs = await prisma.examResultPublicationLog.findMany({

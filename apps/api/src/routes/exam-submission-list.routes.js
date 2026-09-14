@@ -1,4 +1,4 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/role.middleware.js";
 import {
@@ -7,12 +7,12 @@ import {
 } from "../controllers/exam-submission-list.controller.js";
 
 const router = Router({ mergeParams: true });
-const requireTeacher = [authenticate, authorizeRoles("TEACHER")];
+const requireTeacherOrAdmin = [authenticate, authorizeRoles("TEACHER", "ADMIN")];
 
 // GET /api/exams/:examId/submissions
-router.get("/:examId/submissions", requireTeacher, listExamSubmissionsController);
+router.get("/:examId/submissions", requireTeacherOrAdmin, listExamSubmissionsController);
 
 // GET /api/exams/:examId/submissions/summary
-router.get("/:examId/submissions/summary", requireTeacher, getExamSubmissionsSummaryController);
+router.get("/:examId/submissions/summary", requireTeacherOrAdmin, getExamSubmissionsSummaryController);
 
 export default router;

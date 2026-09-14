@@ -8,14 +8,6 @@ import { normalizeExamCode } from "../utils/exam-code.js";
  * Admin cannot access submission lists (core security rule).
  */
 async function assertTeacherExamAccess(examId, reqUser) {
-  if (reqUser.role !== "TEACHER") {
-    throw new AppError(
-      "Chi giao vien so huu ky thi moi co quyen xem danh sach bai nop.",
-      403,
-      "FORBIDDEN"
-    );
-  }
-  const teacher = await getTeacherProfile(reqUser.id);
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
     select: { id: true, teacherId: true, title: true, status: true, questionCount: true, maxScore: true },
@@ -23,6 +15,19 @@ async function assertTeacherExamAccess(examId, reqUser) {
   if (!exam) {
     throw new AppError("Ky thi khong ton tai.", 404, "EXAM_NOT_FOUND");
   }
+
+  if (reqUser.role === "ADMIN") {
+    return { exam, teacher: null };
+  }
+
+  if (reqUser.role !== "TEACHER") {
+    throw new AppError(
+      "Chi giao vien so huu ky thi hoac Quản trị viên moi co quyen xem danh sach bai nop.",
+      403,
+      "FORBIDDEN"
+    );
+  }
+  const teacher = await getTeacherProfile(reqUser.id);
   if (exam.teacherId !== teacher.id) {
     throw new AppError(
       "Ban khong co quyen truy cap danh sach bai nop cua ky thi nay.",

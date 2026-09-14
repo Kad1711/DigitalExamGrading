@@ -94,8 +94,20 @@ export default function AppHeader() {
     {
       label: "Quản lý giáo viên",
       href: "/admin/teachers",
-      icon: Users,
+      icon: UserCheck,
       active: isAdminTeachersActive,
+    },
+    {
+      label: "Lớp học & Học sinh",
+      href: "/classes",
+      icon: Users,
+      active: isClassesActive,
+    },
+    {
+      label: "Giám sát Kỳ thi",
+      href: "/exams",
+      icon: FileText,
+      active: isExamsActive,
     },
   ];
 

@@ -4,8 +4,8 @@ import { authorizeRoles } from "../middlewares/role.middleware.js";
 import { getExamAnalyticsController } from "../controllers/exam-analytics.controller.js";
 
 const router = Router({ mergeParams: true });
-const requireTeacher = [authenticate, authorizeRoles("TEACHER")];
+const requireTeacherOrAdmin = [authenticate, authorizeRoles("TEACHER", "ADMIN")];
 
-router.get("/:examId/analytics", requireTeacher, getExamAnalyticsController);
+router.get("/:examId/analytics", requireTeacherOrAdmin, getExamAnalyticsController);
 
 export default router;

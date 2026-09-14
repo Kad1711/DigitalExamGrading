@@ -2,7 +2,7 @@ import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import { normalizeExamCode } from "../utils/exam-code.js";
 
-export async function getExamAnalytics(teacherUserId, examId) {
+export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHER") {
   // Verify ownership
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
@@ -17,7 +17,7 @@ export async function getExamAnalytics(teacherUserId, examId) {
     throw new AppError("Kỳ thi không tồn tại hoặc đã bị xóa.", 404, "EXAM_NOT_FOUND");
   }
 
-  if (exam.teacher?.userId !== teacherUserId) {
+  if (userRole !== "ADMIN" && exam.teacher?.userId !== teacherUserId) {
     throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
   }
 

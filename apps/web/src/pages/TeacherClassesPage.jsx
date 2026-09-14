@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../api/client";
+import { useAuth } from "../context/AuthContext";
 import AppHeader from "../components/AppHeader";
 import Breadcrumbs from "../components/ui/Breadcrumbs";
 import Button from "../components/ui/Button";
@@ -64,6 +65,7 @@ export function getSuggestedSbd(className = "", gradeLevel = null, nextIndex = 1
 }
 
 export default function TeacherClassesPage() {
+  const { user } = useAuth();
   const [classes, setClasses] = useState([]);
   const [grades, setGrades] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState(null);
@@ -1152,7 +1154,7 @@ export default function TeacherClassesPage() {
         <div className="space-y-2">
           <Breadcrumbs
             items={[
-              { label: "Trang chủ", href: "/exams" },
+              { label: "Trang chủ", href: user?.role === "ADMIN" ? "/admin/dashboard" : "/exams" },
               { label: "Lớp học" },
             ]}
           />
