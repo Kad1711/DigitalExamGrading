@@ -27,3 +27,10 @@ logs/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Assistant / IDE caches
+.agents/
+.claude/
+.cursor/
+.devin/
+

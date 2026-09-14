@@ -1,21 +1,33 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import RequireRole from "./components/RequireRole";
-import LoginPage from "./pages/LoginPage";
-import RegisterTeacherPage from "./pages/RegisterTeacherPage";
-import GradingPage from "./pages/GradingPage";
-import ExamListPage from "./pages/ExamListPage";
-import ExamCreatePage from "./pages/ExamCreatePage";
-import ExamDetailPage from "./pages/ExamDetailPage";
-import ExamSubmissionsPage from "./pages/ExamSubmissionsPage";
-import AdminTeacherListPage from "./pages/AdminTeacherListPage";
-import TeacherProfilePage from "./pages/TeacherProfilePage";
-import TeacherClassesPage from "./pages/TeacherClassesPage";
-import StudentResultsPage from "./pages/StudentResultsPage";
-import StudentResultDetailPage from "./pages/StudentResultDetailPage";
-import ExamAnalyticsPage from "./pages/ExamAnalyticsPage";
-import AdminDashboardPage from "./pages/AdminDashboardPage";
+
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const RegisterTeacherPage = lazy(() => import("./pages/RegisterTeacherPage"));
+const GradingPage = lazy(() => import("./pages/GradingPage"));
+const ExamListPage = lazy(() => import("./pages/ExamListPage"));
+const ExamCreatePage = lazy(() => import("./pages/ExamCreatePage"));
+const ExamDetailPage = lazy(() => import("./pages/ExamDetailPage"));
+const ExamSubmissionsPage = lazy(() => import("./pages/ExamSubmissionsPage"));
+const AdminTeacherListPage = lazy(() => import("./pages/AdminTeacherListPage"));
+const TeacherProfilePage = lazy(() => import("./pages/TeacherProfilePage"));
+const TeacherClassesPage = lazy(() => import("./pages/TeacherClassesPage"));
+const StudentResultsPage = lazy(() => import("./pages/StudentResultsPage"));
+const StudentResultDetailPage = lazy(() => import("./pages/StudentResultDetailPage"));
+const ExamAnalyticsPage = lazy(() => import("./pages/ExamAnalyticsPage"));
+const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
+
+function PageLoading() {
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs font-medium text-slate-500">Đang tải dữ liệu...</p>
+      </div>
+    </div>
+  );
+}
 
 function RootRedirect() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -30,9 +42,10 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register-teacher" element={<RegisterTeacherPage />} />
+        <Suspense fallback={<PageLoading />}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register-teacher" element={<RegisterTeacherPage />} />
 
           {/* Admin Routes */}
           <Route
@@ -159,6 +172,7 @@ export default function App() {
           {/* Fallback route */}
           <Route path="*" element={<RootRedirect />} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
   );
