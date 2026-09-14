@@ -94,6 +94,7 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
   const scoreDistribution = [];
   const questionAnalytics = [];
   const examCodeComparison = [];
+  let itemAnalysisSummary = null;
 
   const examMaxScore = exam.maxScore ? Number(exam.maxScore) : 10;
 
@@ -265,7 +266,7 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
       });
     }
 
-    const itemAnalysisSummary = {
+    itemAnalysisSummary = {
       totalQuestions: questionCount,
       easyCount: questionAnalytics.filter((q) => q.difficultyRating === "EASY").length,
       moderateCount: questionAnalytics.filter((q) => q.difficultyRating === "MODERATE").length,

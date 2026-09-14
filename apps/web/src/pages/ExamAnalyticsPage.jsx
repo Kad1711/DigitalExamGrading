@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import api from "../api/client";
 import AppHeader from "../components/AppHeader";
 import Card from "../components/ui/Card";
@@ -7,6 +7,7 @@ import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import Alert from "../components/ui/Alert";
 import Breadcrumbs from "../components/ui/Breadcrumbs";
+import EmptyState from "../components/ui/EmptyState";
 import {
   BarChart3,
   CheckCircle2,
@@ -21,12 +22,14 @@ import {
   Layers,
   Sparkles,
   Info,
+  ScanLine,
 } from "lucide-react";
 import { getErrorMessage } from "../utils/error-map";
 import { formatExamStatus } from "../utils/enum-map";
 
 export default function ExamAnalyticsPage() {
   const { examId } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
@@ -58,6 +61,39 @@ export default function ExamAnalyticsPage() {
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-16 flex flex-col items-center justify-center gap-3">
           <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
           <span className="text-xs font-medium text-slate-500">Đang tổng hợp dữ liệu thống kê...</span>
+        </main>
+      </div>
+    );
+  }
+
+  if (!loading && (!data || errorMsg)) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <AppHeader />
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+          <Breadcrumbs
+            items={[
+              { label: "Kỳ thi", to: "/exams" },
+              { label: "Thống kê" },
+            ]}
+          />
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 shadow-xs">
+            <EmptyState
+              icon={BarChart3}
+              title="Không thể tải dữ liệu thống kê"
+              description={errorMsg || "Chưa có thông tin thống kê cho kỳ thi này."}
+              action={
+                <div className="flex items-center justify-center gap-3">
+                  <Button variant="outline" size="sm" onClick={() => navigate("/exams")}>
+                    Quay lại danh sách kỳ thi
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={fetchAnalytics}>
+                    Thử lại
+                  </Button>
+                </div>
+              }
+            />
+          </div>
         </main>
       </div>
     );
@@ -154,65 +190,94 @@ export default function ExamAnalyticsPage() {
           </div>
         )}
 
-        {/* 1. Score & Submissions Overview Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3.5">
-          <Card className="p-3.5 border border-slate-200">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
-              Tổng số bài
-            </span>
-            <span className="text-xl font-bold text-slate-900">{overview?.totalSubmissions}</span>
-          </Card>
+        {overview?.totalSubmissions === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 shadow-xs">
+            <EmptyState
+              icon={BarChart3}
+              title="Chưa có dữ liệu bài thi để thống kê"
+              description="Kỳ thi này hiện chưa có bài làm nào được chấm OMR (Tổng số bài đã chấm: 0). Hãy tiến hành chấm bài để hệ thống tự động tổng hợp phổ điểm, tỷ lệ làm đúng và phân tích khảo thí chuyên sâu."
+              action={
+                <div className="flex items-center justify-center gap-3">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    icon={ScanLine}
+                    onClick={() => navigate(`/grade?examId=${examId}`)}
+                  >
+                    Chấm bài OMR ngay
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="md"
+                    onClick={() => navigate(`/exams/${examId}`)}
+                  >
+                    Xem chi tiết kỳ thi
+                  </Button>
+                </div>
+              }
+            />
+          </div>
+        ) : (
+          <>
+            {/* 1. Score & Submissions Overview Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3.5">
+              <Card className="p-3.5 border border-slate-200">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+                  Tổng số bài
+                </span>
+                <span className="text-xl font-bold text-slate-900">{overview?.totalSubmissions ?? 0}</span>
+              </Card>
 
-          <Card className="p-3.5 border border-slate-200 bg-emerald-50/40">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 block mb-1">
-              Đã hoàn tất
-            </span>
-            <span className="text-xl font-bold text-emerald-800">{overview?.finalCount}</span>
-          </Card>
+              <Card className="p-3.5 border border-slate-200 bg-emerald-50/40">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 block mb-1">
+                  Đã hoàn tất
+                </span>
+                <span className="text-xl font-bold text-emerald-800">{overview?.finalCount ?? 0}</span>
+              </Card>
 
-          <Card className="p-3.5 border border-slate-200 bg-amber-50/40">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700 block mb-1">
-              Cần duyệt
-            </span>
-            <span className="text-xl font-bold text-amber-800">{overview?.provisionalCount}</span>
-          </Card>
+              <Card className="p-3.5 border border-slate-200 bg-amber-50/40">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700 block mb-1">
+                  Cần duyệt
+                </span>
+                <span className="text-xl font-bold text-amber-800">{overview?.provisionalCount ?? 0}</span>
+              </Card>
 
-          <Card className="p-3.5 border border-slate-200 bg-blue-50/50 col-span-2 sm:col-span-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-700 block mb-1">
-              Điểm TB
-            </span>
-            <span className="text-xl font-extrabold text-blue-700">
-              {scoreStats?.averageFinalScore !== null ? scoreStats.averageFinalScore.toFixed(2) : "—"}
-            </span>
-          </Card>
+              <Card className="p-3.5 border border-slate-200 bg-blue-50/50 col-span-2 sm:col-span-1">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-700 block mb-1">
+                  Điểm TB
+                </span>
+                <span className="text-xl font-extrabold text-blue-700">
+                  {typeof scoreStats?.averageFinalScore === "number" ? scoreStats.averageFinalScore.toFixed(2) : "—"}
+                </span>
+              </Card>
 
-          <Card className="p-3.5 border border-slate-200">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
-              Trung vị
-            </span>
-            <span className="text-xl font-bold text-slate-800">
-              {scoreStats?.medianFinalScore !== null ? scoreStats.medianFinalScore.toFixed(2) : "—"}
-            </span>
-          </Card>
+              <Card className="p-3.5 border border-slate-200">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+                  Trung vị
+                </span>
+                <span className="text-xl font-bold text-slate-800">
+                  {typeof scoreStats?.medianFinalScore === "number" ? scoreStats.medianFinalScore.toFixed(2) : "—"}
+                </span>
+              </Card>
 
-          <Card className="p-3.5 border border-slate-200">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
-              Cao nhất
-            </span>
-            <span className="text-xl font-bold text-emerald-600">
-              {scoreStats?.highestFinalScore !== null ? scoreStats.highestFinalScore.toFixed(2) : "—"}
-            </span>
-          </Card>
+              <Card className="p-3.5 border border-slate-200">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+                  Cao nhất
+                </span>
+                <span className="text-xl font-bold text-emerald-600">
+                  {typeof scoreStats?.highestFinalScore === "number" ? scoreStats.highestFinalScore.toFixed(2) : "—"}
+                </span>
+              </Card>
 
-          <Card className="p-3.5 border border-slate-200">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
-              Thấp nhất
-            </span>
-            <span className="text-xl font-bold text-rose-600">
-              {scoreStats?.lowestFinalScore !== null ? scoreStats.lowestFinalScore.toFixed(2) : "—"}
-            </span>
-          </Card>
-        </div>
+              <Card className="p-3.5 border border-slate-200">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+                  Thấp nhất
+                </span>
+                <span className="text-xl font-bold text-rose-600">
+                  {typeof scoreStats?.lowestFinalScore === "number" ? scoreStats.lowestFinalScore.toFixed(2) : "—"}
+                </span>
+              </Card>
+            </div>
 
         {/* 2. Score Distribution (Bar Chart & Table) */}
         <Card className="p-6 border border-slate-200">
@@ -248,7 +313,7 @@ export default function ExamAnalyticsPage() {
                         {/* Tooltip on hover */}
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 bg-slate-900 text-white text-[10px] rounded px-2 py-1 pointer-events-none whitespace-nowrap z-10 shadow-lg">
                           Dải {bucket.label}: {bucket.count} bài (
-                          {overview.finalCount > 0
+                          {(overview?.finalCount || 0) > 0
                             ? Math.round((bucket.count / overview.finalCount) * 100)
                             : 0}
                           %)
@@ -309,7 +374,7 @@ export default function ExamAnalyticsPage() {
                       <td className="py-2 px-2 text-slate-500">Tỷ lệ (%)</td>
                       {scoreDistribution.map((b, i) => (
                         <td key={i} className="py-2 px-2 text-center text-slate-500 font-mono">
-                          {overview.finalCount > 0
+                          {(overview?.finalCount || 0) > 0
                             ? Math.round((b.count / overview.finalCount) * 100)
                             : 0}
                           %
@@ -477,7 +542,7 @@ export default function ExamAnalyticsPage() {
                               />
                             </div>
                             <span className="font-mono font-bold text-slate-700 w-11 text-right">
-                              {q.correctRate.toFixed(1)}%
+                              {typeof q.correctRate === "number" ? q.correctRate.toFixed(1) : 0}%
                             </span>
                           </div>
                         </td>
@@ -570,13 +635,13 @@ export default function ExamAnalyticsPage() {
                           {codeItem.candidateCount}
                         </td>
                         <td className="py-2.5 px-3 text-right font-bold text-slate-900">
-                          {codeItem.averageScore.toFixed(2)}
+                          {typeof codeItem.averageScore === "number" ? codeItem.averageScore.toFixed(2) : "—"}
                         </td>
                         <td className="py-2.5 px-3 text-right text-emerald-700 font-mono">
-                          {codeItem.highestScore.toFixed(2)}
+                          {typeof codeItem.highestScore === "number" ? codeItem.highestScore.toFixed(2) : "—"}
                         </td>
                         <td className="py-2.5 px-3 text-right text-rose-700 font-mono">
-                          {codeItem.lowestScore.toFixed(2)}
+                          {typeof codeItem.lowestScore === "number" ? codeItem.lowestScore.toFixed(2) : "—"}
                         </td>
                       </tr>
                     ))}
@@ -666,7 +731,10 @@ export default function ExamAnalyticsPage() {
             )}
           </Card>
         </div>
-      </main>
-    </div>
-  );
+      </>
+    )}
+  </main>
+</div>
+);
 }
+

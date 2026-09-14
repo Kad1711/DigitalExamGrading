@@ -459,7 +459,6 @@ export default function ExamListPage() {
                       <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Lớp</th>
                       <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Số câu</th>
                       <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Thang điểm</th>
-                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap">Hình thức</th>
                       <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Mã đề</th>
                       <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Trạng thái</th>
                       <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-right min-w-[200px]">Thao tác</th>
@@ -502,9 +501,6 @@ export default function ExamListPage() {
                         </td>
                         <td className="py-4 px-4 text-slate-700 font-medium whitespace-nowrap text-center text-xs">
                           <span className="font-semibold text-slate-900">{Number(exam.maxScore)}</span>đ
-                        </td>
-                        <td className="py-4 px-4 text-xs text-slate-600 whitespace-nowrap">
-                          {formatScoringType(exam.scoringType)}
                         </td>
                         <td className="py-4 px-4 text-center whitespace-nowrap">
                           <Badge variant="gray" size="sm">
