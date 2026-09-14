@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Digital Exam Grading** là nền tảng toàn diện hỗ trợ các trường THPT, trung tâm khảo thí và giáo viên số hóa quy trình tổ chức thi: từ phát hành phiếu thi PDF chuẩn OMR, tổ chức lớp học, import danh sách học sinh thông minh, chấm điểm tự động từ ảnh chụp điện thoại/máy scan qua Computer Vision, đến phúc khảo đáp án và công bố điểm bảo mật cho học sinh tra cứu online.
-
+hi
 ---
 
 ## 📑 Mục lục
