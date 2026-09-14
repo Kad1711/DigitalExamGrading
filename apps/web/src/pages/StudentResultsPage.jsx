@@ -16,10 +16,15 @@ import {
   XCircle,
   HelpCircle,
   FileCheck,
+  Clock,
+  Sparkles,
+  Info,
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 import { getErrorMessage } from "../utils/error-map";
 
 export default function StudentResultsPage() {
+  const { user } = useAuth();
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
@@ -90,13 +95,74 @@ export default function StudentResultsPage() {
             <span className="text-xs font-medium text-slate-500">Đang tải kết quả thi...</span>
           </div>
         ) : results.length === 0 ? (
-          <Card className="p-12 text-center">
-            <EmptyState
-              icon={FileCheck}
-              title="Chưa có kết quả nào được công bố"
-              description="Hiện tại bạn chưa có bài thi nào được giáo viên công bố kết quả chính thức. Vui lòng quay lại sau."
-            />
-          </Card>
+          <div className="space-y-6">
+            <Card className="p-8 sm:p-10 text-center border border-slate-200">
+              <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-xs">
+                <FileCheck className="w-7 h-7" />
+              </div>
+              <h2 className="text-base font-bold text-slate-800">Chưa có kết quả nào được công bố</h2>
+              <p className="text-xs text-slate-500 mt-1 max-w-lg mx-auto leading-relaxed">
+                Tài khoản <strong className="text-slate-700 font-mono">{user?.email}</strong> hiện tại chưa có bài thi nào được giáo viên duyệt và công bố điểm chính thức.
+              </p>
+
+              <div className="mt-5">
+                <Button variant="outline" size="sm" onClick={fetchResults} loading={loading}>
+                  Kiểm tra lại kết quả
+                </Button>
+              </div>
+            </Card>
+
+            {/* Workflow Guide */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                <Sparkles className="w-4 h-4 text-blue-600" />
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Làm sao để biết kết quả kỳ thi? (Quy trình 4 bước)
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center mb-2">1</div>
+                  <h4 className="text-xs font-bold text-slate-800">Làm bài thi trắc nghiệm</h4>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                    Học sinh tô số báo danh và các câu trả lời trên phiếu làm bài OMR tiêu chuẩn.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center mb-2">2</div>
+                  <h4 className="text-xs font-bold text-slate-800">Chấm thi OMR tự động</h4>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                    Giáo viên quét phiếu làm bài, hệ thống AI tự động chấm điểm và so khớp số báo danh.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center mb-2">3</div>
+                  <h4 className="text-xs font-bold text-slate-800">Giáo viên công bố điểm</h4>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                    Giáo viên rà soát đáp án và bấm <strong>"Công bố kết quả"</strong> trong trang quản lý kỳ thi.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200">
+                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center mb-2">4</div>
+                  <h4 className="text-xs font-bold text-blue-900">Xem điểm & bài làm</h4>
+                  <p className="text-[11px] text-blue-700 mt-1 leading-snug">
+                    Điểm thi, số câu đúng/sai và ảnh phiếu làm bài sẽ hiển thị ngay tại trang này.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-start gap-2.5">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong>Lời khuyên cho bạn:</strong> Nếu bạn vừa hoàn thành bài thi trắc nghiệm trên lớp, hãy đợi giáo viên bộ môn scan bài và bấm <strong>"Công bố kết quả"</strong>. Khi nhận được thông báo từ thầy cô, bạn chỉ cần quay lại trang này và bấm nút <em>"Kiểm tra lại kết quả"</em>.
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {results.map((item) => (
