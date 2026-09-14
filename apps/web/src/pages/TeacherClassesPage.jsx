@@ -1160,8 +1160,12 @@ export default function TeacherClassesPage() {
         )
       );
     } catch (err) {
+      const errData = err.response?.data?.error;
+      const detailMsg = Array.isArray(errData?.details) && errData.details.length > 0
+        ? errData.details.map((d) => d.message).filter(Boolean).join(" • ")
+        : null;
       setImportError(
-        err.response?.data?.error?.message || "Lỗi khi import học sinh vào lớp học."
+        detailMsg || errData?.message || "Lỗi khi import học sinh vào lớp học."
       );
     } finally {
       setImportingStudents(false);

@@ -64,11 +64,12 @@ export function globalErrorHandler(err, req, res, next) {
   }
 
   if (err.name === "ZodError") {
+    const firstMsg = err.errors?.[0]?.message;
     return res.status(422).json({
       success: false,
       error: {
         code: "VALIDATION_ERROR",
-        message: "Dữ liệu không hợp lệ.",
+        message: firstMsg || "Dữ liệu không hợp lệ.",
         details: err.errors,
       },
     });

@@ -69,13 +69,25 @@ export const updateStudentSchema = z.object({
 
 export const importStudentsConfigSchema = z.object({
   headerRowIndex: z.coerce.number().int().min(1).default(1),
-  studentCodeCol: z.coerce.number().int().min(1, "Vui lòng chọn cột Mã học sinh / Số báo danh."),
+  sbdMode: z.enum(["AUTO", "COLUMN"]).optional().default("COLUMN"),
+  autoGenerateSbd: z.boolean().optional().default(false),
+  studentCodeCol: z.coerce.number().int().min(1).optional().nullable(),
   fullNameCol: z.coerce.number().int().min(1).optional().nullable(),
   lastNameCol: z.coerce.number().int().min(1).optional().nullable(),
   firstNameCol: z.coerce.number().int().min(1).optional().nullable(),
   dobCol: z.coerce.number().int().min(1).optional().nullable(),
   genderCol: z.coerce.number().int().min(1).optional().nullable(),
 }).refine(
+  (data) => {
+    const isAuto = data.sbdMode === "AUTO" || data.autoGenerateSbd === true;
+    if (isAuto) return true;
+    return !!data.studentCodeCol && data.studentCodeCol >= 1;
+  },
+  {
+    message: "Vui lòng chọn cột Số báo danh / Mã học sinh.",
+    path: ["studentCodeCol"],
+  }
+).refine(
   (data) => data.fullNameCol || (data.lastNameCol && data.firstNameCol),
   {
     message: "Vui lòng chọn cột Họ và tên (hoặc cả 2 cột Họ đệm và Tên).",
