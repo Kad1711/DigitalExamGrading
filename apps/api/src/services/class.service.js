@@ -503,21 +503,40 @@ export async function addStudentToClass(classId, { studentCode, fullName, dateOf
   });
 
   if (student) {
-    // Check if already in this class
-    const existingEnrollment = await prisma.studentEnrollment.findFirst({
+    // Check if already enrolled in this academic year (a student can only be in one class per year)
+    const existingEnrollmentInYear = await prisma.studentEnrollment.findFirst({
       where: {
         studentId: student.id,
-        classId: cls.id,
         academicYearId: cls.academicYearId,
       },
+      include: { class: true },
     });
 
-    if (existingEnrollment) {
-      throw new AppError(
-        `Học sinh có mã "${cleanCode}" đã có trong lớp này.`,
-        409,
-        "STUDENT_ALREADY_IN_CLASS"
-      );
+    if (existingEnrollmentInYear) {
+      if (existingEnrollmentInYear.classId === cls.id) {
+        throw new AppError(
+          `Học sinh có mã "${cleanCode}" đã có trong lớp này.`,
+          409,
+          "STUDENT_ALREADY_IN_CLASS"
+        );
+      } else {
+        throw new AppError(
+          `Mã học sinh "${cleanCode}" (${student.fullName}) đã được ghi danh vào lớp "${existingEnrollmentInYear.class.name}" trong năm học này. Mỗi học sinh chỉ được thuộc một lớp trong cùng một năm học.`,
+          409,
+          "STUDENT_ALREADY_IN_ANOTHER_CLASS"
+        );
+      }
+    }
+
+    // Update name/dob if provided and enroll into class
+    if (cleanName && cleanName !== student.fullName) {
+      await prisma.student.update({
+        where: { id: student.id },
+        data: {
+          fullName: cleanName,
+          ...(parsedDob ? { dateOfBirth: parsedDob } : {}),
+        },
+      });
     }
 
     // Enroll into class
@@ -879,6 +898,7 @@ export async function parseExcelPreview(fileBuffer) {
 export async function importStudentsFromExcel(classId, fileBuffer, mapping) {
   const cls = await prisma.class.findUnique({
     where: { id: classId },
+    include: { grade: true, academicYear: true },
   });
 
   if (!cls) {
@@ -895,6 +915,8 @@ export async function importStudentsFromExcel(classId, fileBuffer, mapping) {
 
   const {
     headerRowIndex = 1,
+    sbdMode = "COLUMN", // "AUTO" | "COLUMN"
+    autoGenerateSbd = false,
     studentCodeCol,
     fullNameCol,
     lastNameCol,
@@ -902,8 +924,14 @@ export async function importStudentsFromExcel(classId, fileBuffer, mapping) {
     dobCol,
   } = mapping;
 
-  if (!studentCodeCol) {
-    throw new AppError("Vui lòng chọn cột Số báo danh / Mã học sinh.", 400, "MISSING_STUDENT_CODE_COL");
+  const isAutoSbd = sbdMode === "AUTO" || autoGenerateSbd === true;
+
+  if (!isAutoSbd && !studentCodeCol) {
+    throw new AppError(
+      "Vui lòng chọn cột Số báo danh / Mã học sinh (hoặc chọn Tự động sinh SBD).",
+      400,
+      "MISSING_STUDENT_CODE_COL"
+    );
   }
 
   if (!fullNameCol && (!lastNameCol || !firstNameCol)) {
@@ -912,6 +940,7 @@ export async function importStudentsFromExcel(classId, fileBuffer, mapping) {
 
   const passwordHash = await bcrypt.hash(DEFAULT_STUDENT_PASSWORD, DEFAULT_SALT_ROUNDS);
   let importedCount = 0;
+  let updatedCount = 0;
   let skippedCount = 0;
   const errors = [];
 
@@ -920,8 +949,16 @@ export async function importStudentsFromExcel(classId, fileBuffer, mapping) {
   worksheet.eachRow((row, rowNumber) => {
     if (rowNumber <= headerRowIndex) return;
 
-    const studentCodeRaw = getCellString(row.getCell(studentCodeCol));
-    if (!studentCodeRaw) return;
+    let studentCode = "";
+    if (isAutoSbd) {
+      // Auto-generate SBD based on class & sequential row index in grade (e.g. 060501)
+      const nextIdx = rowsToProcess.length + 1;
+      studentCode = generateSmartSbd(cls.name, cls.grade?.level, nextIdx);
+    } else {
+      const studentCodeRaw = getCellString(row.getCell(studentCodeCol));
+      if (!studentCodeRaw) return;
+      studentCode = studentCodeRaw.trim();
+    }
 
     let fullName = "";
     if (fullNameCol) {
@@ -933,7 +970,7 @@ export async function importStudentsFromExcel(classId, fileBuffer, mapping) {
     }
 
     if (!fullName) {
-      errors.push(`Dòng ${rowNumber}: Không có họ tên cho mã "${studentCodeRaw}". Bỏ qua.`);
+      errors.push(`Dòng ${rowNumber}: Không có họ tên cho mã "${studentCode}". Bỏ qua.`);
       return;
     }
 
@@ -945,7 +982,7 @@ export async function importStudentsFromExcel(classId, fileBuffer, mapping) {
 
     rowsToProcess.push({
       rowNumber,
-      studentCode: studentCodeRaw.trim(),
+      studentCode,
       fullName: fullName.trim(),
       dateOfBirth: parsedDob,
     });
@@ -960,9 +997,16 @@ export async function importStudentsFromExcel(classId, fileBuffer, mapping) {
     try {
       let student = await prisma.student.findUnique({
         where: { studentCode: item.studentCode },
+        include: {
+          user: true,
+          enrollments: {
+            include: { class: true },
+          },
+        },
       });
 
       if (!student) {
+        // Create new User + Student + StudentEnrollment
         const email = makeStudentEmail(cls.name, item.studentCode);
         const existingUser = await prisma.user.findUnique({ where: { email } });
         const finalEmail = existingUser
@@ -987,20 +1031,7 @@ export async function importStudentsFromExcel(classId, fileBuffer, mapping) {
             initialPassword: DEFAULT_STUDENT_PASSWORD,
           },
         });
-      }
 
-      // Check enrollment
-      const existingEnrollment = await prisma.studentEnrollment.findFirst({
-        where: {
-          studentId: student.id,
-          classId: cls.id,
-          academicYearId: cls.academicYearId,
-        },
-      });
-
-      if (existingEnrollment) {
-        skippedCount++;
-      } else {
         await prisma.studentEnrollment.create({
           data: {
             studentId: student.id,
@@ -1009,6 +1040,56 @@ export async function importStudentsFromExcel(classId, fileBuffer, mapping) {
           },
         });
         importedCount++;
+      } else {
+        // Student already exists in DB! Check enrollment in this academic year
+        const existingInYear = student.enrollments.find(
+          (e) => e.academicYearId === cls.academicYearId
+        );
+
+        if (existingInYear) {
+          if (existingInYear.classId === cls.id) {
+            // Already enrolled in THIS class -> Update name & DOB to reflect new file (fixes wrong names!)
+            const nameChanged = student.fullName !== item.fullName;
+            const dobChanged = item.dateOfBirth && (!student.dateOfBirth || new Date(student.dateOfBirth).getTime() !== new Date(item.dateOfBirth).getTime());
+
+            if (nameChanged || dobChanged) {
+              await prisma.student.update({
+                where: { id: student.id },
+                data: {
+                  fullName: item.fullName,
+                  ...(item.dateOfBirth ? { dateOfBirth: item.dateOfBirth } : {}),
+                },
+              });
+              updatedCount++;
+            } else {
+              skippedCount++;
+            }
+          } else {
+            // Enrolled in ANOTHER class in the SAME academic year!
+            // Give a helpful, descriptive error message instead of raw Prisma unique constraint crash
+            errors.push(
+              `Dòng ${item.rowNumber} (Mã: ${item.studentCode}): Mã này đã thuộc về học sinh "${student.fullName}" ở lớp "${existingInYear.class.name}". Nếu file của bạn là Số thứ tự (1, 2, 3...), vui lòng chọn "Tự động sinh SBD theo lớp" để tránh trùng lặp giữa các lớp.`
+            );
+          }
+        } else {
+          // Exists from a previous year or unassigned -> update info and enroll into this class
+          await prisma.student.update({
+            where: { id: student.id },
+            data: {
+              fullName: item.fullName,
+              ...(item.dateOfBirth ? { dateOfBirth: item.dateOfBirth } : {}),
+            },
+          });
+
+          await prisma.studentEnrollment.create({
+            data: {
+              studentId: student.id,
+              classId: cls.id,
+              academicYearId: cls.academicYearId,
+            },
+          });
+          importedCount++;
+        }
       }
     } catch (err) {
       errors.push(`Dòng ${item.rowNumber} (${item.studentCode}): ${err.message}`);
@@ -1018,6 +1099,7 @@ export async function importStudentsFromExcel(classId, fileBuffer, mapping) {
   return {
     totalRows: rowsToProcess.length,
     importedCount,
+    updatedCount,
     skippedCount,
     errors,
   };
@@ -1058,9 +1140,29 @@ export async function clearClassStudents(classId) {
     throw new AppError("Lớp học không tồn tại.", 404, "CLASS_NOT_FOUND");
   }
 
+  const enrollments = await prisma.studentEnrollment.findMany({
+    where: { classId },
+    select: { studentId: true, student: { select: { id: true, userId: true } } },
+  });
+
   const deleteResult = await prisma.studentEnrollment.deleteMany({
     where: { classId },
   });
+
+  // Clean up orphaned students who are not in any other class and have no exam candidacies
+  for (const item of enrollments) {
+    if (item.student) {
+      const otherEnrollmentCount = await prisma.studentEnrollment.count({
+        where: { studentId: item.student.id },
+      });
+      const candidateCount = await prisma.examCandidate.count({
+        where: { studentId: item.student.id },
+      });
+      if (otherEnrollmentCount === 0 && candidateCount === 0) {
+        await prisma.user.delete({ where: { id: item.student.userId } }).catch(() => {});
+      }
+    }
+  }
 
   return {
     classId,
@@ -1085,12 +1187,35 @@ export async function bulkRemoveStudentsFromClass(classId, studentIds = []) {
     throw new AppError("Danh sách học sinh cần xóa không hợp lệ.", 400, "INVALID_STUDENT_IDS");
   }
 
+  const enrollments = await prisma.studentEnrollment.findMany({
+    where: {
+      classId,
+      studentId: { in: studentIds },
+    },
+    select: { studentId: true, student: { select: { id: true, userId: true } } },
+  });
+
   const deleteResult = await prisma.studentEnrollment.deleteMany({
     where: {
       classId,
       studentId: { in: studentIds },
     },
   });
+
+  // Clean up orphaned students
+  for (const item of enrollments) {
+    if (item.student) {
+      const otherEnrollmentCount = await prisma.studentEnrollment.count({
+        where: { studentId: item.student.id },
+      });
+      const candidateCount = await prisma.examCandidate.count({
+        where: { studentId: item.student.id },
+      });
+      if (otherEnrollmentCount === 0 && candidateCount === 0) {
+        await prisma.user.delete({ where: { id: item.student.userId } }).catch(() => {});
+      }
+    }
+  }
 
   return {
     classId,
