@@ -9,7 +9,10 @@
     "dev:api": "npm --prefix apps/api run dev",
     "dev:ai": "cd apps/ai-service && .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
     "dev:local": "node scripts/dev-banner.js && concurrently -c \"cyan.bold,green.bold,magenta.bold\" -n WEB,API,AI \"npm run dev:web\" \"npm run dev:api\" \"npm run dev:ai\"",
-    "dev": "npm run dev:docker && npm run dev:db && npm run dev:banner && concurrently -c \"cyan.bold,green.bold,magenta.bold\" -n WEB,API,AI \"npm run dev:web\" \"npm run dev:api\" \"npm run dev:ai\""
+    "dev": "npm run dev:docker && npm run dev:db && npm run dev:banner && concurrently -c \"cyan.bold,green.bold,magenta.bold\" -n WEB,API,AI \"npm run dev:web\" \"npm run dev:api\" \"npm run dev:ai\"",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

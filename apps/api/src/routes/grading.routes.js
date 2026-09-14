@@ -64,6 +64,59 @@ export function handleImageUpload(req, res, next) {
   });
 }
 
+export const uploadBatchImages = multer({
+  storage,
+  limits: {
+    fileSize: 15 * 1024 * 1024, // 15MB per file
+    files: 50, // Max 50 files per batch
+  },
+  fileFilter: (req, file, cb) => {
+    const name = (file.originalname || "").toLowerCase();
+    const isImage =
+      name.endsWith(".jpg") ||
+      name.endsWith(".jpeg") ||
+      name.endsWith(".png") ||
+      file.mimetype === "image/jpeg" ||
+      file.mimetype === "image/png";
+
+    if (isImage) {
+      cb(null, true);
+    } else {
+      cb(
+        new AppError(
+          "Chỉ chấp nhận file ảnh định dạng .jpg, .jpeg, hoặc .png.",
+          400,
+          "IMAGE_TYPE_INVALID"
+        )
+      );
+    }
+  },
+}).array("images", 50);
+
+export function handleBatchImageUpload(req, res, next) {
+  uploadBatchImages(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return next(
+            new AppError("Có file vượt quá giới hạn 15MB.", 400, "IMAGE_TOO_LARGE")
+          );
+        }
+        if (err.code === "LIMIT_FILE_COUNT") {
+          return next(
+            new AppError("Chỉ được tải lên tối đa 50 file mỗi lần.", 400, "TOO_MANY_FILES")
+          );
+        }
+        return next(
+          new AppError(`Lỗi tải ảnh lên: ${err.message}`, 400, "FILE_UPLOAD_ERROR")
+        );
+      }
+      return next(err);
+    }
+    next();
+  });
+}
+
 // Stateless regression endpoint
 // POST /api/exams/:examId/grade-image
 router.post("/:examId/grade-image", requireTeacher, handleImageUpload, gradeImageController);
@@ -72,4 +125,32 @@ router.post("/:examId/grade-image", requireTeacher, handleImageUpload, gradeImag
 // POST /api/exams/:examId/submissions
 router.post("/:examId/submissions", requireTeacher, gradingUploadLimiter, handleImageUpload, createSubmissionController);
 
+// BullMQ Batch Queue endpoint
+// POST /api/exams/:examId/submissions/batch
+router.post(
+  "/:examId/submissions/batch",
+  requireTeacher,
+  handleBatchImageUpload,
+  async (req, res, next) => {
+    const { createBatchSubmissionController } = await import(
+      "../controllers/submission.controller.js"
+    );
+    return createBatchSubmissionController(req, res, next);
+  }
+);
+
+// Batch status polling endpoint
+// GET /api/exams/:examId/batches/:batchId
+router.get(
+  "/:examId/batches/:batchId",
+  requireTeacher,
+  async (req, res, next) => {
+    const { getBatchStatusController } = await import(
+      "../controllers/submission.controller.js"
+    );
+    return getBatchStatusController(req, res, next);
+  }
+);
+
 export default router;
+

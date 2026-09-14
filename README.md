@@ -1,7 +1,9 @@
 # 🎓 Digital Exam Grading V1
 ### Hệ Thống Chấm Điểm Bài Thi Trắc Nghiệm THPT Tự Động Bằng Thị Giác Máy Tính (Computer Vision & OMR)
 
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D24.0.0-brightgreen.svg)](https://nodejs.org/)
+[![CI Pipeline](https://github.com/Kad1711/DigitalExamGrading/actions/workflows/ci.yml/badge.svg)](https://github.com/Kad1711/DigitalExamGrading/actions/workflows/ci.yml)
+[![Docker Ready](https://img.shields.io/badge/docker-compose%20v2-2496ED?logo=docker&logoColor=white)](compose.yaml)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg)](https://nodejs.org/)
 [![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![PostgreSQL](https://img.shields.io/badge/postgresql-17-blue.svg)](https://www.postgresql.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -152,19 +154,28 @@ npx prisma db push
 cd ../..
 ```
 
-### 5. Khởi chạy toàn bộ hệ thống bằng 1 lệnh duy nhất
-Tại thư mục gốc dự án, chạy:
+### 5. Khởi chạy toàn bộ hệ thống
+
+#### Cách 1: Khởi chạy 1 lệnh ăn ngay với Docker Compose (Production-ready)
+Không cần cài đặt thủ công Node hay Python, chạy toàn bộ 4 services trong container:
+```bash
+npm run docker:up
+# hoặc: docker compose up --build
+```
+Hệ thống sẽ tự động cấu hình:
+- 🌐 **Web Frontend:** `http://localhost:5173` (Nginx reverse proxy)
+- ⚙️ **Backend API:** `http://localhost:5000`
+- 🧠 **AI OMR Service:** `http://localhost:8000`
+- 🐘 **PostgreSQL 17:** `localhost:5433`
+
+Dừng hệ thống: `npm run docker:down`
+
+#### Cách 2: Khởi chạy chế độ phát triển cục bộ (Hybrid Dev)
+Dành cho lập trình viên muốn live-reload code trực tiếp trên máy:
 ```bash
 npm run dev
 ```
-
-Lệnh này sẽ tự động:
-1. Kiểm tra Docker Desktop và khởi động container **PostgreSQL 17**.
-2. Chờ cơ sở dữ liệu sẵn sàng (`healthy`).
-3. Khởi chạy đồng thời:
-   - 🌐 **Web Frontend:** `http://localhost:5173`
-   - ⚙️ **Backend API:** `http://localhost:5000`
-   - 🧠 **AI OMR Service:** `http://localhost:8000`
+Lệnh này sẽ tự động khởi động container **PostgreSQL 17** và chạy song song 3 ứng dụng cục bộ với live-reload.
 
 ---
 

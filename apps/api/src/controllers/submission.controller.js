@@ -176,3 +176,81 @@ export async function getSubmissionAuditLogsController(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * POST /api/exams/:examId/submissions/batch
+ * Enqueues up to 50 exam sheets for asynchronous batch grading with BullMQ
+ */
+export async function createBatchSubmissionController(req, res, next) {
+  try {
+    const { examId } = req.params;
+    if (!examId) {
+      return next(new AppError("Thiếu mã kỳ thi (examId).", 400, "EXAM_ID_REQUIRED"));
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return next(
+        new AppError(
+          "Vui lòng tải lên ít nhất một file ảnh bài thi (tối đa 50 file).",
+          400,
+          "NO_FILES_UPLOADED"
+        )
+      );
+    }
+
+    const { enqueueBatchGrading } = await import("../queue/grading.queue.js");
+    const { batchId, total } = await enqueueBatchGrading({
+      examId,
+      user: req.user,
+      files: req.files,
+    });
+
+    return res.status(202).json({
+      success: true,
+      message: `Đã tiếp nhận ${total} bài thi vào hàng đợi chấm tự động.`,
+      data: {
+        batchId,
+        total,
+        statusUrl: `/api/exams/${examId}/batches/${batchId}`,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/exams/:examId/batches/:batchId
+ * Returns current processing status, progress percentage, and individual results
+ */
+export async function getBatchStatusController(req, res, next) {
+  try {
+    const { batchId } = req.params;
+    if (!batchId) {
+      return next(new AppError("Thiếu mã đợt chấm (batchId).", 400, "BATCH_ID_REQUIRED"));
+    }
+
+    const { getBatchRecord } = await import("../queue/grading.queue.js");
+    const record = await getBatchRecord(batchId);
+
+    if (!record) {
+      return next(new AppError("Không tìm thấy thông tin đợt chấm.", 404, "BATCH_NOT_FOUND"));
+    }
+
+    const completed = record.completed || 0;
+    const failed = record.failed || 0;
+    const total = record.total || 1;
+    const progressPercent = Math.min(100, Math.round(((completed + failed) / total) * 100));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...record,
+        progressPercent,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+

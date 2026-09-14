@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+.env
+.env.local
+storage
+storage-test
+tests
+coverage
+*.md

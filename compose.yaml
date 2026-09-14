@@ -3,27 +3,130 @@ services:
     image: postgres:17-alpine
     container_name: digital_exam_postgres
     restart: unless-stopped
-
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-
+      POSTGRES_USER: ${POSTGRES_USER:-exam_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-exam_local_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-exam_grading_db}
     ports:
-      - "127.0.0.1:${POSTGRES_PORT}:5432"
-
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+          "pg_isready -U ${POSTGRES_USER:-exam_user} -d ${POSTGRES_DB:-exam_grading_db}"
         ]
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - exam_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: digital_exam_redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - exam_network
+
+  ai-service:
+    build:
+      context: ./apps/ai-service
+      dockerfile: Dockerfile
+    container_name: digital_exam_ai
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\" || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - exam_network
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: digital_exam_api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-exam_user}:${POSTGRES_PASSWORD:-exam_local_2026}@postgres:5432/${POSTGRES_DB:-exam_grading_db}?schema=public
+      AI_SERVICE_URL: http://ai-service:8000
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-local_dev_access_secret_super_secure_key_12345}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local_dev_refresh_secret_super_secure_key_67890}
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      SUBMISSION_STORAGE_DIR: /var/data/digitalexam
+      CORS_ORIGIN: "http://localhost:5173,http://localhost:80,http://localhost"
+    ports:
+      - "5000:5000"
+    volumes:
+      - api_storage:/var/data/digitalexam
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:5000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - exam_network
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: digital_exam_web
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:80/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - exam_network
 
 volumes:
   postgres_data:
+  api_storage:
+  redis_data:
+
+networks:
+  exam_network:
+    driver: bridge

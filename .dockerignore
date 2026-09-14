@@ -1,0 +1,17 @@
+# Root .dockerignore
+.git
+.github
+.vscode
+.agents
+node_modules
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+dist
+coverage
+.DS_Store
+storage-test
+*.log

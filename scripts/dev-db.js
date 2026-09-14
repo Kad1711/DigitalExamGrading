@@ -8,7 +8,7 @@ if (process.platform === 'win32') {
   }
 }
 
-const action = process.argv[2] === 'stop' ? 'stop' : 'up -d --wait';
+const action = process.argv[2] === 'stop' ? 'stop postgres redis' : 'up -d --wait postgres redis';
 
 try {
   execSync(`docker compose ${action}`, { stdio: 'inherit', env: process.env });
