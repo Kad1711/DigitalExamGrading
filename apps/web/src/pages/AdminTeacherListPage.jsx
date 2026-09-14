@@ -26,12 +26,43 @@ import {
 } from "lucide-react";
 import { formatUserStatus, getInitials } from "../utils/enum-map";
 
+function maskEmail(email) {
+  if (!email) return "—";
+  const atIdx = email.indexOf("@");
+  if (atIdx === -1) return "••••••••";
+  const user = email.slice(0, atIdx);
+  const domain = email.slice(atIdx);
+  if (user.length <= 3) {
+    return `${user.slice(0, 1)}***${domain}`;
+  }
+  return `${user.slice(0, 3)}***${domain}`;
+}
+
+function maskPhone(phone) {
+  if (!phone) return "—";
+  const clean = String(phone).trim();
+  if (clean.length <= 4) return "••••••";
+  return `${clean.slice(0, 3)}****${clean.slice(-3)}`;
+}
+
 export default function AdminTeacherListPage() {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [alert, setAlert] = useState(null);
+
+  // Masked contact info states
+  const [visibleEmails, setVisibleEmails] = useState({});
+  const [visiblePhones, setVisiblePhones] = useState({});
+
+  const toggleEmailVisibility = (id) => {
+    setVisibleEmails((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const togglePhoneVisibility = (id) => {
+    setVisiblePhones((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -725,9 +756,6 @@ export default function AdminTeacherListPage() {
                               <span className="font-semibold text-slate-900 truncate">
                                 {t.fullName || "—"}
                               </span>
-                              <span className="text-[11px] text-slate-400 font-mono">
-                                ID: {t.id.slice(0, 10)}...
-                              </span>
                             </div>
                           </div>
                         </td>
@@ -741,12 +769,52 @@ export default function AdminTeacherListPage() {
 
                         {/* Email */}
                         <td className="py-3.5 px-4 text-slate-600 font-mono text-xs">
-                          {t.email}
+                          {t.email ? (
+                            <div className="flex items-center gap-1.5">
+                              <span>
+                                {visibleEmails[t.id] ? t.email : maskEmail(t.email)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleEmailVisibility(t.id)}
+                                className="text-slate-400 hover:text-blue-600 p-0.5 rounded transition-colors cursor-pointer"
+                                title={visibleEmails[t.id] ? "Ẩn email" : "Hiện email"}
+                              >
+                                {visibleEmails[t.id] ? (
+                                  <EyeOff className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Eye className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
                         </td>
 
                         {/* Phone */}
-                        <td className="py-3.5 px-4 text-slate-600 text-xs">
-                          {t.phone || <span className="text-slate-300">—</span>}
+                        <td className="py-3.5 px-4 text-slate-600 font-mono text-xs">
+                          {t.phone ? (
+                            <div className="flex items-center gap-1.5">
+                              <span>
+                                {visiblePhones[t.id] ? t.phone : maskPhone(t.phone)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => togglePhoneVisibility(t.id)}
+                                className="text-slate-400 hover:text-blue-600 p-0.5 rounded transition-colors cursor-pointer"
+                                title={visiblePhones[t.id] ? "Ẩn số điện thoại" : "Hiện số điện thoại"}
+                              >
+                                {visiblePhones[t.id] ? (
+                                  <EyeOff className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Eye className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
                         </td>
 
                         {/* Exam Count */}

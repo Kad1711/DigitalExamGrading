@@ -4,6 +4,7 @@ import { AppError } from "../middlewares/error.middleware.js";
 import { assertExamAccess } from "./exam.service.js";
 import { analyzeOmrSheet } from "./omr-client.service.js";
 import { normalizeExamCode } from "../utils/exam-code.js";
+import { calculateEqualScore } from "../utils/scoring.rules.js";
 
 /**
  * Pure evaluation function for student answers against answer keys.
@@ -143,10 +144,7 @@ export function evaluateSubmission({ exam, answerKeys, omrAnswers }) {
   // Calculate score
   let calculatedScore = 0;
   if (scoringType === "EQUAL") {
-    if (questionCount > 0) {
-      const rawScore = (correctCount / questionCount) * maxScore;
-      calculatedScore = Math.round(rawScore * 10000) / 10000;
-    }
+    calculatedScore = calculateEqualScore(correctCount, questionCount, maxScore);
   } else if (scoringType === "CUSTOM") {
     // Exact Decimal arithmetic, rounded to 4 decimal places
     calculatedScore = customScoreDecimal.toDecimalPlaces(4).toNumber();
