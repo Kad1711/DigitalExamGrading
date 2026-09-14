@@ -1,7 +1,21 @@
 import {
+  listStudentExams,
   listStudentResults,
   getStudentResultDetail,
 } from "../services/student-result.service.js";
+
+export async function getStudentExams(req, res, next) {
+  try {
+    const exams = await listStudentExams(req.user.id);
+    res.json({
+      success: true,
+      data: exams,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 
 export async function getStudentResults(req, res, next) {
   try {

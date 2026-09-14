@@ -9,6 +9,7 @@ import {
   Menu,
   X,
   Award,
+  BookOpen,
   UserCheck,
   ChevronRight,
   ShieldCheck,
@@ -38,6 +39,7 @@ export default function AppHeader() {
   const isAdminDashboardActive = location.pathname === "/admin/dashboard" || location.pathname === "/admin";
   const isAdminTeachersActive = location.pathname.startsWith("/admin/teachers");
   const isProfileActive = location.pathname.startsWith("/profile");
+  const isStudentExamsActive = location.pathname.startsWith("/student/exams");
   const isStudentResultsActive = location.pathname.startsWith("/student/results");
 
   const displayName =
@@ -76,6 +78,12 @@ export default function AppHeader() {
   ];
 
   const studentNavItems = [
+    {
+      label: "Kỳ thi của tôi",
+      href: "/student/exams",
+      icon: BookOpen,
+      active: isStudentExamsActive,
+    },
     {
       label: "Kết quả của tôi",
       href: "/student/results",
@@ -129,7 +137,7 @@ export default function AppHeader() {
         <div>
           <div className="p-5 border-b border-slate-100">
             <Link
-              to={isAdmin ? "/admin/dashboard" : isStudent ? "/student/results" : "/exams"}
+              to={isAdmin ? "/admin/dashboard" : isStudent ? "/student/exams" : "/exams"}
               className="flex items-center gap-3 group focus:outline-none"
             >
               <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/30 group-hover:bg-blue-700 transition-colors shrink-0">

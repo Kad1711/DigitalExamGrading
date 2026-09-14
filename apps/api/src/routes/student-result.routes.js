@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/role.middleware.js";
 import {
+  getStudentExams,
   getStudentResults,
   getStudentResultByExam,
 } from "../controllers/student-result.controller.js";
@@ -11,6 +12,7 @@ const router = Router();
 router.use(authenticate);
 router.use(authorizeRoles("STUDENT"));
 
+router.get("/exams", getStudentExams);
 router.get("/results", getStudentResults);
 router.get("/results/:examId", getStudentResultByExam);
 

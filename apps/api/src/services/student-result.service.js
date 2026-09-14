@@ -1,6 +1,108 @@
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 
+/**
+ * Lấy danh sách tất cả các kỳ thi mà học sinh tham gia (của lớp hoặc được gắn thí sinh)
+ */
+export async function listStudentExams(userId) {
+  const student = await prisma.student.findUnique({
+    where: { userId },
+    include: {
+      enrollments: {
+        select: { classId: true },
+      },
+    },
+  });
+
+  if (!student) {
+    throw new AppError(
+      "Tài khoản học sinh chưa được liên kết với hồ sơ học sinh.",
+      404,
+      "STUDENT_PROFILE_NOT_FOUND"
+    );
+  }
+
+  const studentClassIds = student.enrollments.map((e) => e.classId);
+
+  // Find all exams that either target student's class OR where student is an enrolled candidate
+  const exams = await prisma.exam.findMany({
+    where: {
+      status: { not: "DRAFT" },
+      OR: [
+        { classId: { in: studentClassIds } },
+        { candidates: { some: { studentId: student.id } } },
+      ],
+    },
+    include: {
+      subject: { select: { id: true, code: true, name: true } },
+      class: { select: { id: true, name: true } },
+      teacher: {
+        include: {
+          user: { select: { fullName: true, email: true } },
+        },
+      },
+      candidates: {
+        where: { studentId: student.id },
+        select: { studentNumber: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const resultList = [];
+
+  for (const exam of exams) {
+    const candidate = exam.candidates[0] || null;
+    const studentNumber = candidate?.studentNumber || null;
+
+    let submission = null;
+    if (studentNumber) {
+      submission = await prisma.examSubmission.findFirst({
+        where: {
+          examId: exam.id,
+          resolvedStudentNumber: studentNumber,
+          status: "FINAL",
+          identityNeedsReview: false,
+        },
+        select: {
+          id: true,
+          finalScore: true,
+          maxScoreSnapshot: true,
+          correctCount: true,
+          incorrectCount: true,
+          blankCount: true,
+          createdAt: true,
+        },
+      });
+    }
+
+    const isResultsPublished = exam.resultsPublishedAt !== null;
+
+    resultList.push({
+      id: exam.id,
+      title: exam.title,
+      description: exam.description,
+      subject: exam.subject,
+      className: exam.class?.name || null,
+      teacherName: exam.teacher?.user?.fullName || exam.teacher?.user?.email || null,
+      questionCount: exam.questionCount,
+      maxScore: Number(exam.maxScore),
+      examStatus: exam.status,
+      createdAt: exam.createdAt,
+      publishedAt: exam.publishedAt,
+      resultsPublishedAt: exam.resultsPublishedAt,
+      isResultsPublished,
+      studentNumber,
+      hasSubmitted: !!submission,
+      score: isResultsPublished && submission?.finalScore !== null ? Number(submission.finalScore) : null,
+      correctCount: isResultsPublished ? submission?.correctCount : null,
+      totalQuestions: exam.questionCount,
+    });
+  }
+
+  return resultList;
+}
+
 export async function listStudentResults(userId) {
   const student = await prisma.student.findUnique({
     where: { userId },

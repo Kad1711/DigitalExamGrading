@@ -13,6 +13,7 @@ const ExamSubmissionsPage = lazy(() => import("./pages/ExamSubmissionsPage"));
 const AdminTeacherListPage = lazy(() => import("./pages/AdminTeacherListPage"));
 const TeacherProfilePage = lazy(() => import("./pages/TeacherProfilePage"));
 const TeacherClassesPage = lazy(() => import("./pages/TeacherClassesPage"));
+const StudentExamsPage = lazy(() => import("./pages/StudentExamsPage"));
 const StudentResultsPage = lazy(() => import("./pages/StudentResultsPage"));
 const StudentResultDetailPage = lazy(() => import("./pages/StudentResultDetailPage"));
 const ExamAnalyticsPage = lazy(() => import("./pages/ExamAnalyticsPage"));
@@ -34,7 +35,7 @@ function RootRedirect() {
   if (loading) return null;
   if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
   if (user.role === "ADMIN") return <Navigate to="/admin/dashboard" replace />;
-  if (user.role === "STUDENT") return <Navigate to="/student/results" replace />;
+  if (user.role === "STUDENT") return <Navigate to="/student/exams" replace />;
   return <Navigate to="/exams" replace />;
 }
 
@@ -152,6 +153,14 @@ export default function App() {
           />
 
           {/* Student Routes */}
+          <Route
+            path="/student/exams"
+            element={
+              <RequireRole roles={["STUDENT"]}>
+                <StudentExamsPage />
+              </RequireRole>
+            }
+          />
           <Route
             path="/student/results"
             element={
