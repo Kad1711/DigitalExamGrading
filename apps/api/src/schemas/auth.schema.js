@@ -40,6 +40,11 @@ export const registerTeacherSchema = z.object({
     .trim()
     .optional()
     .nullable(),
+  subject: z
+    .string()
+    .trim()
+    .optional()
+    .nullable(),
   password: z
     .string({ required_error: "Mật khẩu là bắt buộc." })
     .min(6, "Mật khẩu phải có ít nhất 6 ký tự."),

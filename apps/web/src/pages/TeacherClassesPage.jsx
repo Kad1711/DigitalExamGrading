@@ -1236,7 +1236,7 @@ export default function TeacherClassesPage() {
                     Danh sách lớp ({classes.length})
                   </h2>
                 </div>
-                {selectedClassIds.length > 0 ? (
+                {selectedClassIds.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setShowBulkDeleteClassesModal(true)}
@@ -1245,8 +1245,6 @@ export default function TeacherClassesPage() {
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Xóa ({selectedClassIds.length})</span>
                   </button>
-                ) : (
-                  <span className="text-[11px] text-slate-400 font-medium">Năm học 2026-2027</span>
                 )}
               </div>
 

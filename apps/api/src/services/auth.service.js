@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
+import { getNextTeacherCode } from "../utils/teacher-code.js";
 
 // =====================================================
 // HELPERS
@@ -58,6 +59,25 @@ export async function login(email, password) {
           phone: true,
         },
       },
+      student: {
+        select: {
+          id: true,
+          studentCode: true,
+          fullName: true,
+          dateOfBirth: true,
+          enrollments: {
+            select: {
+              class: {
+                select: {
+                  id: true,
+                  name: true,
+                  grade: { select: { level: true, name: true } },
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
 
@@ -109,8 +129,9 @@ export async function login(email, password) {
       email: user.email,
       role: user.role,
       status: user.status,
-      fullName: user.teacher?.fullName || null,
+      fullName: user.teacher?.fullName || user.student?.fullName || null,
       teacher: user.teacher || null,
+      student: user.student || null,
     },
     accessToken,
     refreshToken,
@@ -185,7 +206,7 @@ export async function logout(refreshToken) {
   });
 }
 
-export async function registerTeacher({ fullName, teacherCode, email, phone, password }) {
+export async function registerTeacher({ fullName, teacherCode, subject, email, phone, password }) {
   const normalizedEmail = email.trim().toLowerCase();
 
   const existingUser = await prisma.user.findUnique({
@@ -204,17 +225,7 @@ export async function registerTeacher({ fullName, teacherCode, email, phone, pas
       throw new AppError("Mã giáo viên đã tồn tại. Vui lòng chọn mã khác.", 400, "TEACHER_CODE_ALREADY_EXISTS");
     }
   } else {
-    for (let i = 0; i < 5; i++) {
-      const candidate = `GV${Math.floor(1000 + Math.random() * 9000)}`;
-      const exists = await prisma.teacher.findUnique({ where: { teacherCode: candidate } });
-      if (!exists) {
-        finalCode = candidate;
-        break;
-      }
-    }
-    if (!finalCode) {
-      finalCode = `GV${Date.now().toString().slice(-4)}`;
-    }
+    finalCode = await getNextTeacherCode(subject || "GV");
   }
 
   const passwordHash = await bcrypt.hash(password, 12);

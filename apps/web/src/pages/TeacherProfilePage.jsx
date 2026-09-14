@@ -93,11 +93,15 @@ export default function TeacherProfilePage() {
       // Đồng bộ ngay lập tức với AuthContext để Header đổi tên không cần reload
       updateUser({
         fullName: updated.fullName,
-        teacher: {
+        teacher: (user?.role === "TEACHER" || profile?.role === "TEACHER") ? {
           ...(user?.teacher || {}),
           fullName: updated.fullName,
           phone: updated.phone,
-        },
+        } : user?.teacher,
+        student: (user?.role === "STUDENT" || profile?.role === "STUDENT") ? {
+          ...(user?.student || {}),
+          fullName: updated.fullName,
+        } : user?.student,
       });
 
       setProfileAlert({
@@ -137,10 +141,10 @@ export default function TeacherProfilePage() {
       return;
     }
 
-    if (passwordForm.newPassword.length < 8) {
+    if (passwordForm.newPassword.length < 6) {
       setPasswordAlert({
         type: "danger",
-        message: "Mật khẩu mới phải có ít nhất 8 ký tự.",
+        message: "Mật khẩu mới phải có ít nhất 6 ký tự.",
       });
       return;
     }
@@ -182,8 +186,28 @@ export default function TeacherProfilePage() {
     }
   };
 
-  const displayName = fullName || profile?.fullName || user?.fullName || "Giáo viên";
+  const isStudent = profile?.role === "STUDENT" || user?.role === "STUDENT";
+  const isTeacher = profile?.role === "TEACHER" || user?.role === "TEACHER";
+
+  const displayName =
+    fullName ||
+    profile?.fullName ||
+    user?.fullName ||
+    (isStudent ? "Học sinh" : isTeacher ? "Giáo viên" : "Người dùng");
   const initials = getInitials(displayName, profile?.email || user?.email);
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "—";
+    try {
+      return new Intl.DateTimeFormat("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }).format(new Date(dateStr));
+    } catch {
+      return dateStr;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -193,10 +217,12 @@ export default function TeacherProfilePage() {
         {/* Page Title */}
         <div className="mb-6">
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Hồ sơ giáo viên
+            {isStudent ? "Hồ sơ học sinh" : isTeacher ? "Hồ sơ giáo viên" : "Hồ sơ cá nhân"}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Quản lý thông tin cá nhân và bảo mật tài khoản giáo viên.
+            {isStudent
+              ? "Xem thông tin số báo danh, lớp học và quản lý bảo mật mật khẩu tài khoản."
+              : "Quản lý thông tin cá nhân và bảo mật tài khoản giáo viên."}
           </p>
         </div>
 
@@ -235,12 +261,32 @@ export default function TeacherProfilePage() {
                   </div>
 
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-3 text-xs text-slate-500">
-                    <span className="flex items-center gap-1.5">
-                      <span className="font-semibold text-slate-700">Mã GV:</span>
-                      <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-800 font-bold">
-                        {profile?.teacherCode || "—"}
+                    {isStudent ? (
+                      <>
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-semibold text-slate-700">Mã HS / SBD:</span>
+                          <span className="font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold">
+                            {profile?.studentCode || "—"}
+                          </span>
+                        </span>
+
+                        {profile?.classroomName && (
+                          <span className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-700">Lớp:</span>
+                            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                              {profile.classroomName}
+                            </span>
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-700">Mã GV:</span>
+                        <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-800 font-bold">
+                          {profile?.teacherCode || "—"}
+                        </span>
                       </span>
-                    </span>
+                    )}
 
                     <span className="flex items-center gap-1.5">
                       <Mail className="w-3.5 h-3.5 text-slate-400" />
@@ -309,87 +355,181 @@ export default function TeacherProfilePage() {
                     />
                   </div>
 
-                  {/* Editable: Phone */}
-                  <div>
-                    <label
-                      htmlFor="phone"
-                      className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
-                    >
-                      Số điện thoại
-                    </label>
-                    <input
-                      id="phone"
-                      type="tel"
-                      disabled={savingProfile}
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="0901234567"
-                      className="block w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
-                    />
-                  </div>
+                  {/* Editable: Phone (If teacher or user has phone) */}
+                  {!isStudent && (
+                    <div>
+                      <label
+                        htmlFor="phone"
+                        className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
+                      >
+                        Số điện thoại
+                      </label>
+                      <input
+                        id="phone"
+                        type="tel"
+                        disabled={savingProfile}
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="0901234567"
+                        className="block w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
+                      />
+                    </div>
+                  )}
 
                   {/* Read-Only Fields Container with Notice */}
                   <div className="pt-2 space-y-3">
                     <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
                       <Info className="w-4 h-4 text-blue-600 shrink-0" />
-                      <span>Liên hệ quản trị viên nếu cần thay đổi các thông tin dưới đây.</span>
+                      <span>Liên hệ quản trị viên nhà trường nếu cần thay đổi các thông tin cố định dưới đây.</span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {/* Read-only: Teacher Code */}
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                          Mã giáo viên
-                        </label>
-                        <input
-                          type="text"
-                          disabled
-                          value={profile?.teacherCode || ""}
-                          className="block w-full px-3 py-2 text-xs font-mono bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
-                        />
-                      </div>
+                      {isStudent ? (
+                        <>
+                          {/* Read-only: Student Code */}
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Mã học sinh / SBD
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value={profile?.studentCode || ""}
+                              className="block w-full px-3 py-2 text-xs font-mono font-bold bg-slate-100/80 border border-slate-200 rounded-lg text-slate-700 cursor-not-allowed"
+                            />
+                          </div>
 
-                      {/* Read-only: Email */}
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                          Email đăng nhập
-                        </label>
-                        <input
-                          type="text"
-                          disabled
-                          value={profile?.email || ""}
-                          className="block w-full px-3 py-2 text-xs font-mono bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
-                        />
-                      </div>
+                          {/* Read-only: Classroom */}
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Lớp học
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value={profile?.classroomName || "—"}
+                              className="block w-full px-3 py-2 text-xs font-bold bg-blue-50/60 border border-blue-200 rounded-lg text-blue-700 cursor-not-allowed"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Read-only: Teacher Code */}
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Mã giáo viên
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value={profile?.teacherCode || ""}
+                              className="block w-full px-3 py-2 text-xs font-mono bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
+                            />
+                          </div>
+
+                          {/* Read-only: Email */}
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Email đăng nhập
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value={profile?.email || ""}
+                              className="block w-full px-3 py-2 text-xs font-mono bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {/* Read-only: Role */}
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                          Vai trò
-                        </label>
-                        <input
-                          type="text"
-                          disabled
-                          value={formatUserRole(profile?.role)}
-                          className="block w-full px-3 py-2 text-xs bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
-                        />
-                      </div>
+                      {isStudent ? (
+                        <>
+                          {/* Read-only: Date of Birth */}
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Ngày sinh
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value={formatDate(profile?.dateOfBirth)}
+                              className="block w-full px-3 py-2 text-xs bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
+                            />
+                          </div>
 
-                      {/* Read-only: Status */}
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                          Trạng thái
-                        </label>
-                        <input
-                          type="text"
-                          disabled
-                          value={formatUserStatus(profile?.status)}
-                          className="block w-full px-3 py-2 text-xs bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
-                        />
-                      </div>
+                          {/* Read-only: Email */}
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Email đăng nhập
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value={profile?.email || ""}
+                              className="block w-full px-3 py-2 text-xs font-mono bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Read-only: Role */}
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Vai trò
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value={formatUserRole(profile?.role)}
+                              className="block w-full px-3 py-2 text-xs bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
+                            />
+                          </div>
+
+                          {/* Read-only: Status */}
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Trạng thái
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value={formatUserStatus(profile?.status)}
+                              className="block w-full px-3 py-2 text-xs bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
+
+                    {isStudent && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                            Vai trò
+                          </label>
+                          <input
+                            type="text"
+                            disabled
+                            value="Học sinh"
+                            className="block w-full px-3 py-2 text-xs bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                            Trạng thái
+                          </label>
+                          <input
+                            type="text"
+                            disabled
+                            value={formatUserStatus(profile?.status)}
+                            className="block w-full px-3 py-2 text-xs bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-4 border-t border-slate-100 flex justify-end">

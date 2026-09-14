@@ -66,11 +66,11 @@ export default function App() {
             }
           />
 
-          {/* Teacher Profile */}
+          {/* User Profile & Security */}
           <Route
             path="/profile"
             element={
-              <RequireRole roles={["TEACHER"]}>
+              <RequireRole roles={["TEACHER", "STUDENT", "ADMIN"]}>
                 <TeacherProfilePage />
               </RequireRole>
             }

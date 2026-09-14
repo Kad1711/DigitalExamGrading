@@ -50,6 +50,25 @@ export async function authenticate(req, res, next) {
             phone: true,
           },
         },
+        student: {
+          select: {
+            id: true,
+            studentCode: true,
+            fullName: true,
+            dateOfBirth: true,
+            enrollments: {
+              select: {
+                class: {
+                  select: {
+                    id: true,
+                    name: true,
+                    grade: { select: { level: true, name: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -72,8 +91,9 @@ export async function authenticate(req, res, next) {
       email: user.email,
       role: user.role,
       status: user.status,
-      fullName: user.teacher?.fullName || null,
+      fullName: user.teacher?.fullName || user.student?.fullName || null,
       teacher: user.teacher,
+      student: user.student,
     };
 
     next();

@@ -71,7 +71,7 @@ export default function StudentResultsPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
               <Award className="w-7 h-7 text-blue-600" />
-              <span>Kết quả thi của tôi</span>
+              <span>Kết quả</span>
             </h1>
             <p className="text-sm text-slate-500 mt-1">
               Xem điểm số và kết quả chính thức các kỳ thi đã được nhà trường công bố

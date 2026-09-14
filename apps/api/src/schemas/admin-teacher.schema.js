@@ -8,10 +8,17 @@ export const createTeacherSchema = z
       .min(1, "Ho va ten khong duoc de trong.")
       .max(100, "Ho va ten khong duoc vuot qua 100 ky tu."),
     teacherCode: z
-      .string({ required_error: "Ma giao vien khong duoc de trong." })
+      .string()
       .trim()
-      .min(2, "Ma giao vien phai co it nhat 2 ky tu.")
-      .max(20, "Ma giao vien khong duoc vuot qua 20 ky tu."),
+      .min(2, "Mã giáo viên phải có ít nhất 2 ký tự.")
+      .max(20, "Mã giáo viên không được vượt quá 20 ký tự.")
+      .optional()
+      .nullable(),
+    subject: z
+      .string()
+      .trim()
+      .optional()
+      .nullable(),
     email: z
       .string({ required_error: "Email khong duoc de trong." })
       .trim()

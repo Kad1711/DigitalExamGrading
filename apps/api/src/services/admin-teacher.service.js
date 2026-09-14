@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
+import { getNextTeacherCode } from "../utils/teacher-code.js";
 
 const SALT_ROUNDS = 12;
 
@@ -20,6 +21,7 @@ export async function listTeachers({ search, status } = {}) {
     where.OR = [
       { fullName: { contains: term, mode: "insensitive" } },
       { teacherCode: { contains: term, mode: "insensitive" } },
+      { phone: { contains: term, mode: "insensitive" } },
       { user: { email: { contains: term, mode: "insensitive" } } },
     ];
   }
@@ -34,15 +36,17 @@ export async function listTeachers({ search, status } = {}) {
           role: true,
           status: true,
           createdAt: true,
+          updatedAt: true,
         },
       },
       _count: {
-        select: { exams: true },
+        select: {
+          exams: true,
+          assignments: true,
+        },
       },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
   });
 
   return teachers.map((t) => ({
@@ -54,25 +58,26 @@ export async function listTeachers({ search, status } = {}) {
     email: t.user.email,
     role: t.user.role,
     status: t.user.status,
-    examCount: t._count?.exams || 0,
+    examCount: t._count.exams,
+    assignmentCount: t._count.assignments,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }));
 }
 
 /**
- * Tao tai khoan giao vien moi (Atomic Transaction).
+ * Tao tai khoan giao vien moi.
  * Bat buoc role = TEACHER, status = ACTIVE.
  */
 export async function createTeacher({
   fullName,
   teacherCode,
+  subject,
   email,
   initialPassword,
   phone,
 }) {
   const normalizedEmail = email.trim().toLowerCase();
-  const normalizedCode = teacherCode.trim().toUpperCase();
 
   // Kiem tra trung lap email
   const existingUser = await prisma.user.findUnique({
@@ -80,22 +85,27 @@ export async function createTeacher({
   });
   if (existingUser) {
     throw new AppError(
-      "Email nay da duoc su dung.",
+      "Email này đã được sử dụng.",
       409,
       "EMAIL_ALREADY_EXISTS"
     );
   }
 
-  // Kiem tra trung lap teacherCode
-  const existingTeacher = await prisma.teacher.findUnique({
-    where: { teacherCode: normalizedCode },
-  });
-  if (existingTeacher) {
-    throw new AppError(
-      "Ma giao vien nay da duoc su dung.",
-      409,
-      "TEACHER_CODE_ALREADY_EXISTS"
-    );
+  let finalCode = teacherCode?.trim()?.toUpperCase();
+  if (finalCode) {
+    // Kiem tra trung lap teacherCode
+    const existingTeacher = await prisma.teacher.findUnique({
+      where: { teacherCode: finalCode },
+    });
+    if (existingTeacher) {
+      throw new AppError(
+        "Mã giáo viên này đã được sử dụng.",
+        409,
+        "TEACHER_CODE_ALREADY_EXISTS"
+      );
+    }
+  } else {
+    finalCode = await getNextTeacherCode(subject || "GV");
   }
 
   const passwordHash = await bcrypt.hash(initialPassword, SALT_ROUNDS);
@@ -114,7 +124,7 @@ export async function createTeacher({
     const teacher = await tx.teacher.create({
       data: {
         userId: user.id,
-        teacherCode: normalizedCode,
+        teacherCode: finalCode,
         fullName: fullName.trim(),
         phone: phone ? phone.trim() : null,
       },

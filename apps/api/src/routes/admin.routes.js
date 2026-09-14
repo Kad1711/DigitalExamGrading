@@ -32,6 +32,7 @@ router.get("/dashboard", adminDashboardController.getAdminDashboardController);
  * Quan ly tai khoan giao vien
  */
 router.get("/teachers", adminTeacherController.listTeachersController);
+router.get("/teachers/next-code", adminTeacherController.nextTeacherCodeController);
 router.post("/teachers", adminTeacherController.createTeacherController);
 router.get("/teachers/:teacherId", adminTeacherController.getTeacherDetailController);
 router.patch("/teachers/:teacherId", adminTeacherController.updateTeacherController);

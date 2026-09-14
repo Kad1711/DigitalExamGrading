@@ -20,6 +20,7 @@ export default function TeacherModals({
   handleCreateSubmit,
   showCreatePassword,
   setShowCreatePassword,
+  handleSubjectChange,
 
   // Edit Modal
   isEditOpen,
@@ -142,6 +143,31 @@ export default function TeacherModals({
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              Môn giảng dạy <span className="text-xs text-blue-600 font-normal">(Chuẩn hóa mã GV)</span>
+            </label>
+            <select
+              disabled={modalLoading}
+              value={createForm.subject || ""}
+              onChange={(e) => handleSubjectChange ? handleSubjectChange(e.target.value) : setCreateForm({ ...createForm, subject: e.target.value })}
+              className="block w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all cursor-pointer"
+            >
+              <option value="">-- Chọn môn để tự động tạo mã chuẩn (hoặc tự nhập) --</option>
+              <option value="TOAN">Toán (GVTOAN...)</option>
+              <option value="NGUVAN">Ngữ văn (GVVAN...)</option>
+              <option value="TIENGANH">Tiếng Anh (GVANH...)</option>
+              <option value="VATLY">Vật lý (GVLY...)</option>
+              <option value="HOAHOC">Hóa học (GVHOA...)</option>
+              <option value="SINHHOC">Sinh học (GVSINH...)</option>
+              <option value="LICHSU">Lịch sử (GVSU...)</option>
+              <option value="DIALY">Địa lý (GVDIA...)</option>
+              <option value="TINHOC">Tin học (GVTIN...)</option>
+              <option value="GDKTPL">Giáo dục KT & PL / GDCD (GVGDCD...)</option>
+              <option value="CONGNGHE">Công nghệ (GVCN...)</option>
+            </select>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -161,6 +187,9 @@ export default function TeacherModals({
                 placeholder="GV001"
                 className="block w-full px-3.5 py-2 text-sm font-mono bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
               />
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                Mã tăng tiến tự động (GVVAN01, GVVAN02...)
+              </span>
             </div>
 
             <div>

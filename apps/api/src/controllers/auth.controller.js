@@ -89,3 +89,21 @@ export async function registerTeacherController(req, res, next) {
     next(err);
   }
 }
+
+export async function nextTeacherCodeController(req, res, next) {
+  try {
+    const { subject } = req.query;
+    const { getNextTeacherCode, STANDARD_SUBJECTS } = await import("../utils/teacher-code.js");
+    const nextCode = await getNextTeacherCode(subject || "GV");
+    return res.status(200).json({
+      success: true,
+      data: {
+        subject: subject || null,
+        nextTeacherCode: nextCode,
+        standardSubjects: STANDARD_SUBJECTS,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}

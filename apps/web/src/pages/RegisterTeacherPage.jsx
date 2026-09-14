@@ -23,6 +23,7 @@ export default function RegisterTeacherPage() {
   const [form, setForm] = useState({
     fullName: "",
     email: "",
+    subject: "",
     teacherCode: "",
     phone: "",
     password: "",
@@ -39,6 +40,25 @@ export default function RegisterTeacherPage() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubjectChange = async (e) => {
+    const subj = e.target.value;
+    setForm((prev) => ({ ...prev, subject: subj }));
+    if (subj) {
+      try {
+        const res = await api.get(`/auth/next-teacher-code?subject=${subj}`);
+        if (res.data?.data?.nextTeacherCode) {
+          setForm((prev) => ({
+            ...prev,
+            subject: subj,
+            teacherCode: res.data.data.nextTeacherCode,
+          }));
+        }
+      } catch (err) {
+        console.warn("Could not fetch next teacher code:", err);
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -73,6 +93,7 @@ export default function RegisterTeacherPage() {
         email: form.email.trim(),
         password: form.password,
       };
+      if (form.subject?.trim()) payload.subject = form.subject.trim();
       if (form.teacherCode.trim()) payload.teacherCode = form.teacherCode.trim();
       if (form.phone.trim()) payload.phone = form.phone.trim();
 
@@ -209,6 +230,32 @@ export default function RegisterTeacherPage() {
                   </div>
                 </div>
 
+                {/* Subject Selection for standardized code */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Môn giảng dạy <span className="text-xs text-blue-600 font-normal">(Chuẩn hóa mã GV)</span>
+                  </label>
+                  <select
+                    name="subject"
+                    value={form.subject || ""}
+                    onChange={handleSubjectChange}
+                    className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-colors cursor-pointer"
+                  >
+                    <option value="">-- Chọn môn giảng dạy để tự động sinh mã --</option>
+                    <option value="TOAN">Toán (GVTOAN...)</option>
+                    <option value="NGUVAN">Ngữ văn (GVVAN...)</option>
+                    <option value="TIENGANH">Tiếng Anh (GVANH...)</option>
+                    <option value="VATLY">Vật lý (GVLY...)</option>
+                    <option value="HOAHOC">Hóa học (GVHOA...)</option>
+                    <option value="SINHHOC">Sinh học (GVSINH...)</option>
+                    <option value="LICHSU">Lịch sử (GVSU...)</option>
+                    <option value="DIALY">Địa lý (GVDIA...)</option>
+                    <option value="TINHOC">Tin học (GVTIN...)</option>
+                    <option value="GDKTPL">Giáo dục KT & PL / GDCD (GVGDCD...)</option>
+                    <option value="CONGNGHE">Công nghệ (GVCN...)</option>
+                  </select>
+                </div>
+
                 {/* Row: Teacher Code & Phone */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
@@ -220,8 +267,8 @@ export default function RegisterTeacherPage() {
                       name="teacherCode"
                       value={form.teacherCode}
                       onChange={handleChange}
-                      placeholder="Để trống để tự tạo (GV...)"
-                      className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-colors"
+                      placeholder="Hệ thống tự tạo chuẩn (GVVAN01...)"
+                      className="w-full px-3.5 py-2.5 font-mono bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-colors"
                     />
                   </div>
                   <div>

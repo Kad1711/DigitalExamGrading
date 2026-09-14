@@ -5,9 +5,9 @@ import * as profileController from "../controllers/profile.controller.js";
 
 const router = Router();
 
-// Toan bo cac route ho so ca nhan giao vien deu can dang nhap va quyen TEACHER
+// Toan bo cac route ho so ca nhan can dang nhap
 router.use(authenticate);
-router.use(authorizeRoles("TEACHER"));
+router.use(authorizeRoles("TEACHER", "STUDENT", "ADMIN"));
 
 router.get("/", profileController.getProfileController);
 router.patch("/", profileController.updateProfileController);

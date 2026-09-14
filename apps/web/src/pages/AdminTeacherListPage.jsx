@@ -82,6 +82,7 @@ export default function AdminTeacherListPage() {
   // Form states
   const [createForm, setCreateForm] = useState({
     fullName: "",
+    subject: "",
     teacherCode: "",
     email: "",
     phone: "",
@@ -138,6 +139,7 @@ export default function AdminTeacherListPage() {
   const handleOpenCreate = () => {
     setCreateForm({
       fullName: "",
+      subject: "",
       teacherCode: "",
       email: "",
       phone: "",
@@ -147,6 +149,24 @@ export default function AdminTeacherListPage() {
     setModalError("");
     setShowCreatePassword(false);
     setIsCreateOpen(true);
+  };
+
+  const handleSubjectChange = async (subjectCode) => {
+    setCreateForm((prev) => ({ ...prev, subject: subjectCode }));
+    if (subjectCode) {
+      try {
+        const res = await api.get(`/admin/teachers/next-code?subject=${subjectCode}`);
+        if (res.data?.data?.nextTeacherCode) {
+          setCreateForm((prev) => ({
+            ...prev,
+            subject: subjectCode,
+            teacherCode: res.data.data.nextTeacherCode,
+          }));
+        }
+      } catch (err) {
+        console.warn("Could not fetch next teacher code:", err);
+      }
+    }
   };
 
   // Submit Create Teacher
@@ -203,6 +223,7 @@ export default function AdminTeacherListPage() {
       const payload = {
         fullName,
         teacherCode,
+        subject: createForm.subject?.trim() || null,
         email,
         phone: phone || null,
         initialPassword: createForm.initialPassword,
@@ -1078,6 +1099,7 @@ export default function AdminTeacherListPage() {
         createForm={createForm}
         setCreateForm={setCreateForm}
         handleCreateSubmit={handleCreateSubmit}
+        handleSubjectChange={handleSubjectChange}
         showCreatePassword={showCreatePassword}
         setShowCreatePassword={setShowCreatePassword}
 

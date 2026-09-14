@@ -82,7 +82,7 @@ export default function StudentResultDetailPage() {
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Breadcrumbs
           items={[
-            { label: "Kết quả của tôi", to: "/student/results" },
+            { label: "Kết quả", to: "/student/results" },
             { label: result?.examTitle || "Chi tiết kết quả" },
           ]}
         />
