@@ -323,13 +323,18 @@ export default function ExamAnalyticsPage() {
           )}
         </Card>
 
-        {/* 3. Question-Level Analytics */}
+        {/* 3. Question-Level Analytics & Item Analysis */}
         <Card className="p-6 border border-slate-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Hiệu quả từng câu hỏi</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900">Phân tích Chất lượng Câu hỏi (Item Analysis)</h2>
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                  Chuẩn Khảo thí
+                </span>
+              </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Đánh giá tỷ lệ làm đúng, tỷ lệ chọn sai và phân bố các phương án A/B/C/D
+                Đánh giá Độ khó (P), Độ phân cách (D) theo nguyên lý 27% và cảnh báo phương án nhiễu (bẫy)
               </p>
             </div>
 
@@ -348,6 +353,40 @@ export default function ExamAnalyticsPage() {
             </div>
           </div>
 
+          {/* Item Analysis Summary Badges */}
+          {data?.itemAnalysisSummary && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex flex-col">
+                <span className="text-[11px] font-semibold text-emerald-700">Phân loại tốt (D ≥ 0.3)</span>
+                <span className="text-lg font-extrabold text-emerald-900 mt-0.5">
+                  {(data.itemAnalysisSummary.excellentDiscriminationCount || 0) + (data.itemAnalysisSummary.goodDiscriminationCount || 0)} câu
+                </span>
+                <span className="text-[10px] text-emerald-600 mt-0.5">Phân hóa học sinh xuất sắc</span>
+              </div>
+              <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl flex flex-col">
+                <span className="text-[11px] font-semibold text-blue-700">Độ khó vừa sức (0.4 ≤ P ≤ 0.7)</span>
+                <span className="text-lg font-extrabold text-blue-900 mt-0.5">
+                  {data.itemAnalysisSummary.moderateCount || 0} câu
+                </span>
+                <span className="text-[10px] text-blue-600 mt-0.5">Chuẩn phân phối kiến thức</span>
+              </div>
+              <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl flex flex-col">
+                <span className="text-[11px] font-semibold text-amber-700">Câu hỏi Khó (P &lt; 0.4)</span>
+                <span className="text-lg font-extrabold text-amber-900 mt-0.5">
+                  {data.itemAnalysisSummary.hardCount || 0} câu
+                </span>
+                <span className="text-[10px] text-amber-600 mt-0.5">Cần củng cố bài giảng</span>
+              </div>
+              <div className="p-3 bg-rose-50/70 border border-rose-200/80 rounded-xl flex flex-col">
+                <span className="text-[11px] font-semibold text-rose-700">Cần xem lại (D &lt; 0.2)</span>
+                <span className="text-lg font-extrabold text-rose-900 mt-0.5">
+                  {data.itemAnalysisSummary.poorDiscriminationCount || 0} câu
+                </span>
+                <span className="text-[10px] text-rose-600 mt-0.5">Câu hỏi có thể bị lỗi/bẫy ngược</span>
+              </div>
+            </div>
+          )}
+
           {questionAnalytics.length === 0 ? (
             <div className="py-12 text-center text-xs text-slate-400">
               Chưa có dữ liệu câu hỏi được phân tích.
@@ -358,39 +397,71 @@ export default function ExamAnalyticsPage() {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 font-bold uppercase tracking-wider">
                     <th className="py-2.5 px-3">Câu</th>
-                    <th className="py-2.5 px-3">Đáp án</th>
-                    <th className="py-2.5 px-3 min-w-[140px]">Tỷ lệ làm đúng</th>
+                    <th className="py-2.5 px-2">Đ/án</th>
+                    <th className="py-2.5 px-2.5 text-center">Độ khó (P)</th>
+                    <th className="py-2.5 px-2.5 text-center">Độ phân cách (D)</th>
+                    <th className="py-2.5 px-3 min-w-[130px]">Tỷ lệ làm đúng</th>
                     <th className="py-2.5 px-2 text-center">Đúng</th>
                     <th className="py-2.5 px-2 text-center">Sai</th>
                     <th className="py-2.5 px-2 text-center">Trống</th>
-                    <th className="py-2.5 px-2 text-center">Tô nhiều ô</th>
-                    <th className="py-2.5 px-3 text-center border-l border-slate-200">A</th>
-                    <th className="py-2.5 px-3 text-center">B</th>
-                    <th className="py-2.5 px-3 text-center">C</th>
-                    <th className="py-2.5 px-3 text-center">D</th>
+                    <th className="py-2.5 px-2.5 text-center border-l border-slate-200">A</th>
+                    <th className="py-2.5 px-2.5 text-center">B</th>
+                    <th className="py-2.5 px-2.5 text-center">C</th>
+                    <th className="py-2.5 px-2.5 text-center">D</th>
+                    <th className="py-2.5 px-3">Đánh giá khảo thí</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {displayedQuestions.map((q) => {
                     const isDifficult = q.correctRate < 40;
+                    const p = q.difficultyIndex ?? (q.correctRate / 100);
+                    const d = q.discriminationIndex;
+                    const hasDistractor = q.distractors && q.distractors.length > 0;
+
                     return (
                       <tr
                         key={q.questionNumber}
                         className={`hover:bg-slate-50/80 transition-colors ${
-                          isDifficult ? "bg-rose-50/30" : ""
+                          isDifficult ? "bg-rose-50/20" : ""
                         }`}
                       >
-                        <td className="py-2.5 px-3 font-semibold text-slate-900">
+                        <td className="py-2.5 px-3 font-bold text-slate-900">
                           Câu {q.questionNumber}
-                          {isDifficult && (
-                            <span className="ml-1.5 inline-block text-[10px] text-rose-600 bg-rose-50 border border-rose-200 px-1 rounded font-medium">
-                              Khó
-                            </span>
-                          )}
                         </td>
-                        <td className="py-2.5 px-3 font-bold font-mono text-blue-700">
+                        <td className="py-2.5 px-2 font-bold font-mono text-blue-700 text-sm">
                           {q.correctAnswer || "—"}
                         </td>
+
+                        {/* P - Difficulty */}
+                        <td className="py-2.5 px-2.5 text-center">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold font-mono ${
+                              q.difficultyRating === "EASY"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : q.difficultyRating === "HARD"
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                : "bg-blue-50 text-blue-700 border border-blue-200"
+                            }`}
+                          >
+                            P={typeof p === "number" ? p.toFixed(2) : p}
+                          </span>
+                        </td>
+
+                        {/* D - Discrimination */}
+                        <td className="py-2.5 px-2.5 text-center">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold font-mono ${
+                              q.discriminationRating === "EXCELLENT" || q.discriminationRating === "GOOD"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : q.discriminationRating === "POOR"
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                : "bg-slate-100 text-slate-700 border border-slate-200"
+                            }`}
+                          >
+                            {typeof d === "number" ? (d >= 0 ? `+${d.toFixed(2)}` : d.toFixed(2)) : "—"}
+                          </span>
+                        </td>
+
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
                             <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -405,7 +476,7 @@ export default function ExamAnalyticsPage() {
                                 }`}
                               />
                             </div>
-                            <span className="font-mono font-bold text-slate-700 w-10 text-right">
+                            <span className="font-mono font-bold text-slate-700 w-11 text-right">
                               {q.correctRate.toFixed(1)}%
                             </span>
                           </div>
@@ -419,22 +490,41 @@ export default function ExamAnalyticsPage() {
                         <td className="py-2.5 px-2 text-center text-slate-500 font-mono">
                           {q.blankCount}
                         </td>
-                        <td className="py-2.5 px-2 text-center text-amber-700 font-mono">
-                          {q.invalidMultipleCount}
-                        </td>
 
                         {/* Options distribution */}
-                        <td className={`py-2.5 px-3 text-center font-mono border-l border-slate-200 ${q.correctAnswer === "A" ? "font-bold text-blue-700 bg-blue-50/40" : "text-slate-600"}`}>
+                        <td className={`py-2.5 px-2.5 text-center font-mono border-l border-slate-200 ${q.correctAnswer === "A" ? "font-bold text-blue-700 bg-blue-50/40" : "text-slate-600"}`}>
                           {q.answerDistribution?.A || 0}
                         </td>
-                        <td className={`py-2.5 px-3 text-center font-mono ${q.correctAnswer === "B" ? "font-bold text-blue-700 bg-blue-50/40" : "text-slate-600"}`}>
+                        <td className={`py-2.5 px-2.5 text-center font-mono ${q.correctAnswer === "B" ? "font-bold text-blue-700 bg-blue-50/40" : "text-slate-600"}`}>
                           {q.answerDistribution?.B || 0}
                         </td>
-                        <td className={`py-2.5 px-3 text-center font-mono ${q.correctAnswer === "C" ? "font-bold text-blue-700 bg-blue-50/40" : "text-slate-600"}`}>
+                        <td className={`py-2.5 px-2.5 text-center font-mono ${q.correctAnswer === "C" ? "font-bold text-blue-700 bg-blue-50/40" : "text-slate-600"}`}>
                           {q.answerDistribution?.C || 0}
                         </td>
-                        <td className={`py-2.5 px-3 text-center font-mono ${q.correctAnswer === "D" ? "font-bold text-blue-700 bg-blue-50/40" : "text-slate-600"}`}>
+                        <td className={`py-2.5 px-2.5 text-center font-mono ${q.correctAnswer === "D" ? "font-bold text-blue-700 bg-blue-50/40" : "text-slate-600"}`}>
                           {q.answerDistribution?.D || 0}
+                        </td>
+
+                        {/* Recommendations & Distractor warning */}
+                        <td className="py-2.5 px-3">
+                          {hasDistractor ? (
+                            <div className="flex items-center gap-1.5 text-amber-700">
+                              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                              <span className="text-[11px] font-medium leading-tight truncate max-w-[180px]" title={q.distractors[0]?.warning}>
+                                {q.distractors[0]?.warning}
+                              </span>
+                            </div>
+                          ) : q.discriminationRating === "EXCELLENT" ? (
+                            <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Phân loại xuất sắc
+                            </span>
+                          ) : q.discriminationRating === "POOR" ? (
+                            <span className="text-[11px] text-rose-700 font-medium">
+                              Cần xem lại nội dung đề
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-500">Đạt chuẩn</span>
+                          )}
                         </td>
                       </tr>
                     );

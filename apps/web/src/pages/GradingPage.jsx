@@ -24,6 +24,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Eye,
+  Layers,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -36,10 +37,18 @@ export default function GradingPage() {
   const [searchParams] = useSearchParams();
   const { submissionId: routeSubmissionId } = useParams();
   const fileInputRef = useRef(null);
+  const batchInputRef = useRef(null);
 
   const [exams, setExams] = useState([]);
   const [loadingExams, setLoadingExams] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState("");
+
+  // Mode: SINGLE (chấm từng bài) | BATCH (chấm hàng loạt)
+  const [gradingMode, setGradingMode] = useState("SINGLE");
+  const [batchFiles, setBatchFiles] = useState([]);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, percentage: 0 });
+  const [batchResults, setBatchResults] = useState([]);
+  const [isBatchRunning, setIsBatchRunning] = useState(false);
 
   // Template readiness state: 'loading' | 'ready' | 'missing' | 'multipage' | 'error'
   const [templateStatus, setTemplateStatus] = useState("loading");
@@ -420,6 +429,72 @@ export default function GradingPage() {
     }
   };
 
+  const handleBatchFilesChange = (filesList) => {
+    if (!filesList || filesList.length === 0) return;
+    const valid = Array.from(filesList).filter((f) =>
+      ["image/jpeg", "image/png", "image/jpg"].includes(f.type)
+    );
+    setBatchFiles(valid);
+    setBatchResults([]);
+    setBatchProgress({ current: 0, total: valid.length, percentage: 0 });
+  };
+
+  const handleBatchGrade = async () => {
+    if (batchFiles.length === 0 || !selectedExamId) return;
+    setIsBatchRunning(true);
+    setBatchResults([]);
+    const results = [];
+
+    for (let i = 0; i < batchFiles.length; i++) {
+      const file = batchFiles[i];
+      setBatchProgress({
+        current: i + 1,
+        total: batchFiles.length,
+        percentage: Math.round(((i + 1) / batchFiles.length) * 100),
+      });
+
+      try {
+        const formData = new FormData();
+        formData.append("image", file);
+        const res = await api.post(`/exams/${selectedExamId}/submissions`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        const sub = res.data.data;
+        const item = {
+          fileName: file.name,
+          status: "SUCCESS",
+          submissionId: sub.id,
+          sbd: sub.resolvedStudentNumber || sub.detectedStudentNumber || "Chưa rõ",
+          examCode: sub.examCodeSnapshot || "—",
+          finalScore: sub.finalScore !== null ? Number(sub.finalScore) : null,
+          maxScore: sub.maxScoreSnapshot || 10,
+          needsReview: sub.identityNeedsReview || sub.status === "PROVISIONAL",
+          message: sub.identityNeedsReview ? "Cần xác nhận SBD" : "Hoàn tất",
+        };
+        results.push(item);
+        setBatchResults([...results]);
+      } catch (err) {
+        const code = err.response?.data?.error?.code;
+        const msg = err.response?.data?.error?.message || "Lỗi xử lý ảnh";
+        const item = {
+          fileName: file.name,
+          status: "ERROR",
+          submissionId: err.response?.data?.error?.details?.existingSubmissionId || null,
+          sbd: "—",
+          examCode: "—",
+          finalScore: null,
+          maxScore: 10,
+          needsReview: false,
+          message: code === "DUPLICATE_SUBMISSION_IMAGE" ? "Ảnh đã chấm trước đó" : msg,
+        };
+        results.push(item);
+        setBatchResults([...results]);
+      }
+    }
+
+    setIsBatchRunning(false);
+  };
+
   // Submit manual teacher reviews and re-grade
   const handleApplyReview = async () => {
     const subId = gradingResult?.id || routeSubmissionId;
@@ -712,168 +787,449 @@ export default function GradingPage() {
             </div>
 
             {/* 2. Image Upload Card */}
+            {/* 2. Mode & Image Upload Card */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  2. Tải ảnh bài thi
+                  2. Chế độ chấm bài
                 </h2>
-                {previewUrl && (
-                  <button
-                    type="button"
+              </div>
+
+              {/* Mode Toggle Tabs */}
+              <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setGradingMode("SINGLE")}
+                  className={`py-1.5 px-3 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    gradingMode === "SINGLE"
+                      ? "bg-white text-blue-600 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <ScanLine className="w-3.5 h-3.5" />
+                  Chấm từng bài
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGradingMode("BATCH")}
+                  className={`py-1.5 px-3 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    gradingMode === "BATCH"
+                      ? "bg-white text-blue-600 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  Chấm hàng loạt
+                </button>
+              </div>
+
+              {/* SINGLE MODE */}
+              {gradingMode === "SINGLE" && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-500">Tải ảnh phiếu thi</span>
+                    {previewUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (templateStatus === "ready") {
+                            fileInputRef.current?.click();
+                          }
+                        }}
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                      >
+                        Chọn ảnh khác
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dropzone */}
+                  <div
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
                     onClick={() => {
                       if (templateStatus === "ready") {
                         fileInputRef.current?.click();
                       }
                     }}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-all flex flex-col items-center justify-center gap-2 cursor-pointer ${
+                      templateStatus !== "ready"
+                        ? "bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed"
+                        : isDragActive
+                        ? "bg-blue-50/70 border-blue-500 scale-[1.01]"
+                        : "bg-slate-50/50 hover:bg-slate-50 border-slate-300"
+                    }`}
                   >
-                    Chọn ảnh khác
-                  </button>
-                )}
-              </div>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept="image/jpeg,image/png,image/jpg"
+                      disabled={templateStatus !== "ready"}
+                      onChange={(e) => handleFileChange(e.target.files[0])}
+                    />
+                    <div className="w-10 h-10 rounded-full bg-white shadow-xs border border-slate-200 flex items-center justify-center text-slate-400">
+                      <UploadCloud className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="text-xs font-semibold text-slate-800">
+                      {templateStatus === "ready"
+                        ? "Kéo thả ảnh bài thi hoặc bấm để chọn"
+                        : "Kỳ thi chưa sẵn sàng để chấm OMR"}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Hỗ trợ định dạng JPG, PNG (tối đa 15MB)
+                    </div>
+                  </div>
 
-              {/* Dropzone */}
-              <div
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onClick={() => {
-                  if (templateStatus === "ready") {
-                    fileInputRef.current?.click();
-                  }
-                }}
-                className={`border-2 border-dashed rounded-xl p-6 text-center transition-all flex flex-col items-center justify-center gap-2 cursor-pointer ${
-                  templateStatus !== "ready"
-                    ? "bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed"
-                    : isDragActive
-                    ? "bg-blue-50/70 border-blue-500 scale-[1.01]"
-                    : "bg-slate-50/50 hover:bg-slate-50 border-slate-300"
-                }`}
-              >
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  accept="image/jpeg,image/png,image/jpg"
-                  disabled={templateStatus !== "ready"}
-                  onChange={(e) => handleFileChange(e.target.files[0])}
-                />
-                <div className="w-10 h-10 rounded-full bg-white shadow-xs border border-slate-200 flex items-center justify-center text-slate-400">
-                  <UploadCloud className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="text-xs font-semibold text-slate-800">
-                  {templateStatus === "ready"
-                    ? "Kéo thả ảnh bài thi hoặc bấm để chọn"
-                    : "Kỳ thi chưa sẵn sàng để chấm OMR"}
-                </div>
-                <div className="text-[11px] text-slate-400">
-                  Hỗ trợ định dạng JPG, PNG (tối đa 15MB)
-                </div>
-              </div>
+                  {/* Image Preview */}
+                  {previewUrl && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span className="font-semibold text-slate-700">
+                          Ảnh đã chọn:
+                        </span>
+                        {imageMeta && (
+                          <span className="font-mono text-[11px]">
+                            {imageMeta.width} &times; {imageMeta.height} px &bull;{" "}
+                            {imageMeta.sizeStr}
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900/5 max-h-80 flex items-center justify-center">
+                        <img
+                          src={previewUrl}
+                          alt="Preview"
+                          className="max-h-80 w-auto object-contain"
+                        />
+                      </div>
+                    </div>
+                  )}
 
-              {/* Image Preview */}
-              {previewUrl && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span className="font-semibold text-slate-700">
-                      Ảnh đã chọn:
+                  {/* Capture Guidance Checklist */}
+                  <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 text-xs text-blue-900 space-y-1.5">
+                    <span className="font-semibold block flex items-center gap-1.5 text-blue-950">
+                      <HelpCircle className="w-3.5 h-3.5 text-blue-600" />
+                      Gợi ý chụp ảnh đạt chuẩn:
                     </span>
-                    {imageMeta && (
-                      <span className="font-mono text-[11px]">
-                        {imageMeta.width} &times; {imageMeta.height} px &bull;{" "}
-                        {imageMeta.sizeStr}
+                    <ul className="list-disc pl-4 space-y-1 text-[11px] text-blue-800">
+                      <li>Thấy rõ đủ 4 ô vuông định vị màu đen ở 4 góc.</li>
+                      <li>Không để ngón tay hoặc vật cản che mã QR.</li>
+                      <li>Đủ ánh sáng, hạn chế bóng đổ lên vùng tô câu hỏi.</li>
+                    </ul>
+                  </div>
+
+                  {errorMsg && (
+                    <Alert
+                      variant="danger"
+                      className="text-xs"
+                      onClose={() => setErrorMsg("")}
+                    >
+                      <p>{errorMsg}</p>
+                      {duplicateSubmissionId && (
+                        <div className="mt-2 pt-2 border-t border-rose-200">
+                          <Button
+                            variant="primary"
+                            size="xs"
+                            onClick={() => navigate(`/submissions/${duplicateSubmissionId}`)}
+                            className="bg-rose-600 hover:bg-rose-700 text-white"
+                          >
+                            Mở bài đã chấm
+                          </Button>
+                        </div>
+                      )}
+                    </Alert>
+                  )}
+
+                  {/* Single Submit Button */}
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    icon={ScanLine}
+                    onClick={handleGrade}
+                    loading={gradingLoading}
+                    disabled={
+                      templateStatus !== "ready" ||
+                      gradingLoading ||
+                      !selectedFile ||
+                      !selectedExamId
+                    }
+                    className="w-full"
+                  >
+                    {gradingLoading ? "Đang nhận diện & chấm bài..." : "Chấm bài thi"}
+                  </Button>
+                </>
+              )}
+
+              {/* BATCH MODE */}
+              {gradingMode === "BATCH" && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-500">Tải nhiều ảnh cùng lúc</span>
+                    {batchFiles.length > 0 && (
+                      <span className="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                        {batchFiles.length} ảnh đã chọn
                       </span>
                     )}
                   </div>
-                  <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900/5 max-h-80 flex items-center justify-center">
-                    <img
-                      src={previewUrl}
-                      alt="Preview"
-                      className="max-h-80 w-auto object-contain"
+
+                  {/* Batch Dropzone */}
+                  <div
+                    onClick={() => {
+                      if (templateStatus === "ready" && !isBatchRunning) {
+                        batchInputRef.current?.click();
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-all flex flex-col items-center justify-center gap-2 cursor-pointer ${
+                      templateStatus !== "ready" || isBatchRunning
+                        ? "bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed"
+                        : "bg-blue-50/30 hover:bg-blue-50/60 border-blue-300"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      ref={batchInputRef}
+                      className="hidden"
+                      multiple
+                      accept="image/jpeg,image/png,image/jpg"
+                      disabled={templateStatus !== "ready" || isBatchRunning}
+                      onChange={(e) => handleBatchFilesChange(e.target.files)}
                     />
+                    <div className="w-10 h-10 rounded-full bg-blue-100/70 border border-blue-200 flex items-center justify-center text-blue-600">
+                      <Layers className="w-5 h-5" />
+                    </div>
+                    <div className="text-xs font-semibold text-slate-800">
+                      Kéo thả hoặc bấm để chọn toàn bộ bài thi của lớp
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Có thể chọn đồng thời từ 1 đến 50 tệp ảnh JPG, PNG
+                    </div>
                   </div>
-                </div>
-              )}
 
-              {/* Capture Guidance Checklist */}
-              <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 text-xs text-blue-900 space-y-1.5">
-                <span className="font-semibold block flex items-center gap-1.5 text-blue-950">
-                  <HelpCircle className="w-3.5 h-3.5 text-blue-600" />
-                  Gợi ý chụp ảnh đạt chuẩn:
-                </span>
-                <ul className="list-disc pl-4 space-y-1 text-[11px] text-blue-800">
-                  <li>Thấy rõ đủ 4 ô vuông định vị màu đen ở 4 góc.</li>
-                  <li>Không để ngón tay hoặc vật cản che mã QR.</li>
-                  <li>Đủ ánh sáng, hạn chế bóng đổ lên vùng tô câu hỏi.</li>
-                </ul>
-              </div>
-
-              {errorMsg && (
-                <Alert
-                  variant="danger"
-                  className="text-xs"
-                  onClose={() => setErrorMsg("")}
-                >
-                  <p>{errorMsg}</p>
-                  {duplicateSubmissionId && (
-                    <div className="mt-2 pt-2 border-t border-rose-200">
-                      <Button
-                        variant="primary"
-                        size="xs"
-                        onClick={() => navigate(`/submissions/${duplicateSubmissionId}`)}
-                        className="bg-rose-600 hover:bg-rose-700 text-white"
-                      >
-                        Mở bài đã chấm
-                      </Button>
+                  {/* Batch Files Preview Summary */}
+                  {batchFiles.length > 0 && (
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5 max-h-40 overflow-y-auto">
+                      <div className="font-semibold text-slate-700 flex items-center justify-between">
+                        <span>Danh sách tệp chờ chấm:</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBatchFiles([]);
+                            setBatchResults([]);
+                          }}
+                          className="text-[11px] text-rose-600 hover:underline cursor-pointer"
+                        >
+                          Xóa tất cả
+                        </button>
+                      </div>
+                      <div className="space-y-1 text-[11px] text-slate-500 font-mono">
+                        {batchFiles.slice(0, 5).map((f, i) => (
+                          <div key={i} className="truncate">
+                            &bull; {f.name} ({(f.size / 1024).toFixed(0)} KB)
+                          </div>
+                        ))}
+                        {batchFiles.length > 5 && (
+                          <div className="text-blue-600 font-sans font-semibold">
+                            + {batchFiles.length - 5} ảnh khác...
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                </Alert>
-              )}
 
-              {/* Grade Submit Button */}
-              <Button
-                variant="primary"
-                size="lg"
-                icon={ScanLine}
-                onClick={handleGrade}
-                loading={gradingLoading}
-                disabled={
-                  templateStatus !== "ready" ||
-                  gradingLoading ||
-                  !selectedFile ||
-                  !selectedExamId
-                }
-                className="w-full"
-              >
-                {gradingLoading ? "Đang nhận diện & chấm bài..." : "Chấm bài thi"}
-              </Button>
+                  {/* Batch Submit Button */}
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    icon={Zap}
+                    onClick={handleBatchGrade}
+                    loading={isBatchRunning}
+                    disabled={
+                      templateStatus !== "ready" ||
+                      isBatchRunning ||
+                      batchFiles.length === 0 ||
+                      !selectedExamId
+                    }
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-600/20"
+                  >
+                    {isBatchRunning
+                      ? `Đang chấm ${batchProgress.current}/${batchProgress.total} bài...`
+                      : batchFiles.length > 0
+                      ? `Bắt đầu chấm ${batchFiles.length} bài thi`
+                      : "Chọn tệp ảnh để chấm hàng loạt"}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
           {/* Right Column (8 cols on lg): Grading Result Dashboard */}
           <div className="lg:col-span-8 space-y-6">
-            {!gradingResult && !gradingLoading && (
-              <EmptyState
-                icon={FileSpreadsheet}
-                title="Chưa có kết quả chấm bài"
-                description="Chọn kỳ thi ở khung bên trái, tải ảnh phiếu thi đã tô và bấm 'Chấm bài thi'. Kết quả điểm số, độ tin cậy và phân tích từng câu sẽ hiển thị tại đây."
-              />
+            {/* BATCH MODE RESULTS */}
+            {gradingMode === "BATCH" && (
+              <>
+                {!isBatchRunning && batchResults.length === 0 && (
+                  <EmptyState
+                    icon={Layers}
+                    title="Chế độ chấm bài hàng loạt"
+                    description="Chọn đồng thời các tệp ảnh bài thi của cả lớp ở khung bên trái và bấm 'Bắt đầu chấm hàng loạt'. Tiến trình nhận diện và kết quả của từng học sinh sẽ hiển thị trực tiếp tại đây."
+                  />
+                )}
+
+                {(isBatchRunning || batchResults.length > 0) && (
+                  <div className="space-y-5">
+                    {/* Batch Progress Card */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <Zap className="w-5 h-5 text-blue-600" />
+                            {isBatchRunning ? "Đang xử lý hàng đợi chấm bài..." : "Hoàn tất đợt chấm hàng loạt"}
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Tiến độ: {batchProgress.current} / {batchProgress.total} bài thi ({batchProgress.percentage}%)
+                          </p>
+                        </div>
+                        {isBatchRunning && (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 animate-pulse">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Đang chấm...
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${batchProgress.percentage}%` }}
+                        />
+                      </div>
+
+                      {/* Summary Badges */}
+                      <div className="grid grid-cols-3 gap-3 pt-2">
+                        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-center">
+                          <div className="text-lg font-extrabold text-emerald-800">
+                            {batchResults.filter((r) => r.status === "SUCCESS" && !r.needsReview).length}
+                          </div>
+                          <div className="text-[11px] font-medium text-emerald-600">Thành công (FINAL)</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-center">
+                          <div className="text-lg font-extrabold text-amber-800">
+                            {batchResults.filter((r) => r.status === "SUCCESS" && r.needsReview).length}
+                          </div>
+                          <div className="text-[11px] font-medium text-amber-600">Cần xác nhận SBD</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-center">
+                          <div className="text-lg font-extrabold text-rose-800">
+                            {batchResults.filter((r) => r.status === "ERROR").length}
+                          </div>
+                          <div className="text-[11px] font-medium text-rose-600">Lỗi / Trùng lặp</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Live Results Table */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                      <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                          Danh sách kết quả ({batchResults.length})
+                        </h4>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider bg-slate-50">
+                              <th className="py-2.5 px-3">#</th>
+                              <th className="py-2.5 px-3">Tệp ảnh</th>
+                              <th className="py-2.5 px-3">Số báo danh</th>
+                              <th className="py-2.5 px-3">Mã đề</th>
+                              <th className="py-2.5 px-3">Điểm số</th>
+                              <th className="py-2.5 px-3">Trạng thái</th>
+                              <th className="py-2.5 px-3 text-right">Thao tác</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-mono text-slate-700">
+                            {batchResults.map((res, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="py-2.5 px-3 text-slate-400 font-sans">{idx + 1}</td>
+                                <td className="py-2.5 px-3 font-medium text-slate-900 font-sans truncate max-w-[140px]" title={res.fileName}>
+                                  {res.fileName}
+                                </td>
+                                <td className="py-2.5 px-3 font-bold text-blue-700">{res.sbd}</td>
+                                <td className="py-2.5 px-3">{res.examCode}</td>
+                                <td className="py-2.5 px-3 font-sans font-bold">
+                                  {res.finalScore !== null ? (
+                                    <span className="text-emerald-700">{res.finalScore.toFixed(2)} / {res.maxScore}</span>
+                                  ) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 font-sans">
+                                  {res.status === "SUCCESS" ? (
+                                    res.needsReview ? (
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                        Cần duyệt
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                        Hoàn tất
+                                      </span>
+                                    )
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200" title={res.message}>
+                                      {res.message}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-sans">
+                                  {res.submissionId && (
+                                    <button
+                                      type="button"
+                                      onClick={() => navigate(`/submissions/${res.submissionId}`)}
+                                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 cursor-pointer"
+                                    >
+                                      Chi tiết &rarr;
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
-            {gradingLoading && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-16 flex flex-col items-center justify-center text-center">
-                <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
-                <h3 className="text-base font-bold text-slate-800">
-                  Đang nhận diện và chấm điểm...
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                  Hệ thống đang quét 4 góc định vị, đọc mã QR, nhận diện số báo
-                  danh, mã đề và xử lý từng ô trắc nghiệm.
-                </p>
-              </div>
-            )}
+            {/* SINGLE MODE RESULTS */}
+            {gradingMode === "SINGLE" && (
+              <>
+                {!gradingResult && !gradingLoading && (
+                  <EmptyState
+                    icon={FileSpreadsheet}
+                    title="Chưa có kết quả chấm bài"
+                    description="Chọn kỳ thi ở khung bên trái, tải ảnh phiếu thi đã tô và bấm 'Chấm bài thi'. Kết quả điểm số, độ tin cậy và phân tích từng câu sẽ hiển thị tại đây."
+                  />
+                )}
 
-            {gradingResult && (
+                {gradingLoading && (
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-16 flex flex-col items-center justify-center text-center">
+                    <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
+                    <h3 className="text-base font-bold text-slate-800">
+                      Đang nhận diện và chấm điểm...
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                      Hệ thống đang quét 4 góc định vị, đọc mã QR, nhận diện số báo
+                      danh, mã đề và xử lý từng ô trắc nghiệm.
+                    </p>
+                  </div>
+                )}
+
+                {gradingResult && (
               <div className="space-y-6">
                 {/* 1. Result Hero Banner */}
                 {gradingResult.grading?.status === "FINAL" && (
@@ -1468,6 +1824,8 @@ export default function GradingPage() {
                   </div>
                 )}
               </div>
+            )}
+              </>
             )}
           </div>
         </div>

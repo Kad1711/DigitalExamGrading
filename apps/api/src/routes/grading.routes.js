@@ -5,6 +5,7 @@ import { authorizeRoles } from "../middlewares/role.middleware.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import { gradeImageController } from "../controllers/grading.controller.js";
 import { createSubmissionController } from "../controllers/submission.controller.js";
+import { gradingUploadLimiter } from "../config/rate-limit.config.js";
 
 const router = Router({ mergeParams: true });
 
@@ -69,6 +70,6 @@ router.post("/:examId/grade-image", requireTeacher, handleImageUpload, gradeImag
 
 // Phase 6 Persistent endpoint
 // POST /api/exams/:examId/submissions
-router.post("/:examId/submissions", requireTeacher, handleImageUpload, createSubmissionController);
+router.post("/:examId/submissions", requireTeacher, gradingUploadLimiter, handleImageUpload, createSubmissionController);
 
 export default router;

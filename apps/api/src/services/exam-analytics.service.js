@@ -143,7 +143,15 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
       scoreDistribution.push({ label, min, max, count });
     }
 
-    // Question-level performance (from FINAL only)
+    // Sort submissions by finalScore descending for 27% High / Low groups (Kelley's 27% rule)
+    const sortedFinal = [...finalSubmissions].sort(
+      (a, b) => Number(b.finalScore || 0) - Number(a.finalScore || 0)
+    );
+    const kGroupSize = Math.max(1, Math.round(sortedFinal.length * 0.27));
+    const highGroup = sortedFinal.slice(0, kGroupSize);
+    const lowGroup = sortedFinal.slice(sortedFinal.length - kGroupSize);
+
+    // Question-level performance & Item Analysis (from FINAL only)
     const questionCount = exam.questionCount || (finalSubmissions[0]?.questionCountSnapshot ?? 40);
     for (let q = 1; q <= questionCount; q++) {
       const qAnswers = [];
@@ -191,6 +199,52 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
           ? Math.round((invalidMultipleCount / totalFinalResponses) * 1000) / 10
           : 0;
 
+      // 1. Difficulty Index (P)
+      const difficultyIndex = totalFinalResponses > 0
+        ? Math.round((correctCount / totalFinalResponses) * 100) / 100
+        : 0;
+      let difficultyRating = "MODERATE";
+      if (difficultyIndex >= 0.7) difficultyRating = "EASY";
+      else if (difficultyIndex < 0.4) difficultyRating = "HARD";
+
+      // 2. Discrimination Index (D) using 27% High vs Low groups
+      let discriminationIndex = 0;
+      let discriminationRating = "MODERATE";
+      if (finalCount >= 4) {
+        const correctInHigh = highGroup.filter((sub) => {
+          const ans = sub.answers.find((a) => a.questionNumber === q);
+          return ans?.result === "CORRECT";
+        }).length;
+
+        const correctInLow = lowGroup.filter((sub) => {
+          const ans = sub.answers.find((a) => a.questionNumber === q);
+          return ans?.result === "CORRECT";
+        }).length;
+
+        discriminationIndex = Math.round(((correctInHigh - correctInLow) / kGroupSize) * 100) / 100;
+        if (discriminationIndex >= 0.4) discriminationRating = "EXCELLENT";
+        else if (discriminationIndex >= 0.3) discriminationRating = "GOOD";
+        else if (discriminationIndex >= 0.2) discriminationRating = "ACCEPTABLE";
+        else discriminationRating = "POOR";
+      }
+
+      // 3. Distractor Analysis
+      const distractors = [];
+      const options = ["A", "B", "C", "D"];
+      for (const opt of options) {
+        if (opt !== correctAnswerSnapshot && answerDistribution[opt] > 0) {
+          const optRate = Math.round((answerDistribution[opt] / (totalFinalResponses || 1)) * 100);
+          if (optRate >= 25) {
+            distractors.push({
+              option: opt,
+              count: answerDistribution[opt],
+              rate: optRate,
+              warning: `Lựa chọn ${opt} thu hút ${optRate}% học sinh (phương án nhiễu mạnh).`,
+            });
+          }
+        }
+      }
+
       questionAnalytics.push({
         questionNumber: q,
         correctAnswer: correctAnswerSnapshot,
@@ -202,9 +256,25 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
         correctRate,
         blankRate,
         invalidRate,
+        difficultyIndex,
+        difficultyRating,
+        discriminationIndex,
+        discriminationRating,
+        distractors,
         answerDistribution,
       });
     }
+
+    const itemAnalysisSummary = {
+      totalQuestions: questionCount,
+      easyCount: questionAnalytics.filter((q) => q.difficultyRating === "EASY").length,
+      moderateCount: questionAnalytics.filter((q) => q.difficultyRating === "MODERATE").length,
+      hardCount: questionAnalytics.filter((q) => q.difficultyRating === "HARD").length,
+      excellentDiscriminationCount: questionAnalytics.filter((q) => q.discriminationRating === "EXCELLENT").length,
+      goodDiscriminationCount: questionAnalytics.filter((q) => q.discriminationRating === "GOOD").length,
+      acceptableDiscriminationCount: questionAnalytics.filter((q) => q.discriminationRating === "ACCEPTABLE").length,
+      poorDiscriminationCount: questionAnalytics.filter((q) => q.discriminationRating === "POOR").length,
+    };
 
     // ExamCode comparison (from FINAL only)
     const codeMap = new Map();
@@ -289,6 +359,7 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
     scoreStats,
     scoreDistribution,
     questionAnalytics,
+    itemAnalysisSummary,
     examCodeComparison,
     reviewWorkload,
   };
