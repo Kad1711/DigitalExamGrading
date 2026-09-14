@@ -1223,9 +1223,9 @@ export default function TeacherClassesPage() {
         )}
 
         {/* Main 2-Column Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Column: Classes List (4 cols) */}
-          <div className="lg:col-span-4 space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Left Column: Classes List (4 cols on lg, 3 cols on xl) */}
+          <div className="lg:col-span-4 xl:col-span-3 space-y-3">
             <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4">
               {/* Header: Title & Actions */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 gap-2">
@@ -1508,8 +1508,8 @@ export default function TeacherClassesPage() {
             </div>
           </div>
 
-          {/* Right Column: Class Students Workspace (8 cols) */}
-          <div className="lg:col-span-8">
+          {/* Right Column: Class Students Workspace (8 cols on lg, 9 cols on xl) */}
+          <div className="lg:col-span-8 xl:col-span-9">
             {!selectedClass ? (
               <EmptyState
                 icon={Users}
@@ -1729,19 +1729,19 @@ export default function TeacherClassesPage() {
                               title="Chọn tất cả học sinh đang hiển thị"
                             />
                           </th>
-                          <th className="py-2.5 px-3 w-12 text-center">STT</th>
+                          <th className="py-2.5 px-2.5 w-10 text-center whitespace-nowrap">STT</th>
                           <th
-                            className="py-2.5 px-3 cursor-pointer select-none hover:text-blue-600 transition-colors"
+                            className="py-2.5 px-3 cursor-pointer select-none hover:text-blue-600 transition-colors whitespace-nowrap w-24"
                             onClick={() => handleSort("CODE")}
-                            title="Bấm để đổi chiều sắp xếp theo Số báo danh"
+                            title="Bấm để đổi chiều sắp xếp theo Mã học sinh"
                           >
                             <div className="flex items-center gap-1">
-                              <span>Mã HS / SBD</span>
+                              <span>Mã HS</span>
                               <ArrowUpDown className="w-3 h-3 text-slate-400" />
                             </div>
                           </th>
                           <th
-                            className="py-2.5 px-3 cursor-pointer select-none hover:text-blue-600 transition-colors"
+                            className="py-2.5 px-3 cursor-pointer select-none hover:text-blue-600 transition-colors whitespace-nowrap min-w-[140px]"
                             onClick={() => handleSort("NAME")}
                             title="Bấm để đổi chiều sắp xếp theo Tên chuẩn ABC tiếng Việt"
                           >
@@ -1750,10 +1750,10 @@ export default function TeacherClassesPage() {
                               <ArrowUpDown className="w-3 h-3 text-slate-400" />
                             </div>
                           </th>
-                          <th className="py-2.5 px-3">Ngày sinh</th>
-                          <th className="py-2.5 px-3">Tài khoản tra cứu</th>
-                          <th className="py-2.5 px-3">Mật khẩu</th>
-                          <th className="py-2.5 px-3 w-16 text-center">Thao tác</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap w-24">Ngày sinh</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap w-36">Tài khoản tra cứu</th>
+                          <th className="py-2.5 px-3 whitespace-nowrap w-32">Mật khẩu</th>
+                          <th className="py-2.5 px-3 w-16 text-center whitespace-nowrap">Thao tác</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1770,23 +1770,23 @@ export default function TeacherClassesPage() {
                                   className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                 />
                               </td>
-                              <td className="py-2.5 px-3 text-center text-slate-400 font-mono font-medium">
+                              <td className="py-2.5 px-2.5 text-center text-slate-400 font-mono font-medium whitespace-nowrap">
                                 {idx + 1}
                               </td>
-                              <td className="py-2.5 px-3 font-semibold font-mono text-blue-700">
+                              <td className="py-2.5 px-3 font-semibold font-mono text-blue-700 whitespace-nowrap">
                                 {s.studentCode}
                               </td>
-                              <td className="py-2.5 px-3 font-medium text-slate-900">
+                              <td className="py-2.5 px-3 font-medium text-slate-900 whitespace-nowrap">
                                 {s.fullName}
                               </td>
-                              <td className="py-2.5 px-3 text-slate-500 font-mono">
+                              <td className="py-2.5 px-3 text-slate-500 font-mono whitespace-nowrap text-[11px]">
                                 {s.dateOfBirth
                                   ? new Date(s.dateOfBirth).toLocaleDateString("vi-VN")
                                   : "—"}
                               </td>
                               <td className="py-2.5 px-3">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-mono text-[11px] text-slate-700 select-all">
+                                <div className="flex items-center gap-1.5" title={s.email}>
+                                  <span className="font-mono text-[11px] text-slate-700 select-all max-w-[120px] truncate block">
                                     {s.email || "—"}
                                   </span>
                                   {s.email && (
@@ -1794,7 +1794,7 @@ export default function TeacherClassesPage() {
                                       type="button"
                                       onClick={() => copyToClipboard(s.email, `email_${s.studentId}`)}
                                       title="Sao chép tài khoản"
-                                      className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                                      className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
                                     >
                                       {copiedId === `email_${s.studentId}` ? (
                                         <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -1805,16 +1805,16 @@ export default function TeacherClassesPage() {
                                   )}
                                 </div>
                               </td>
-                              <td className="py-2.5 px-3">
+                              <td className="py-2.5 px-3 whitespace-nowrap">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="font-mono text-xs text-slate-800 font-semibold min-w-[70px] select-all">
+                                  <span className="font-mono text-xs text-slate-800 font-semibold min-w-[65px] select-all">
                                     {isPwdVisible ? pwdValue : "••••••••"}
                                   </span>
                                   <button
                                     type="button"
                                     onClick={() => togglePasswordVisibility(s.studentId)}
                                     title={isPwdVisible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                                    className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                                    className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
                                   >
                                     {isPwdVisible ? (
                                       <EyeOff className="w-3.5 h-3.5 text-blue-600" />
@@ -1826,7 +1826,7 @@ export default function TeacherClassesPage() {
                                     type="button"
                                     onClick={() => copyToClipboard(pwdValue, `pwd_${s.studentId}`)}
                                     title="Sao chép mật khẩu"
-                                    className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                                    className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
                                   >
                                     {copiedId === `pwd_${s.studentId}` ? (
                                       <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -1836,7 +1836,7 @@ export default function TeacherClassesPage() {
                                   </button>
                                 </div>
                               </td>
-                              <td className="py-2.5 px-3 text-center">
+                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
                                 <div className="flex items-center justify-center gap-1">
                                   <button
                                     type="button"
