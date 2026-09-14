@@ -3,9 +3,9 @@ import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import {
   assertSubmissionAccess,
-  assertResultsNotPublished,
   getSubmissionDetail,
 } from "./submission.service.js";
+import { assertResultsNotPublished } from "./result-publication.service.js";
 import { calculateEqualScore } from "../utils/scoring.rules.js";
 
 /**
