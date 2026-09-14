@@ -24,6 +24,7 @@ import {
   Clock,
   AlertTriangle,
   Trash2,
+  FileText,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -225,37 +226,57 @@ export default function ExamListPage() {
         {dashboard?.summary && (
           <div className="space-y-4 mb-6">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">
-                  Tổng số kỳ thi
-                </span>
-                <span className="text-2xl font-bold text-slate-800">
-                  {dashboard.summary.totalExams}
-                </span>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+                    Tổng số kỳ thi
+                  </span>
+                  <span className="text-2xl font-bold text-slate-800">
+                    {dashboard.summary.totalExams}
+                  </span>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                  <FileText className="w-5 h-5" />
+                </div>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-                <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 block mb-1">
-                  Đang diễn ra (Phát hành)
-                </span>
-                <span className="text-2xl font-bold text-blue-700">
-                  {dashboard.summary.activeExams}
-                </span>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 block mb-1">
+                    Đang diễn ra (Phát hành)
+                  </span>
+                  <span className="text-2xl font-bold text-blue-700">
+                    {dashboard.summary.activeExams}
+                  </span>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <ScanLine className="w-5 h-5" />
+                </div>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-1">
-                  Đã đóng / Lưu trữ
-                </span>
-                <span className="text-2xl font-bold text-slate-700">
-                  {dashboard.summary.closedExams + dashboard.summary.archivedExams}
-                </span>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-1">
+                    Đã đóng / Lưu trữ
+                  </span>
+                  <span className="text-2xl font-bold text-slate-700">
+                    {dashboard.summary.closedExams + dashboard.summary.archivedExams}
+                  </span>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs bg-emerald-50/30">
-                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 block mb-1">
-                  Tổng bài thi đã chấm
-                </span>
-                <span className="text-2xl font-bold text-emerald-700">
-                  {dashboard.summary.totalSubmissions}
-                </span>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 block mb-1">
+                    Tổng bài thi đã chấm
+                  </span>
+                  <span className="text-2xl font-bold text-emerald-700">
+                    {dashboard.summary.totalSubmissions}
+                  </span>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <Award className="w-5 h-5" />
+                </div>
               </div>
             </div>
 
@@ -419,7 +440,7 @@ export default function ExamListPage() {
             {/* Desktop Table View (hidden on mobile) */}
             <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="min-w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                       <th className="py-3.5 px-3 w-10 text-center">
@@ -433,15 +454,15 @@ export default function ExamListPage() {
                           />
                         )}
                       </th>
-                      <th className="py-3.5 px-4 font-semibold">Tên kỳ thi</th>
-                      <th className="py-3.5 px-4 font-semibold">Môn học</th>
-                      <th className="py-3.5 px-4 font-semibold">Lớp</th>
-                      <th className="py-3.5 px-4 font-semibold">Số câu</th>
-                      <th className="py-3.5 px-4 font-semibold">Thang điểm</th>
-                      <th className="py-3.5 px-4 font-semibold">Hình thức</th>
-                      <th className="py-3.5 px-4 font-semibold">Mã đề</th>
-                      <th className="py-3.5 px-4 font-semibold">Trạng thái</th>
-                      <th className="py-3.5 px-4 font-semibold text-right">Thao tác</th>
+                      <th className="py-3.5 px-4 font-semibold min-w-[240px]">Tên kỳ thi</th>
+                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap">Môn học</th>
+                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Lớp</th>
+                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Số câu</th>
+                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Thang điểm</th>
+                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap">Hình thức</th>
+                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Mã đề</th>
+                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Trạng thái</th>
+                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-right min-w-[200px]">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -462,35 +483,35 @@ export default function ExamListPage() {
                             <span className="text-slate-300 text-xs">&mdash;</span>
                           )}
                         </td>
-                        <td className="py-4 px-4 font-medium text-slate-900 max-w-xs">
+                        <td className="py-4 px-4 min-w-[240px]">
                           <Link
                             to={examDetailPath(exam)}
-                            className="hover:text-blue-600 line-clamp-2 leading-snug transition-colors"
+                            className="hover:text-blue-600 font-semibold text-slate-900 line-clamp-2 leading-snug transition-colors text-sm"
                           >
                             {exam.title}
                           </Link>
                         </td>
-                        <td className="py-4 px-4 text-slate-600">
+                        <td className="py-4 px-4 text-slate-700 whitespace-nowrap text-xs font-medium">
                           {exam.subject?.name || "—"}
                         </td>
-                        <td className="py-4 px-4 text-slate-600">
+                        <td className="py-4 px-4 text-slate-700 whitespace-nowrap text-center text-xs font-semibold">
                           {exam.class?.name || "—"}
                         </td>
-                        <td className="py-4 px-4 text-slate-700">
-                          <span className="font-semibold">{exam.questionCount}</span> câu
+                        <td className="py-4 px-4 text-slate-700 whitespace-nowrap text-center text-xs">
+                          <span className="font-semibold text-slate-900">{exam.questionCount}</span> câu
                         </td>
-                        <td className="py-4 px-4 text-slate-700 font-medium">
-                          {Number(exam.maxScore)}đ
+                        <td className="py-4 px-4 text-slate-700 font-medium whitespace-nowrap text-center text-xs">
+                          <span className="font-semibold text-slate-900">{Number(exam.maxScore)}</span>đ
                         </td>
-                        <td className="py-4 px-4 text-xs text-slate-500">
+                        <td className="py-4 px-4 text-xs text-slate-600 whitespace-nowrap">
                           {formatScoringType(exam.scoringType)}
                         </td>
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-4 text-center whitespace-nowrap">
                           <Badge variant="gray" size="sm">
                             {exam._count?.examCodes || 0} mã
                           </Badge>
                         </td>
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-4 text-center whitespace-nowrap">
                           <ExamStatusBadge status={exam.status} size="sm" />
                         </td>
                         <td className="py-4 px-4 text-right whitespace-nowrap">
@@ -498,7 +519,7 @@ export default function ExamListPage() {
                             {exam.status === "DRAFT" ? (
                               <>
                                 <Button
-                                  variant="outline"
+                                  variant="primary"
                                   size="sm"
                                   icon={Settings}
                                   onClick={() => navigate(examDetailPath(exam))}
@@ -515,30 +536,64 @@ export default function ExamListPage() {
                                 >
                                   Xóa
                                 </Button>
+                                <div className="inline-flex items-center pl-1 border-l border-slate-200">
+                                  <button
+                                    type="button"
+                                    onClick={() => setExamToClone(exam)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
+                                    title="Nhân bản kỳ thi"
+                                  >
+                                    <Copy className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </>
+                            ) : exam.status === "PUBLISHED" ? (
+                              <>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  icon={ScanLine}
+                                  onClick={() => navigate(`/grade?examId=${exam.id}`)}
+                                >
+                                  Chấm bài
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  icon={FileCheck}
+                                  onClick={() => navigate(`/exams/${exam.id}/submissions`)}
+                                  title="Quản lý bài đã chấm và công bố kết quả"
+                                >
+                                  Bài đã chấm
+                                </Button>
+                                <div className="inline-flex items-center gap-1 pl-1 border-l border-slate-200">
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(examDetailPath(exam))}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 transition-colors cursor-pointer"
+                                    title="Xem chi tiết kỳ thi & đề thi"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(`/exams/${exam.id}/analytics`)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
+                                    title="Thống kê kết quả thi & phổ điểm"
+                                  >
+                                    <BarChart3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExamToClone(exam)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
+                                    title="Nhân bản kỳ thi để sửa cấu hình"
+                                  >
+                                    <Copy className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </>
                             ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                icon={Eye}
-                                onClick={() => navigate(examDetailPath(exam))}
-                              >
-                                Xem chi tiết
-                              </Button>
-                            )}
-
-                            {exam.status === "PUBLISHED" && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                icon={ScanLine}
-                                onClick={() => navigate(`/grade?examId=${exam.id}`)}
-                              >
-                                Chấm bài
-                              </Button>
-                            )}
-
-                            {exam.status !== "DRAFT" && (
                               <>
                                 <Button
                                   variant="outline"
@@ -552,21 +607,29 @@ export default function ExamListPage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  icon={BarChart3}
-                                  onClick={() => navigate(`/exams/${exam.id}/analytics`)}
-                                  title="Thống kê kết quả thi"
+                                  icon={Eye}
+                                  onClick={() => navigate(examDetailPath(exam))}
                                 >
-                                  Thống kê
+                                  Chi tiết
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  icon={Copy}
-                                  onClick={() => setExamToClone(exam)}
-                                  title="Nhân bản kỳ thi để sửa cấu hình"
-                                >
-                                  Nhân bản
-                                </Button>
+                                <div className="inline-flex items-center gap-1 pl-1 border-l border-slate-200">
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(`/exams/${exam.id}/analytics`)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
+                                    title="Thống kê kết quả thi"
+                                  >
+                                    <BarChart3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExamToClone(exam)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
+                                    title="Nhân bản kỳ thi"
+                                  >
+                                    <Copy className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </>
                             )}
                           </div>
@@ -662,7 +725,19 @@ export default function ExamListPage() {
                           icon={Eye}
                           onClick={() => navigate(examDetailPath(exam))}
                         >
-                          Xem
+                          Chi tiết
+                        </Button>
+                      )}
+
+                      {exam.status !== "DRAFT" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={FileCheck}
+                          onClick={() => navigate(`/exams/${exam.id}/submissions`)}
+                          title="Quản lý bài đã chấm"
+                        >
+                          Bài đã chấm
                         </Button>
                       )}
 
@@ -678,15 +753,24 @@ export default function ExamListPage() {
                       )}
 
                       {exam.status !== "DRAFT" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={Copy}
-                          onClick={() => setExamToClone(exam)}
-                          title="Nhân bản kỳ thi"
-                        >
-                          Nhân bản
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/exams/${exam.id}/analytics`)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition-colors"
+                            title="Thống kê kết quả"
+                          >
+                            <BarChart3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExamToClone(exam)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 transition-colors"
+                            title="Nhân bản kỳ thi"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

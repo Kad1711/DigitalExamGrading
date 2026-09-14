@@ -9,7 +9,7 @@ export default function Badge({
   ...props
 }) {
   const baseStyles =
-    "inline-flex items-center gap-1.5 font-medium rounded-full shrink-0";
+    "inline-flex items-center gap-1.5 font-medium rounded-full shrink-0 whitespace-nowrap";
 
   const sizeStyles = {
     sm: "text-[11px] px-2 py-0.5",
