@@ -22,14 +22,14 @@ export async function listStudentExams(userId) {
     );
   }
 
-  const studentClassIds = student.enrollments.map((e) => e.classId);
+  const studentClassIds = (student.enrollments || []).map((e) => e.classId);
 
   // Find all exams that either target student's class OR where student is an enrolled candidate
   const exams = await prisma.exam.findMany({
     where: {
       status: { not: "DRAFT" },
       OR: [
-        { classId: { in: studentClassIds } },
+        ...(studentClassIds.length > 0 ? [{ classId: { in: studentClassIds } }] : []),
         { candidates: { some: { studentId: student.id } } },
       ],
     },
@@ -37,8 +37,11 @@ export async function listStudentExams(userId) {
       subject: { select: { id: true, code: true, name: true } },
       class: { select: { id: true, name: true } },
       teacher: {
-        include: {
-          user: { select: { fullName: true, email: true } },
+        select: {
+          id: true,
+          fullName: true,
+          teacherCode: true,
+          user: { select: { email: true } },
         },
       },
       candidates: {
@@ -53,7 +56,7 @@ export async function listStudentExams(userId) {
 
   for (const exam of exams) {
     const candidate = exam.candidates[0] || null;
-    const studentNumber = candidate?.studentNumber || null;
+    const studentNumber = candidate?.studentNumber || student.studentCode || null;
 
     let submission = null;
     if (studentNumber) {
@@ -84,7 +87,7 @@ export async function listStudentExams(userId) {
       description: exam.description,
       subject: exam.subject,
       className: exam.class?.name || null,
-      teacherName: exam.teacher?.user?.fullName || exam.teacher?.user?.email || null,
+      teacherName: exam.teacher?.fullName || exam.teacher?.user?.email || null,
       questionCount: exam.questionCount,
       maxScore: Number(exam.maxScore),
       examStatus: exam.status,

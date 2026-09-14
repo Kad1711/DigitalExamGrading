@@ -20,6 +20,7 @@ import {
   Sparkles,
   ArrowRight,
   ClipboardCheck,
+  AlertCircle,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { getErrorMessage } from "../utils/error-map";
@@ -246,6 +247,21 @@ export default function StudentExamsPage() {
             <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
             <span className="text-xs font-medium text-slate-500">Đang tải danh sách kỳ thi...</span>
           </div>
+        ) : errorMsg ? (
+          <Card className="p-8 text-center border border-rose-200 bg-rose-50/20">
+            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-xs">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <h2 className="text-base font-bold text-slate-800">Không thể tải danh sách kỳ thi</h2>
+            <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto leading-relaxed">
+              {errorMsg}
+            </p>
+            <div className="mt-5">
+              <Button variant="secondary" size="sm" onClick={fetchExams} loading={loading}>
+                Thử lại
+              </Button>
+            </div>
+          </Card>
         ) : exams.length === 0 ? (
           <Card className="p-8 sm:p-10 text-center border border-slate-200">
             <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-xs">
