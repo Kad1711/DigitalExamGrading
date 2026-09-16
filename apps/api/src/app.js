@@ -29,6 +29,13 @@ app.get("/api/health", async (req, res) => {
     const start = performance.now();
     await prisma.$queryRaw`SELECT 1`;
     dbLatencyMs = Math.round((performance.now() - start) * 10) / 10;
+
+    // Auto-ensure DB columns if not yet present
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT;
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT;
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT;
+    `).catch(() => {});
   } catch {
     dbStatus = "disconnected";
   }

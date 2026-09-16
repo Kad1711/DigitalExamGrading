@@ -35,45 +35,70 @@ export async function authenticate(req, res, next) {
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        status: true,
-        avatarUrl: true,
-        fullName: true,
-        phone: true,
-        teacher: {
-          select: {
-            id: true,
-            teacherCode: true,
-            fullName: true,
-            phone: true,
-          },
+    const userSelect = {
+      id: true,
+      email: true,
+      role: true,
+      status: true,
+      avatarUrl: true,
+      fullName: true,
+      phone: true,
+      teacher: {
+        select: {
+          id: true,
+          teacherCode: true,
+          fullName: true,
+          phone: true,
         },
-        student: {
-          select: {
-            id: true,
-            studentCode: true,
-            fullName: true,
-            dateOfBirth: true,
-            enrollments: {
-              select: {
-                class: {
-                  select: {
-                    id: true,
-                    name: true,
-                    grade: { select: { level: true, name: true } },
-                  },
+      },
+      student: {
+        select: {
+          id: true,
+          studentCode: true,
+          fullName: true,
+          dateOfBirth: true,
+          enrollments: {
+            select: {
+              class: {
+                select: {
+                  id: true,
+                  name: true,
+                  grade: { select: { level: true, name: true } },
                 },
               },
             },
           },
         },
       },
-    });
+    };
+
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: userSelect,
+      });
+    } catch (queryErr) {
+      if (
+        queryErr.message &&
+        (queryErr.message.includes("does not exist") ||
+          queryErr.message.includes("avatarUrl") ||
+          queryErr.code === "P2021" ||
+          queryErr.code === "P2022")
+      ) {
+        await prisma.$executeRawUnsafe(`
+          ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT;
+          ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT;
+          ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT;
+        `).catch(() => {});
+        user = await prisma.user.findUnique({
+          where: { id: payload.sub },
+          select: userSelect,
+        });
+      } else {
+        throw queryErr;
+      }
+    }
 
     if (!user) {
       return next(new AppError("Nguoi dung khong ton tai.", 401, "USER_NOT_FOUND"));

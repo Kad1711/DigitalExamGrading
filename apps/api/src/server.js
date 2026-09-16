@@ -7,6 +7,18 @@ import prisma from "./config/prisma.js";
 
 const PORT = process.env.PORT || 5000;
 
+// Auto-ensure DB schema changes before starting HTTP listener
+try {
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT;
+    ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT;
+    ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT;
+  `);
+  console.log("[SERVER] Database schema verified & updated successfully.");
+} catch (migErr) {
+  console.warn("[SERVER] Database schema ensure notice:", migErr.message);
+}
+
 const server = app.listen(PORT, async () => {
   console.log(`[SERVER] API running at http://localhost:${PORT}`);
   console.log(`[SERVER] Environment: ${process.env.NODE_ENV || "development"}`);

@@ -48,38 +48,63 @@ function tokenExpiresAt(token) {
 // =====================================================
 
 export async function login(email, password) {
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: {
-      teacher: {
-        select: {
-          id: true,
-          teacherCode: true,
-          fullName: true,
-          phone: true,
-        },
+  const userInclude = {
+    teacher: {
+      select: {
+        id: true,
+        teacherCode: true,
+        fullName: true,
+        phone: true,
       },
-      student: {
-        select: {
-          id: true,
-          studentCode: true,
-          fullName: true,
-          dateOfBirth: true,
-          enrollments: {
-            select: {
-              class: {
-                select: {
-                  id: true,
-                  name: true,
-                  grade: { select: { level: true, name: true } },
-                },
+    },
+    student: {
+      select: {
+        id: true,
+        studentCode: true,
+        fullName: true,
+        dateOfBirth: true,
+        enrollments: {
+          select: {
+            class: {
+              select: {
+                id: true,
+                name: true,
+                grade: { select: { level: true, name: true } },
               },
             },
           },
         },
       },
     },
-  });
+  };
+
+  let user;
+  try {
+    user = await prisma.user.findUnique({
+      where: { email },
+      include: userInclude,
+    });
+  } catch (err) {
+    if (
+      err.message &&
+      (err.message.includes("does not exist") ||
+        err.message.includes("avatarUrl") ||
+        err.code === "P2021" ||
+        err.code === "P2022")
+    ) {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT;
+        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT;
+        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT;
+      `).catch(() => {});
+      user = await prisma.user.findUnique({
+        where: { email },
+        include: userInclude,
+      });
+    } else {
+      throw err;
+    }
+  }
 
   if (!user) {
     throw new AppError(
