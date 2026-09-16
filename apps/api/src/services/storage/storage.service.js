@@ -29,6 +29,7 @@ export const storageService = getStorageProvider();
 export function getSafeExtensionFromMime(mimeType) {
   const mime = (mimeType || "").toLowerCase();
   if (mime === "image/png") return "png";
+  if (mime === "image/webp") return "webp";
   if (mime === "image/jpeg" || mime === "image/jpg") return "jpg";
   return "jpg"; // Default fallback for images
 }

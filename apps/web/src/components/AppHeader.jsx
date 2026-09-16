@@ -16,7 +16,7 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { formatUserRole, getInitials } from "../utils/enum-map";
+import { formatUserRole, getInitials, getAvatarUrl } from "../utils/enum-map";
 
 export default function AppHeader() {
   const location = useLocation();
@@ -90,6 +90,12 @@ export default function AppHeader() {
       icon: Award,
       active: isStudentResultsActive,
     },
+    {
+      label: "Hồ sơ học sinh",
+      href: "/profile",
+      icon: UserCheck,
+      active: isProfileActive,
+    },
   ];
 
   const adminNavItems = [
@@ -116,6 +122,12 @@ export default function AppHeader() {
       href: "/exams",
       icon: FileText,
       active: isExamsActive,
+    },
+    {
+      label: "Hồ sơ quản trị",
+      href: "/profile",
+      icon: UserCheck,
+      active: isProfileActive,
     },
   ];
 
@@ -203,30 +215,39 @@ export default function AppHeader() {
 
         {/* Bottom: User Card & Logout */}
         <div className="p-3 border-t border-slate-100 bg-slate-50/50">
-          <div className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-slate-200 shadow-xs mb-2">
-            <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
-              {initials}
-            </div>
+          <Link
+            to="/profile"
+            className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-slate-200 shadow-xs mb-2 hover:border-blue-300 hover:shadow-sm transition-all group"
+          >
+            {user?.avatarUrl ? (
+              <img
+                src={getAvatarUrl(user.avatarUrl)}
+                alt={displayName}
+                className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-xs shrink-0"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0 group-hover:bg-blue-700 transition-colors">
+                {initials}
+              </div>
+            )}
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-xs font-bold text-slate-900 truncate leading-tight">
+              <span className="text-xs font-bold text-slate-900 truncate leading-tight group-hover:text-blue-600 transition-colors">
                 {displayName}
               </span>
               <span className="text-[11px] text-slate-400 font-medium">
                 {formatUserRole(user?.role)}
               </span>
             </div>
-          </div>
+          </Link>
 
           <div className="flex items-center gap-1.5">
-            {(isTeacher || isStudent) && (
-              <Link
-                to="/profile"
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
-                <span>Bảo mật</span>
-              </Link>
-            )}
+            <Link
+              to="/profile"
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
+              <span>Hồ sơ & Bảo mật</span>
+            </Link>
 
             <button
               type="button"
@@ -264,9 +285,19 @@ export default function AppHeader() {
           </Link>
         </div>
 
-        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-          {initials}
-        </div>
+        <Link to="/profile" className="flex items-center">
+          {user?.avatarUrl ? (
+            <img
+              src={getAvatarUrl(user.avatarUrl)}
+              alt={displayName}
+              className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-xs"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+              {initials}
+            </div>
+          )}
+        </Link>
       </header>
 
       {/* Mobile Drawer Overlay */}
@@ -326,10 +357,22 @@ export default function AppHeader() {
 
             {/* Drawer Footer */}
             <div className="p-4 border-t border-slate-100 bg-slate-50 space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
-                  {initials}
-                </div>
+              <Link
+                to="/profile"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-200"
+              >
+                {user?.avatarUrl ? (
+                  <img
+                    src={getAvatarUrl(user.avatarUrl)}
+                    alt={displayName}
+                    className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-xs shrink-0"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
+                    {initials}
+                  </div>
+                )}
                 <div className="flex flex-col min-w-0">
                   <span className="text-xs font-bold text-slate-900 truncate">
                     {displayName}
@@ -338,19 +381,17 @@ export default function AppHeader() {
                     {formatUserRole(user?.role)}
                   </span>
                 </div>
-              </div>
+              </Link>
 
               <div className="flex items-center gap-2">
-                {(isTeacher || isStudent) && (
-                  <Link
-                    to="/profile"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Bảo mật & Tài khoản</span>
-                  </Link>
-                )}
+                <Link
+                  to="/profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Hồ sơ & Bảo mật</span>
+                </Link>
 
                 <button
                   type="button"

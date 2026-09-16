@@ -247,3 +247,107 @@ export async function removeCandidate(teacherUserId, examId, candidateId, userRo
 
   return { success: true, message: "Đã xóa liên kết thí sinh." };
 }
+
+/**
+ * Tự động gán toàn bộ học sinh trong lớp của kỳ thi vào số báo danh (SBD).
+ * Khớp theo: mã học sinh, số báo danh trong bài nộp, hoặc chữ số trong email.
+ */
+export async function autoAssignCandidates(teacherUserId, examId, userRole = "TEACHER") {
+  const exam = await verifyExamOwnership(examId, teacherUserId, userRole);
+
+  if (exam.status === "ARCHIVED") {
+    throw new AppError(
+      "Kỳ thi đã được lưu trữ (ARCHIVED), không thể thay đổi danh sách thí sinh.",
+      400,
+      "EXAM_ARCHIVED"
+    );
+  }
+
+  // Lưu ý: Cho phép tự động gán cả khi đã công bố kết quả để học sinh có thể lập tức tra cứu điểm
+
+  const enrollments = await prisma.studentEnrollment.findMany({
+    where: { classId: exam.classId },
+    include: {
+      student: {
+        include: {
+          user: { select: { email: true } },
+        },
+      },
+    },
+  });
+
+  const existingCandidates = await prisma.examCandidate.findMany({
+    where: { examId },
+  });
+  const assignedStudentIds = new Set(existingCandidates.map((c) => c.studentId));
+  const assignedNumbers = new Set(existingCandidates.map((c) => c.studentNumber));
+
+  const submissions = await prisma.examSubmission.findMany({
+    where: {
+      examId,
+      resolvedStudentNumber: { not: null },
+    },
+    select: { resolvedStudentNumber: true },
+  });
+  const submissionSbds = submissions.map((s) => s.resolvedStudentNumber.trim());
+
+  let assignedCount = 0;
+  const newlyAssigned = [];
+
+  for (const en of enrollments) {
+    const student = en.student;
+    if (assignedStudentIds.has(student.id)) continue;
+
+    const cleanCode = (student.studentCode || "").trim();
+    const emailPrefix = (student.user?.email || "").split("@")[0];
+
+    let candidateSbd = null;
+
+    const matchedSbd = submissionSbds.find((sbd) => {
+      if (assignedNumbers.has(sbd)) return false;
+      return (
+        sbd === cleanCode ||
+        cleanCode.endsWith(sbd) ||
+        emailPrefix.includes(sbd) ||
+        (sbd.length >= 4 && cleanCode.includes(sbd))
+      );
+    });
+
+    if (matchedSbd) {
+      candidateSbd = matchedSbd;
+    } else if (cleanCode && /^\d{4,10}$/.test(cleanCode) && !assignedNumbers.has(cleanCode)) {
+      candidateSbd = cleanCode;
+    } else {
+      const digitsMatch = emailPrefix.match(/\d{6}/);
+      if (digitsMatch && !assignedNumbers.has(digitsMatch[0])) {
+        candidateSbd = digitsMatch[0];
+      }
+    }
+
+    if (candidateSbd && !assignedNumbers.has(candidateSbd)) {
+      try {
+        const created = await prisma.examCandidate.create({
+          data: {
+            examId,
+            studentId: student.id,
+            studentNumber: candidateSbd,
+          },
+          include: { student: true },
+        });
+        assignedStudentIds.add(student.id);
+        assignedNumbers.add(candidateSbd);
+        assignedCount++;
+        newlyAssigned.push(created);
+      } catch (err) {
+        // Skip on duplicate
+      }
+    }
+  }
+
+  return {
+    success: true,
+    assignedCount,
+    totalAssigned: existingCandidates.length + assignedCount,
+    candidates: newlyAssigned,
+  };
+}

@@ -3,6 +3,7 @@ import {
   getEligibleStudents,
   assignCandidate,
   removeCandidate,
+  autoAssignCandidates,
 } from "../services/exam-candidate.service.js";
 import { assignCandidateSchema } from "../schemas/exam-candidate.schema.js";
 
@@ -49,6 +50,19 @@ export async function deleteCandidate(req, res, next) {
     const result = await removeCandidate(req.user.id, req.params.examId, req.params.candidateId, req.user.role);
     res.json({
       success: true,
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function autoAssignCandidatesController(req, res, next) {
+  try {
+    const result = await autoAssignCandidates(req.user.id, req.params.examId, req.user.role);
+    res.json({
+      success: true,
+      message: `Đã tự động liên kết thành công ${result.assignedCount} thí sinh.`,
       data: result,
     });
   } catch (err) {

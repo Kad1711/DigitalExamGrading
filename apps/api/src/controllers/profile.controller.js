@@ -56,3 +56,37 @@ export async function changePasswordController(req, res, next) {
     next(err);
   }
 }
+
+export async function uploadAvatarController(req, res, next) {
+  try {
+    if (!req.file) {
+      return next(new AppError("Vui lòng tải lên một file ảnh đại diện.", 400, "AVATAR_REQUIRED"));
+    }
+
+    const result = await profileService.updateAvatar(req.user.id, {
+      buffer: req.file.buffer,
+      mimeType: req.file.mimetype,
+      filename: req.file.originalname,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Cập nhật ảnh đại diện thành công.",
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getAvatarController(req, res, next) {
+  try {
+    const { stream, mimeType } = await profileService.getAvatarStream(req.params.filename);
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    stream.pipe(res);
+  } catch (err) {
+    next(err);
+  }
+}
+

@@ -402,5 +402,50 @@ export async function reviewSubmissionIdentity({ submissionId, studentNumber, us
     });
   });
 
+  // Tự động liên kết học sinh trong lớp nếu chưa gán
+  if (cleanSbd && submission.exam?.classId) {
+    try {
+      const existingCandidate = await prisma.examCandidate.findFirst({
+        where: { examId: submission.examId, studentNumber: cleanSbd },
+      });
+      if (!existingCandidate) {
+        const enrollments = await prisma.studentEnrollment.findMany({
+          where: { classId: submission.exam.classId },
+          include: {
+            student: {
+              include: { user: { select: { email: true } } },
+            },
+          },
+        });
+        const matched = enrollments.map((e) => e.student).find((st) => {
+          const code = (st.studentCode || "").trim();
+          const emailPrefix = (st.user?.email || "").split("@")[0];
+          return (
+            code === cleanSbd ||
+            code.endsWith(cleanSbd) ||
+            emailPrefix.includes(cleanSbd) ||
+            (cleanSbd.length >= 4 && code.includes(cleanSbd))
+          );
+        });
+        if (matched) {
+          const alreadyLinked = await prisma.examCandidate.findUnique({
+            where: { examId_studentId: { examId: submission.examId, studentId: matched.id } },
+          });
+          if (!alreadyLinked) {
+            await prisma.examCandidate.create({
+              data: {
+                examId: submission.examId,
+                studentId: matched.id,
+                studentNumber: cleanSbd,
+              },
+            });
+          }
+        }
+      }
+    } catch {
+      // Non-blocking
+    }
+  }
+
   return getSubmissionDetail({ submissionId, user });
 }

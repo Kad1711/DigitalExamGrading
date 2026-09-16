@@ -119,6 +119,51 @@ export async function listStudentResults(userId) {
     );
   }
 
+  // Tự động liên kết thí sinh nếu học sinh thuộc lớp của kỳ thi đã công bố và có bài nộp khớp
+  try {
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: { studentId: student.id },
+      select: { classId: true },
+    });
+    const classIds = enrollments.map((e) => e.classId);
+    if (classIds.length > 0) {
+      const unlinkedExams = await prisma.exam.findMany({
+        where: {
+          classId: { in: classIds },
+          resultsPublishedAt: { not: null },
+          candidates: { none: { studentId: student.id } },
+        },
+        select: { id: true },
+      });
+      const cleanCode = (student.studentCode || "").trim();
+      for (const unExam of unlinkedExams) {
+        const matchingSub = await prisma.examSubmission.findFirst({
+          where: {
+            examId: unExam.id,
+            status: "FINAL",
+            identityNeedsReview: false,
+            OR: [
+              ...(cleanCode ? [{ resolvedStudentNumber: cleanCode }] : []),
+              ...(cleanCode.length >= 4 ? [{ resolvedStudentNumber: { endsWith: cleanCode } }] : []),
+            ],
+          },
+          select: { resolvedStudentNumber: true },
+        });
+        if (matchingSub && matchingSub.resolvedStudentNumber) {
+          await prisma.examCandidate.create({
+            data: {
+              examId: unExam.id,
+              studentId: student.id,
+              studentNumber: matchingSub.resolvedStudentNumber,
+            },
+          }).catch(() => {});
+        }
+      }
+    }
+  } catch {
+    // Non-blocking
+  }
+
   const candidateRecords = await prisma.examCandidate.findMany({
     where: { studentId: student.id },
     include: {
@@ -216,7 +261,7 @@ export async function getStudentResultDetail(userId, examId) {
     );
   }
 
-  const candidate = await prisma.examCandidate.findUnique({
+  let candidate = await prisma.examCandidate.findUnique({
     where: {
       examId_studentId: {
         examId,
@@ -224,6 +269,38 @@ export async function getStudentResultDetail(userId, examId) {
       },
     },
   });
+
+  if (!candidate) {
+    // Thử tự động liên kết nếu học sinh có bài nộp khớp trong kỳ thi này
+    const cleanCode = (student.studentCode || "").trim();
+    const matchingSub = await prisma.examSubmission.findFirst({
+      where: {
+        examId,
+        status: "FINAL",
+        identityNeedsReview: false,
+        OR: [
+          ...(cleanCode ? [{ resolvedStudentNumber: cleanCode }] : []),
+          ...(cleanCode.length >= 4 ? [{ resolvedStudentNumber: { endsWith: cleanCode } }] : []),
+        ],
+      },
+      select: { resolvedStudentNumber: true },
+    });
+    if (matchingSub && matchingSub.resolvedStudentNumber) {
+      try {
+        candidate = await prisma.examCandidate.create({
+          data: {
+            examId,
+            studentId: student.id,
+            studentNumber: matchingSub.resolvedStudentNumber,
+          },
+        });
+      } catch {
+        candidate = await prisma.examCandidate.findUnique({
+          where: { examId_studentId: { examId, studentId: student.id } },
+        });
+      }
+    }
+  }
 
   if (!candidate) {
     throw new AppError(

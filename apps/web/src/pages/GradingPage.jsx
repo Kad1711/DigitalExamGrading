@@ -581,13 +581,24 @@ export default function GradingPage() {
   );
   const currentReviewQuestion = reviewQueue[safeReviewIndex] || null;
 
+  // Helper to determine whether question was graded as correct
+  const isQuestionCorrect = (q) =>
+    q.isCorrect === true ||
+    q.result === "CORRECT" ||
+    (q.scoreEarned !== null && q.scoreEarned > 0);
+
   // Load review crop blob URL on demand when modal opens or question changes
   useEffect(() => {
     if (!isReviewModalOpen || !currentReviewQuestion) return;
     const qn = currentReviewQuestion.questionNumber;
-    if (currentReviewQuestion.reviewCropUrl && !cropBlobUrls[qn]) {
+    const rawCropUrl = currentReviewQuestion.reviewCropUrl;
+    if (rawCropUrl && !cropBlobUrls[qn]) {
+      // Strip leading /api if baseURL already includes /api to avoid /api/api double prefix
+      const cleanUrl = rawCropUrl.startsWith("/api/")
+        ? rawCropUrl.replace(/^\/api/, "")
+        : rawCropUrl;
       api
-        .get(currentReviewQuestion.reviewCropUrl, { responseType: "blob" })
+        .get(cleanUrl, { responseType: "blob" })
         .then((res) => {
           const url = window.URL.createObjectURL(res.data);
           setCropBlobUrls((prev) => ({ ...prev, [qn]: url }));
@@ -601,7 +612,7 @@ export default function GradingPage() {
   // Question table counts & filter
   const countAll = questionsList.length;
   const countIncorrect = questionsList.filter(
-    (q) => !q.isCorrect && q.omrStatus !== "BLANK" && !q.needsReview
+    (q) => !isQuestionCorrect(q) && q.omrStatus !== "BLANK" && !q.needsReview && q.omrStatus !== "MULTIPLE_INVALID" && q.teacherResolution !== "MULTIPLE_INVALID"
   ).length;
   const countBlank = questionsList.filter((q) => q.omrStatus === "BLANK").length;
   const countReview = questionsList.filter(
@@ -614,7 +625,7 @@ export default function GradingPage() {
 
   const filteredQuestions = questionsList.filter((q) => {
     if (tableFilter === "INCORRECT") {
-      return !q.isCorrect && q.omrStatus !== "BLANK" && !q.needsReview;
+      return !isQuestionCorrect(q) && q.omrStatus !== "BLANK" && !q.needsReview && q.omrStatus !== "MULTIPLE_INVALID" && q.teacherResolution !== "MULTIPLE_INVALID";
     }
     if (tableFilter === "BLANK") return q.omrStatus === "BLANK";
     if (tableFilter === "REVIEW") {
@@ -624,7 +635,7 @@ export default function GradingPage() {
         q.omrStatus === "UNCERTAIN"
       );
     }
-    if (tableFilter === "RESOLVED") return Boolean(q.resolvedByTeacher);
+    if (tableFilter === "RESOLVED") return q.resolvedByTeacher;
     return true;
   });
 
@@ -1696,7 +1707,7 @@ export default function GradingPage() {
                             } else if (q.omrStatus === "BLANK") {
                               badgeVariant = "gray";
                               statusText = "Để trống";
-                            } else if (q.isCorrect) {
+                            } else if (isQuestionCorrect(q)) {
                               badgeVariant = "green";
                               statusText = "Đúng";
                             } else {
@@ -1755,7 +1766,7 @@ export default function GradingPage() {
                                 </td>
                                 <td className="py-3 px-4">
                                   <span className="font-bold text-blue-600 text-sm font-mono">
-                                    {q.correctAnswer || "—"}
+                                    {q.correctAnswerSnapshot || q.correctAnswer || "—"}
                                   </span>
                                 </td>
                                 <td className="py-3 px-4 text-slate-500">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import AppHeader from "../components/AppHeader";
@@ -16,8 +16,10 @@ import {
   Eye,
   EyeOff,
   Info,
+  Camera,
+  Upload,
 } from "lucide-react";
-import { formatUserRole, formatUserStatus, getInitials } from "../utils/enum-map";
+import { formatUserRole, formatUserStatus, getInitials, getAvatarUrl } from "../utils/enum-map";
 
 export default function TeacherProfilePage() {
   const { user, updateUser } = useAuth();
@@ -27,6 +29,10 @@ export default function TeacherProfilePage() {
   const [loading, setLoading] = useState(true);
   const [profileAlert, setProfileAlert] = useState(null);
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Avatar upload
+  const avatarInputRef = useRef(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Form profile
   const [fullName, setFullName] = useState("");
@@ -67,6 +73,48 @@ export default function TeacherProfilePage() {
     loadProfile();
   }, []);
 
+  // Handle Avatar Upload
+  const handleAvatarSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileAlert({
+        type: "danger",
+        message: "Dung lượng ảnh đại diện vượt quá 5MB. Vui lòng chọn ảnh nhỏ hơn.",
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      setUploadingAvatar(true);
+      setProfileAlert(null);
+      const res = await api.post("/profile/avatar", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const newAvatarUrl = res.data.data.avatarUrl;
+      setProfile((prev) => ({ ...prev, avatarUrl: newAvatarUrl }));
+      updateUser({ avatarUrl: newAvatarUrl });
+      setProfileAlert({
+        type: "success",
+        message: "Đã cập nhật ảnh đại diện thành công!",
+      });
+    } catch (err) {
+      setProfileAlert({
+        type: "danger",
+        message: err.response?.data?.error?.message || "Không thể tải lên ảnh đại diện.",
+      });
+    } finally {
+      setUploadingAvatar(false);
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = "";
+      }
+    }
+  };
+
   // Submit Profile Update
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -93,6 +141,8 @@ export default function TeacherProfilePage() {
       // Đồng bộ ngay lập tức với AuthContext để Header đổi tên không cần reload
       updateUser({
         fullName: updated.fullName,
+        phone: updated.phone,
+        avatarUrl: updated.avatarUrl || user?.avatarUrl,
         teacher: (user?.role === "TEACHER" || profile?.role === "TEACHER") ? {
           ...(user?.teacher || {}),
           fullName: updated.fullName,
@@ -186,6 +236,7 @@ export default function TeacherProfilePage() {
     }
   };
 
+  const isAdmin = profile?.role === "ADMIN" || user?.role === "ADMIN";
   const isStudent = profile?.role === "STUDENT" || user?.role === "STUDENT";
   const isTeacher = profile?.role === "TEACHER" || user?.role === "TEACHER";
 
@@ -193,8 +244,9 @@ export default function TeacherProfilePage() {
     fullName ||
     profile?.fullName ||
     user?.fullName ||
-    (isStudent ? "Học sinh" : isTeacher ? "Giáo viên" : "Người dùng");
+    (isStudent ? "Học sinh" : isTeacher ? "Giáo viên" : "Quản trị viên");
   const initials = getInitials(displayName, profile?.email || user?.email);
+  const currentAvatarUrl = profile?.avatarUrl || user?.avatarUrl;
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "—";
@@ -217,12 +269,14 @@ export default function TeacherProfilePage() {
         {/* Page Title */}
         <div className="mb-6">
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            {isStudent ? "Hồ sơ học sinh" : isTeacher ? "Hồ sơ giáo viên" : "Hồ sơ cá nhân"}
+            {isStudent ? "Hồ sơ học sinh" : isTeacher ? "Hồ sơ giáo viên" : "Hồ sơ quản trị viên"}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             {isStudent
-              ? "Xem thông tin số báo danh, lớp học và quản lý bảo mật mật khẩu tài khoản."
-              : "Quản lý thông tin cá nhân và bảo mật tài khoản giáo viên."}
+              ? "Xem thông tin số báo danh, lớp học và quản lý bảo mật tài khoản."
+              : isTeacher
+              ? "Quản lý thông tin cá nhân và bảo mật tài khoản giáo viên."
+              : "Quản lý thông tin cá nhân và bảo mật tài khoản quản trị hệ thống."}
           </p>
         </div>
 
@@ -236,13 +290,47 @@ export default function TeacherProfilePage() {
         ) : (
           <div className="space-y-6">
             {/* ===================================================== */}
-            {/* HERO CARD: Profile Summary & Avatar Initials */}
+            {/* HERO CARD: Profile Summary & Avatar Upload */}
             {/* ===================================================== */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs">
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                {/* Large Initials Avatar */}
-                <div className="w-20 h-20 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-extrabold text-2xl shadow-md shadow-blue-500/20 shrink-0">
-                  {initials}
+                {/* Avatar with Camera Overlay */}
+                <div className="relative group shrink-0">
+                  <input
+                    type="file"
+                    ref={avatarInputRef}
+                    onChange={handleAvatarSelect}
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                  />
+                  {currentAvatarUrl ? (
+                    <img
+                      src={getAvatarUrl(currentAvatarUrl)}
+                      alt={displayName}
+                      className="w-20 h-20 rounded-2xl object-cover border-2 border-slate-200 shadow-md shadow-slate-200/50"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-extrabold text-2xl shadow-md shadow-blue-500/20">
+                      {initials}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={uploadingAvatar}
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="absolute inset-0 bg-slate-900/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[11px] font-medium cursor-pointer backdrop-blur-[2px]"
+                    title="Bấm để tải lên ảnh đại diện mới"
+                  >
+                    {uploadingAvatar ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Camera className="w-5 h-5 mb-0.5" />
+                        <span>Đổi ảnh</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
                 <div className="flex-1 text-center sm:text-left min-w-0">
@@ -251,7 +339,7 @@ export default function TeacherProfilePage() {
                       {displayName}
                     </h2>
                     <div className="flex items-center justify-center sm:justify-start gap-1.5">
-                      <Badge variant="blue" size="sm">
+                      <Badge variant={isAdmin ? "amber" : "blue"} size="sm">
                         {formatUserRole(profile?.role || user?.role)}
                       </Badge>
                       <Badge variant="green" size="sm">
@@ -279,11 +367,18 @@ export default function TeacherProfilePage() {
                           </span>
                         )}
                       </>
-                    ) : (
+                    ) : isTeacher ? (
                       <span className="flex items-center gap-1.5">
                         <span className="font-semibold text-slate-700">Mã GV:</span>
                         <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-800 font-bold">
                           {profile?.teacherCode || "—"}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-700">Quyền hạn:</span>
+                        <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                          Toàn quyền hệ thống
                         </span>
                       </span>
                     )}
@@ -297,6 +392,24 @@ export default function TeacherProfilePage() {
                       <span className="flex items-center gap-1.5">
                         <Phone className="w-3.5 h-3.5 text-slate-400" />
                         <span>{profile.phone}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Explicit upload button for clarity */}
+                  <div className="mt-3 flex items-center justify-center sm:justify-start gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      icon={Upload}
+                      loading={uploadingAvatar}
+                      onClick={() => avatarInputRef.current?.click()}
+                    >
+                      <span>Tải ảnh đại diện</span>
+                    </Button>
+                    {uploadingAvatar && (
+                      <span className="text-xs text-blue-600 animate-pulse font-medium">
+                        Đang xử lý ảnh...
                       </span>
                     )}
                   </div>
@@ -412,7 +525,7 @@ export default function TeacherProfilePage() {
                             />
                           </div>
                         </>
-                      ) : (
+                      ) : isTeacher ? (
                         <>
                           {/* Read-only: Teacher Code */}
                           <div>
@@ -440,6 +553,18 @@ export default function TeacherProfilePage() {
                             />
                           </div>
                         </>
+                      ) : (
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                            Email quản trị viên
+                          </label>
+                          <input
+                            type="text"
+                            disabled
+                            value={profile?.email || ""}
+                            className="block w-full px-3 py-2 text-xs font-mono bg-slate-100/80 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed"
+                          />
+                        </div>
                       )}
                     </div>
 

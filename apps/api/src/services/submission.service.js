@@ -77,8 +77,9 @@ export function formatSubmissionResponse(sub, answers = [], auditLogs = []) {
     confidence: ans.confidence,
     fillRatios: ans.fillRatios,
     reviewCropUrl: ans.reviewCropStorageKey
-      ? `/api/submissions/${sub.id}/answers/${ans.questionNumber}/review-crop`
+      ? `/submissions/${sub.id}/answers/${ans.questionNumber}/review-crop`
       : null,
+    correctAnswer: ans.correctAnswerSnapshot,
     correctAnswerSnapshot: ans.correctAnswerSnapshot,
     scoreSnapshot: Number(ans.scoreSnapshot),
     resolvedByTeacher: ans.resolvedByTeacher,
@@ -87,6 +88,7 @@ export function formatSubmissionResponse(sub, answers = [], auditLogs = []) {
     reviewedAt: ans.reviewedAt,
     effectiveAnswer: ans.effectiveAnswer,
     result: ans.result,
+    isCorrect: ans.result === "CORRECT",
     scoreEarned: ans.scoreEarned !== null ? Number(ans.scoreEarned) : null,
     needsReview: ans.needsReview,
   }));
@@ -526,6 +528,51 @@ export async function createSubmission({
     }
 
     throw dbErr;
+  }
+
+  // Tự động liên kết học sinh trong lớp với SBD nếu chưa được gán
+  if (resolvedStudentNumber && exam.classId && !identityNeedsReview) {
+    try {
+      const existingCandidate = await prisma.examCandidate.findFirst({
+        where: { examId, studentNumber: resolvedStudentNumber },
+      });
+      if (!existingCandidate) {
+        const enrollments = await prisma.studentEnrollment.findMany({
+          where: { classId: exam.classId },
+          include: {
+            student: {
+              include: { user: { select: { email: true } } },
+            },
+          },
+        });
+        const matched = enrollments.map((e) => e.student).find((st) => {
+          const code = (st.studentCode || "").trim();
+          const emailPrefix = (st.user?.email || "").split("@")[0];
+          return (
+            code === resolvedStudentNumber ||
+            code.endsWith(resolvedStudentNumber) ||
+            emailPrefix.includes(resolvedStudentNumber) ||
+            (resolvedStudentNumber.length >= 4 && code.includes(resolvedStudentNumber))
+          );
+        });
+        if (matched) {
+          const alreadyLinked = await prisma.examCandidate.findUnique({
+            where: { examId_studentId: { examId, studentId: matched.id } },
+          });
+          if (!alreadyLinked) {
+            await prisma.examCandidate.create({
+              data: {
+                examId,
+                studentId: matched.id,
+                studentNumber: resolvedStudentNumber,
+              },
+            });
+          }
+        }
+      }
+    } catch {
+      // Non-blocking auto-link
+    }
   }
 
   // Load created answers to return full response

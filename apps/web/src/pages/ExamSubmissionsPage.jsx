@@ -25,6 +25,7 @@ import {
   Users,
   Plus,
   Trash2,
+  Zap,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -185,6 +186,21 @@ export default function ExamSubmissionsPage() {
       await Promise.all([loadCandidates(), loadEligibleStudents()]);
     } catch (err) {
       setCandidateError(getErrorMessage(err.response?.data?.error?.code, "Không thể xóa liên kết thí sinh."));
+    } finally {
+      setCandidateLoading(false);
+    }
+  };
+
+  const handleAutoAssignCandidates = async () => {
+    try {
+      setCandidateLoading(true);
+      setCandidateError("");
+      const res = await api.post(`/exams/${examId}/candidates/auto-assign`);
+      await Promise.all([loadCandidates(), loadEligibleStudents(), loadSubmissions(page)]);
+      const count = res.data.data?.assignedCount || 0;
+      alert(`Đã tự động gán thành công ${count} học sinh vào số báo danh!`);
+    } catch (err) {
+      setCandidateError(getErrorMessage(err.response?.data?.error?.code, "Không thể tự động gán thí sinh."));
     } finally {
       setCandidateLoading(false);
     }
@@ -408,6 +424,16 @@ export default function ExamSubmissionsPage() {
                 Thống kê chi tiết
               </Button>
             </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Zap}
+              loading={candidateLoading}
+              onClick={handleAutoAssignCandidates}
+              title="Tự động đối soát và liên kết số báo danh với tài khoản học sinh"
+            >
+              Tự động gán SBD
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -838,9 +864,19 @@ export default function ExamSubmissionsPage() {
                               {candidateMap[sub.studentNumber.resolved].studentName}
                             </span>
                           ) : (
-                            <span className="text-[10px] text-slate-400 block italic">
-                              Chưa gán tài khoản
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCandidateSbdInput(sub.studentNumber.resolved);
+                                setCandidateModalOpen(true);
+                                loadCandidates();
+                                loadEligibleStudents();
+                              }}
+                              className="text-[10px] text-amber-600 hover:text-amber-700 hover:underline block italic cursor-pointer text-left font-medium"
+                              title="Bấm để gán tài khoản học sinh cho SBD này"
+                            >
+                              Chưa gán tài khoản ↗
+                            </button>
                           )
                         )}
                       </td>
@@ -1036,6 +1072,28 @@ export default function ExamSubmissionsPage() {
                 {candidateError}
               </Alert>
             )}
+
+            {/* Quick Auto-Assign Action */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl">
+              <div>
+                <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  Tự động gán toàn bộ theo SBD
+                </span>
+                <span className="text-[11px] text-blue-700 block mt-0.5">
+                  Tự động đối soát mã học sinh, email và SBD trên bài thi để gán tài khoản hàng loạt trong 1 click.
+                </span>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Zap}
+                loading={candidateLoading}
+                onClick={handleAutoAssignCandidates}
+              >
+                <span>Gán tự động ngay</span>
+              </Button>
+            </div>
 
             {/* Add Candidate Form (only if unpublished) */}
             {!publication?.isPublished && (

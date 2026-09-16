@@ -205,7 +205,9 @@ def classify_bubble_group(fill_ratios: dict, is_digit: bool = False) -> tuple[st
         return status, val_str, candidate_str, confidence
 
     # len(strong_candidates) == 0
-    if top1_val >= MIN_UNCERTAIN_FILL_RATIO:
+    # A faint mark must stand out from other unfilled options by a noticeable margin (>= 0.07).
+    # If all bubbles have similar baseline fill (margin < 0.07), it is simply printed glyph / paper shadow noise.
+    if top1_val >= MIN_UNCERTAIN_FILL_RATIO and margin >= 0.07:
         status = "UNCERTAIN"
         val_str = None
         confidence = round(0.30 + 0.30 * (top1_val / max(0.001, MIN_FILL_RATIO)), 2)

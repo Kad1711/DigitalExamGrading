@@ -119,3 +119,25 @@ export function getInitials(fullName, email) {
   }
   return "U";
 }
+
+/**
+ * Resolves avatar URL relative to API base URL or static path.
+ * @param {string} avatarUrl
+ * @returns {string|null}
+ */
+export function getAvatarUrl(avatarUrl) {
+  if (!avatarUrl) return null;
+  if (
+    avatarUrl.startsWith("http://") ||
+    avatarUrl.startsWith("https://") ||
+    avatarUrl.startsWith("data:") ||
+    avatarUrl.startsWith("blob:")
+  ) {
+    return avatarUrl;
+  }
+  const base = import.meta.env.VITE_API_URL || "/api";
+  const cleanBase = base.endsWith("/") ? base.slice(0, -1) : base;
+  const cleanUrl = avatarUrl.startsWith("/") ? avatarUrl : `/${avatarUrl}`;
+  return `${cleanBase}${cleanUrl}`;
+}
+

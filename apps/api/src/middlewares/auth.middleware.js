@@ -42,6 +42,9 @@ export async function authenticate(req, res, next) {
         email: true,
         role: true,
         status: true,
+        avatarUrl: true,
+        fullName: true,
+        phone: true,
         teacher: {
           select: {
             id: true,
@@ -91,7 +94,9 @@ export async function authenticate(req, res, next) {
       email: user.email,
       role: user.role,
       status: user.status,
-      fullName: user.teacher?.fullName || user.student?.fullName || null,
+      avatarUrl: user.avatarUrl || null,
+      fullName: user.teacher?.fullName || user.student?.fullName || user.fullName || (user.role === "ADMIN" ? "Quản trị viên" : null),
+      phone: user.teacher?.phone || user.phone || null,
       teacher: user.teacher,
       student: user.student,
     };
