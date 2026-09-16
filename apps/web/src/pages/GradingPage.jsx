@@ -25,6 +25,10 @@ import {
   ArrowRight,
   Eye,
   Layers,
+  BarChart3,
+  FileCheck,
+  ExternalLink,
+  Clock,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -84,6 +88,32 @@ export default function GradingPage() {
   const [identityError, setIdentityError] = useState("");
   const [cropBlobUrls, setCropBlobUrls] = useState({});
   const [auditLogs, setAuditLogs] = useState([]);
+
+  // Exam live statistics & recent submissions
+  const [examSummary, setExamSummary] = useState(null);
+  const [recentSubmissions, setRecentSubmissions] = useState([]);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  const fetchExamStats = async (examId) => {
+    if (!examId) return;
+    try {
+      setLoadingStats(true);
+      const [summaryRes, subRes] = await Promise.allSettled([
+        api.get(`/exams/${examId}/submissions/summary`),
+        api.get(`/exams/${examId}/submissions?pageSize=5&sort=createdAt&order=desc`),
+      ]);
+      if (summaryRes.status === "fulfilled") {
+        setExamSummary(summaryRes.value.data.data);
+      }
+      if (subRes.status === "fulfilled") {
+        setRecentSubmissions(subRes.value.data.submissions || []);
+      }
+    } catch {
+      // Non-blocking
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   // Clean up preview object URL on unmount
   useEffect(() => {
@@ -217,6 +247,7 @@ export default function GradingPage() {
 
     const controller = new AbortController();
     setTemplateStatus("loading");
+    fetchExamStats(selectedExamId);
 
     api
       .get(`/exams/${selectedExamId}/answer-sheet-template`, {
@@ -495,6 +526,7 @@ export default function GradingPage() {
     }
 
     setIsBatchRunning(false);
+    fetchExamStats(selectedExamId);
   };
 
   // Submit manual teacher reviews and re-grade
@@ -1222,11 +1254,242 @@ export default function GradingPage() {
             {gradingMode === "SINGLE" && (
               <>
                 {!gradingResult && !gradingLoading && (
-                  <EmptyState
-                    icon={FileSpreadsheet}
-                    title="Chưa có kết quả chấm bài"
-                    description="Chọn kỳ thi ở khung bên trái, tải ảnh phiếu thi đã tô và bấm 'Chấm bài thi'. Kết quả điểm số, độ tin cậy và phân tích từng câu sẽ hiển thị tại đây."
-                  />
+                  selectedExam ? (
+                    <div className="space-y-6">
+                      {/* 1. Header & Summary Stats */}
+                      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                                <BarChart3 className="w-5 h-5" />
+                              </span>
+                              <h3 className="text-base font-bold text-slate-900">
+                                Tiến độ chấm bài: {selectedExam.title}
+                              </h3>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              Môn: <span className="font-medium text-slate-700">{selectedExam.subject?.name}</span>
+                              {selectedExam.class?.name && (
+                                <> &bull; Lớp: <span className="font-medium text-slate-700">{selectedExam.class.name}</span></>
+                              )}
+                              {" "}&bull; Quy mô: <span className="font-medium text-slate-700">{selectedExam.questionCount} câu</span>
+                            </p>
+                          </div>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            icon={ExternalLink}
+                            onClick={() => navigate(`/exams/${selectedExamId}/submissions`)}
+                            className="text-xs shrink-0"
+                          >
+                            Quản lý toàn bộ bài làm {examSummary?.totalSubmissions != null ? `(${examSummary.totalSubmissions})` : ""}
+                          </Button>
+                        </div>
+
+                        {/* Stat Cards */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                          <div className="p-3 bg-blue-50/70 border border-blue-200/60 rounded-xl">
+                            <span className="text-xs font-semibold text-blue-700 block mb-0.5">Số bài đã chấm</span>
+                            <span className="text-2xl font-extrabold text-blue-900">
+                              {loadingStats ? "..." : examSummary?.totalSubmissions ?? 0}
+                            </span>
+                            <span className="text-[11px] text-blue-600/80 block mt-0.5">
+                              {examSummary?.finalCount || 0} hoàn tất &bull; {examSummary?.provisionalCount || 0} tạm thời
+                            </span>
+                          </div>
+
+                          <div className="p-3 bg-emerald-50/70 border border-emerald-200/60 rounded-xl">
+                            <span className="text-xs font-semibold text-emerald-700 block mb-0.5">Điểm trung bình</span>
+                            <span className="text-2xl font-extrabold text-emerald-900">
+                              {loadingStats
+                                ? "..."
+                                : examSummary?.scoreStats?.avg != null
+                                ? Number(examSummary.scoreStats.avg).toFixed(2)
+                                : "—"}
+                            </span>
+                            <span className="text-[11px] text-emerald-600/80 block mt-0.5">
+                              Thang điểm {selectedExam.maxScore}đ
+                            </span>
+                          </div>
+
+                          <div className="p-3 bg-purple-50/70 border border-purple-200/60 rounded-xl">
+                            <span className="text-xs font-semibold text-purple-700 block mb-0.5">Điểm cao nhất</span>
+                            <span className="text-2xl font-extrabold text-purple-900">
+                              {loadingStats
+                                ? "..."
+                                : examSummary?.scoreStats?.max != null
+                                ? Number(examSummary.scoreStats.max).toFixed(2)
+                                : "—"}
+                            </span>
+                            <span className="text-[11px] text-purple-600/80 block mt-0.5">Thành tích cao nhất</span>
+                          </div>
+
+                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                            <span className="text-xs font-semibold text-slate-600 block mb-0.5">Điểm thấp nhất</span>
+                            <span className="text-2xl font-extrabold text-slate-800">
+                              {loadingStats
+                                ? "..."
+                                : examSummary?.scoreStats?.min != null
+                                ? Number(examSummary.scoreStats.min).toFixed(2)
+                                : "—"}
+                            </span>
+                            <span className="text-[11px] text-slate-500 block mt-0.5">Cần hỗ trợ ôn tập</span>
+                          </div>
+                        </div>
+
+                        {/* Quality Alerts */}
+                        {examSummary?.hasDuplicateSbd && (
+                          <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between gap-2 text-xs text-rose-800">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                              <span>
+                                <strong>Cảnh báo Trùng SBD:</strong> Có <strong>{examSummary.duplicateStudentNumberGroupCount}</strong> số báo danh bị trùng ({examSummary.duplicateSubmissionCount} bài thi). Hãy kiểm duyệt hoặc xoá bài nộp thừa để bảo đảm điểm số chính xác!
+                              </span>
+                            </div>
+                            <Button
+                              variant="danger"
+                              size="xs"
+                              onClick={() => navigate(`/exams/${selectedExamId}/submissions?duplicate=true`)}
+                              className="shrink-0"
+                            >
+                              Xử lý bài trùng ↗
+                            </Button>
+                          </div>
+                        )}
+
+                        {examSummary?.identityNeedsReviewCount > 0 && (
+                          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2 text-xs text-amber-800">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span>
+                                Có <strong>{examSummary.identityNeedsReviewCount}</strong> bài nộp cần xác nhận số báo danh trước khi công bố.
+                              </span>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              onClick={() => navigate(`/exams/${selectedExamId}/submissions?identityStatus=NEEDS_REVIEW`)}
+                              className="shrink-0 border-amber-300 text-amber-900 hover:bg-amber-100"
+                            >
+                              Duyệt SBD ↗
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 2. Recent Submissions Table */}
+                      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-slate-500" />
+                            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                              Bài thi đã chấm gần đây nhất
+                            </h4>
+                          </div>
+                          {recentSubmissions.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/exams/${selectedExamId}/submissions`)}
+                              className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-semibold cursor-pointer flex items-center gap-1"
+                            >
+                              Xem tất cả ({examSummary?.totalSubmissions || recentSubmissions.length})
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        {recentSubmissions.length === 0 ? (
+                          <div className="p-8 text-center text-slate-400 text-xs">
+                            <FileSpreadsheet className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-500" />
+                            <p className="font-medium text-slate-600">Kỳ thi này chưa có bài nào được chấm.</p>
+                            <p className="mt-1 text-slate-400">
+                              Hãy chọn ảnh phiếu thi ở khung bên trái và bấm "Chấm bài thi" để ghi nhận kết quả đầu tiên.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead className="bg-slate-50/80 text-slate-600 border-b border-slate-200 text-left font-semibold">
+                                <tr>
+                                  <th className="px-4 py-2.5">STT</th>
+                                  <th className="px-4 py-2.5">Số báo danh</th>
+                                  <th className="px-4 py-2.5">Mã đề</th>
+                                  <th className="px-4 py-2.5">Trạng thái</th>
+                                  <th className="px-4 py-2.5 text-right">Điểm số</th>
+                                  <th className="px-4 py-2.5 text-right">Đúng/Sai/Trống</th>
+                                  <th className="px-4 py-2.5 text-right">Thời gian</th>
+                                  <th className="px-4 py-2.5 text-center">Thao tác</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {recentSubmissions.map((sub, idx) => (
+                                  <tr key={sub.id} className="hover:bg-slate-50/70 transition-colors">
+                                    <td className="px-4 py-2.5 text-slate-500">{idx + 1}</td>
+                                    <td className="px-4 py-2.5 font-mono font-bold text-slate-800">
+                                      {sub.studentNumber?.resolved || sub.studentNumber?.detected || "Chưa rõ"}
+                                      {sub.isDuplicateSbd && (
+                                        <Badge variant="red" size="sm" className="ml-1.5">Trùng SBD</Badge>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-2.5 font-mono text-slate-600">{sub.examCode}</td>
+                                    <td className="px-4 py-2.5">
+                                      {sub.status === "FINAL" ? (
+                                        <Badge variant="green" size="sm">
+                                          <CheckCircle2 className="w-3 h-3 mr-1" />
+                                          Hoàn tất
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="amber" size="sm">
+                                          <Clock className="w-3 h-3 mr-1" />
+                                          Tạm thời
+                                        </Badge>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right font-bold text-slate-900">
+                                      {sub.status === "FINAL"
+                                        ? sub.grading?.finalScore != null ? Number(sub.grading.finalScore).toFixed(2) : "—"
+                                        : sub.grading?.provisionalScore != null ? Number(sub.grading.provisionalScore).toFixed(2) : "—"}
+                                      {" "}
+                                      <span className="text-slate-400 font-normal">/ {sub.grading?.maxScore}đ</span>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right text-slate-500">
+                                      <span className="text-green-700 font-semibold">{sub.grading?.correctCount}✓</span>
+                                      {" / "}
+                                      <span className="text-rose-600 font-semibold">{sub.grading?.incorrectCount}✗</span>
+                                      {" / "}
+                                      <span>{sub.grading?.blankCount}⬡</span>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right text-slate-400">
+                                      {new Date(sub.createdAt).toLocaleDateString("vi-VN")}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-center">
+                                      <Button
+                                        variant="ghost"
+                                        size="xs"
+                                        icon={Eye}
+                                        onClick={() => navigate(`/submissions/${sub.id}`)}
+                                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                      >
+                                        Xem bài
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <EmptyState
+                      icon={FileSpreadsheet}
+                      title="Chưa chọn kỳ thi"
+                      description="Vui lòng chọn một kỳ thi ở khung bên trái để bắt đầu chấm bài hoặc xem thống kê các bài đã chấm."
+                    />
+                  )
                 )}
 
                 {gradingLoading && (

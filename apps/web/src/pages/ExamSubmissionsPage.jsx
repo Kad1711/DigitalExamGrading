@@ -26,6 +26,8 @@ import {
   Plus,
   Trash2,
   Zap,
+  Edit,
+  UserCheck,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -126,6 +128,17 @@ export default function ExamSubmissionsPage() {
   const [candidateError, setCandidateError] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [candidateSbdInput, setCandidateSbdInput] = useState("");
+
+  // Submission Deletion Modal
+  const [subToDelete, setSubToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  // In-line SBD Review / Edit Modal
+  const [subToEditSbd, setSubToEditSbd] = useState(null);
+  const [editingSbdInput, setEditingSbdInput] = useState("");
+  const [sbdSaveLoading, setSbdSaveLoading] = useState(false);
+  const [sbdSaveError, setSbdSaveError] = useState("");
 
   const loadCandidates = useCallback(async () => {
     try {
@@ -298,6 +311,42 @@ export default function ExamSubmissionsPage() {
   const handleSearch = (e) => {
     e.preventDefault();
     setFilterSearch(searchInput.trim());
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!subToDelete) return;
+    try {
+      setDeleteLoading(true);
+      setDeleteError("");
+      await api.delete(`/submissions/${subToDelete.id}`);
+      setSubToDelete(null);
+      await Promise.all([loadSubmissions(page), loadSummary()]);
+    } catch (err) {
+      setDeleteError(getErrorMessage(err.response?.data?.error?.code, "Không thể xoá bài nộp này."));
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleSaveSbd = async (e) => {
+    e.preventDefault();
+    if (!subToEditSbd) return;
+    const clean = editingSbdInput.trim();
+    if (!/^\d{6}$/.test(clean)) {
+      setSbdSaveError("Số báo danh phải bao gồm đúng 6 chữ số.");
+      return;
+    }
+    try {
+      setSbdSaveLoading(true);
+      setSbdSaveError("");
+      await api.patch(`/submissions/${subToEditSbd.id}/identity`, { studentNumber: clean });
+      setSubToEditSbd(null);
+      await Promise.all([loadSubmissions(page), loadSummary(), loadCandidates()]);
+    } catch (err) {
+      setSbdSaveError(getErrorMessage(err.response?.data?.error?.code, "Không thể cập nhật số báo danh."));
+    } finally {
+      setSbdSaveLoading(false);
+    }
   };
 
   const handlePublishConfirm = async () => {
@@ -855,7 +904,22 @@ export default function ExamSubmissionsPage() {
                             </span>
                           )}
                           {sub.isDuplicateSbd && (
-                            <Badge variant="red" size="sm">Trùng SBD</Badge>
+                            <span className="inline-flex items-center gap-1">
+                              <Badge variant="red" size="sm">Trùng SBD</Badge>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSubToEditSbd(sub);
+                                  setEditingSbdInput(sub.studentNumber.resolved || sub.studentNumber.detected || "");
+                                  setSbdSaveError("");
+                                  loadEligibleStudents();
+                                }}
+                                className="text-[10px] text-rose-600 hover:text-rose-800 underline font-semibold cursor-pointer"
+                                title="Bấm để sửa lại SBD cho bài này"
+                              >
+                                [Sửa SBD]
+                              </button>
+                            </span>
                           )}
                         </div>
                         {sub.studentNumber.resolved && (
@@ -905,12 +969,47 @@ export default function ExamSubmissionsPage() {
                         {new Date(sub.createdAt).toLocaleDateString("vi-VN")}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Link
-                          to={`/submissions/${sub.id}`}
-                          className="text-blue-600 hover:text-blue-800 hover:underline text-xs font-semibold"
-                        >
-                          Chi tiết & Duyệt
-                        </Link>
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <Link
+                            to={`/submissions/${sub.id}`}
+                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded text-xs font-semibold inline-flex items-center transition-colors"
+                            title="Xem chi tiết bài làm và lịch sử duyệt"
+                          >
+                            Chi tiết & Duyệt
+                          </Link>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSubToEditSbd(sub);
+                              setEditingSbdInput(sub.studentNumber.resolved || sub.studentNumber.detected || "");
+                              setSbdSaveError("");
+                              loadEligibleStudents();
+                            }}
+                            className={`px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1 transition-colors cursor-pointer ${
+                              sub.isDuplicateSbd || sub.studentNumber.needsReview
+                                ? "bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold"
+                                : "hover:bg-slate-100 text-slate-600"
+                            }`}
+                            title="Sửa / Duyệt số báo danh nhanh"
+                          >
+                            <Edit className="w-3 h-3" />
+                            Sửa SBD
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSubToDelete(sub);
+                              setDeleteError("");
+                            }}
+                            disabled={publication?.isPublished}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={publication?.isPublished ? "Không thể xoá bài khi kết quả đã công bố" : "Xoá bài nộp này"}
+                          >
+                            <Trash2 className="w-4 h-4 text-rose-500" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1212,6 +1311,165 @@ export default function ExamSubmissionsPage() {
               )}
             </div>
           </div>
+        </Modal>
+
+        {/* ===================================================== */}
+        {/* MODAL: Delete Submission Confirmation */}
+        {/* ===================================================== */}
+        <Modal
+          isOpen={!!subToDelete}
+          onClose={() => !deleteLoading && setSubToDelete(null)}
+          title="Xác nhận xoá bài nộp"
+          footer={
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={deleteLoading}
+                onClick={() => setSubToDelete(null)}
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                icon={Trash2}
+                loading={deleteLoading}
+                onClick={handleConfirmDelete}
+              >
+                Xác nhận xoá bài
+              </Button>
+            </>
+          }
+        >
+          {subToDelete && (
+            <div className="space-y-3 text-sm text-slate-700">
+              <p>
+                Bạn có chắc chắn muốn xoá vĩnh viễn bài nộp này?
+              </p>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Số báo danh:</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {subToDelete.studentNumber.resolved || subToDelete.studentNumber.detected || "Chưa rõ"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Mã đề:</span>
+                  <span className="font-mono font-bold text-slate-800">{subToDelete.examCode}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Điểm số:</span>
+                  <span className="font-bold text-blue-600">
+                    {subToDelete.status === "FINAL"
+                      ? formatScore(subToDelete.grading.finalScore, subToDelete.grading.maxScore)
+                      : formatScore(subToDelete.grading.provisionalScore, subToDelete.grading.maxScore)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Thời gian chấm:</span>
+                  <span>{new Date(subToDelete.createdAt).toLocaleString("vi-VN")}</span>
+                </div>
+              </div>
+
+              {deleteError && (
+                <Alert variant="danger" className="text-xs">
+                  {deleteError}
+                </Alert>
+              )}
+
+              <Alert variant="warning" className="text-xs">
+                <strong>Lưu ý:</strong> Hành động này sẽ xoá hoàn toàn kết quả chấm và tệp ảnh quét của bài nộp khỏi hệ thống. Nếu bài nộp này bị trùng SBD với một bài thi khác, việc xoá bài thừa sẽ giải quyết cảnh báo Trùng SBD.
+              </Alert>
+            </div>
+          )}
+        </Modal>
+
+        {/* ===================================================== */}
+        {/* MODAL: Inline SBD Review / Edit */}
+        {/* ===================================================== */}
+        <Modal
+          isOpen={!!subToEditSbd}
+          onClose={() => !sbdSaveLoading && setSubToEditSbd(null)}
+          title="Kiểm duyệt & Sửa số báo danh (SBD)"
+          footer={
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={sbdSaveLoading}
+                onClick={() => setSubToEditSbd(null)}
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={UserCheck}
+                loading={sbdSaveLoading}
+                onClick={handleSaveSbd}
+              >
+                Lưu số báo danh
+              </Button>
+            </>
+          }
+        >
+          {subToEditSbd && (
+            <form onSubmit={handleSaveSbd} className="space-y-4 text-sm text-slate-700">
+              <div>
+                <p className="text-xs text-slate-500 mb-2">
+                  Điều chỉnh số báo danh để liên kết đúng học sinh hoặc giải quyết lỗi tô nhầm SBD.
+                </p>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Số báo danh (6 chữ số):
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={editingSbdInput}
+                  onChange={(e) => setEditingSbdInput(e.target.value.replace(/\D/g, ""))}
+                  placeholder="VD: 090619"
+                  className="w-full text-sm font-mono tracking-widest border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 font-bold"
+                  autoFocus
+                />
+              </div>
+
+              {eligibleStudents.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Gợi ý: Chọn nhanh học sinh trong lớp để lấy SBD:
+                  </label>
+                  <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 text-xs bg-slate-50/50">
+                    {eligibleStudents.map((st) => (
+                      <button
+                        key={st.studentId}
+                        type="button"
+                        onClick={() => {
+                          if (st.assignedStudentNumber) {
+                            setEditingSbdInput(st.assignedStudentNumber);
+                          } else if (st.studentCode && /^\d{6}$/.test(st.studentCode)) {
+                            setEditingSbdInput(st.studentCode);
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-left hover:bg-blue-50 flex items-center justify-between cursor-pointer transition-colors"
+                      >
+                        <span className="font-medium text-slate-800">{st.studentName} ({st.studentCode})</span>
+                        <span className="font-mono text-blue-600 font-semibold">
+                          {st.assignedStudentNumber ? `SBD: ${st.assignedStudentNumber}` : "Bấm chọn"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {sbdSaveError && (
+                <Alert variant="danger" className="text-xs">
+                  {sbdSaveError}
+                </Alert>
+              )}
+            </form>
+          )}
         </Modal>
       </main>
     </div>

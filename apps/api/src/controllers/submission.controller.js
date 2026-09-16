@@ -11,6 +11,7 @@ import {
   reviewSubmissionAnswers,
   reviewSubmissionIdentity,
   getSubmissionAuditLogs,
+  deleteSubmission,
 } from "../services/submission.service.js";
 
 /**
@@ -248,6 +249,25 @@ export async function getBatchStatusController(req, res, next) {
         ...record,
         progressPercent,
       },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * DELETE /api/submissions/:submissionId
+ */
+export async function deleteSubmissionController(req, res, next) {
+  try {
+    const { submissionId } = req.params;
+    await deleteSubmission({
+      submissionId,
+      user: req.user,
+    });
+    return res.status(200).json({
+      success: true,
+      message: "Xoá bài nộp thành công.",
     });
   } catch (err) {
     next(err);

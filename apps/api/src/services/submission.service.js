@@ -707,3 +707,29 @@ export async function getSubmissionAuditLogs({ submissionId, user }) {
     createdAt: log.createdAt,
   }));
 }
+
+/**
+ * Xoá một bài nộp và dọn dẹp các tệp ảnh lưu trữ.
+ * Chỉ cho phép giáo viên sở hữu kỳ thi hoặc Quản trị viên xoá.
+ * Chặn xoá nếu kỳ thi đã công bố kết quả.
+ */
+export async function deleteSubmission({ submissionId, user }) {
+  const submission = await assertSubmissionAccess(submissionId, user);
+
+  // Chặn xoá nếu kết quả đã được công bố
+  await assertResultsNotPublished(submission.examId);
+
+  // 1. Dọn dẹp tệp ảnh lưu trữ (ảnh crop câu hỏi và ảnh bài thi gốc)
+  try {
+    await cleanupSubmissionStorage(submissionId);
+  } catch (storageErr) {
+    console.warn(`[STORAGE] Cảnh báo dọn dẹp lưu trữ cho bài nộp ${submissionId}:`, storageErr.message);
+  }
+
+  // 2. Xoá bản ghi bài nộp trong Database (Cascade tự động dọn SubmissionAnswer và ExamSubmissionAuditLog)
+  await prisma.examSubmission.delete({
+    where: { id: submissionId },
+  });
+
+  return { success: true };
+}

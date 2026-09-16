@@ -8,14 +8,16 @@ import {
   reviewSubmissionAnswersController,
   reviewSubmissionIdentityController,
   getSubmissionAuditLogsController,
+  deleteSubmissionController,
 } from "../controllers/submission.controller.js";
 
 const router = Router();
 
 router.use(authenticate, authorizeRoles("TEACHER", "ADMIN"));
 
-// Submission Details
+// Submission Details & Deletion
 router.get("/:submissionId", getSubmissionController);
+router.delete("/:submissionId", deleteSubmissionController);
 
 // Authenticated image streaming routes
 router.get("/:submissionId/image", getSubmissionImageController);
