@@ -80,6 +80,7 @@ export function globalErrorHandler(err, req, res, next) {
     error: {
       code: "INTERNAL_SERVER_ERROR",
       message: "Hệ thống đang gặp sự cố. Vui lòng thử lại sau.",
+      details: err.message,
     },
   });
 }

@@ -31,11 +31,13 @@ app.get("/api/health", async (req, res) => {
     dbLatencyMs = Math.round((performance.now() - start) * 10) / 10;
 
     // Auto-ensure DB columns if not yet present
-    await prisma.$executeRawUnsafe(`
-      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT;
-      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT;
-      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT;
-    `).catch(() => {});
+    for (const sql of [
+      `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT`,
+      `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT`,
+      `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT`,
+    ]) {
+      await prisma.$executeRawUnsafe(sql).catch(() => {});
+    }
   } catch {
     dbStatus = "disconnected";
   }
@@ -58,6 +60,24 @@ app.get("/api/health", async (req, res) => {
       timestamp: new Date().toISOString(),
     },
   });
+});
+
+app.all("/api/health/db-sync", async (req, res) => {
+  const statements = [
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT`,
+  ];
+  const results = [];
+  for (const sql of statements) {
+    try {
+      await prisma.$executeRawUnsafe(sql);
+      results.push({ sql, status: "ok" });
+    } catch (err) {
+      results.push({ sql, status: "error", message: err.message });
+    }
+  }
+  return res.json({ success: true, timestamp: new Date().toISOString(), results });
 });
 
 app.use("/api", generalApiLimiter);

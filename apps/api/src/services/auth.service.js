@@ -89,14 +89,22 @@ export async function login(email, password) {
       err.message &&
       (err.message.includes("does not exist") ||
         err.message.includes("avatarUrl") ||
+        err.message.includes("fullName") ||
+        err.message.includes("phone") ||
         err.code === "P2021" ||
         err.code === "P2022")
     ) {
-      await prisma.$executeRawUnsafe(`
-        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT;
-        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT;
-        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT;
-      `).catch(() => {});
+      for (const sql of [
+        `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT`,
+        `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT`,
+        `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT`,
+      ]) {
+        try {
+          await prisma.$executeRawUnsafe(sql);
+        } catch {
+          // Ignore
+        }
+      }
       user = await prisma.user.findUnique({
         where: { email },
         include: userInclude,

@@ -83,14 +83,22 @@ export async function authenticate(req, res, next) {
         queryErr.message &&
         (queryErr.message.includes("does not exist") ||
           queryErr.message.includes("avatarUrl") ||
+          queryErr.message.includes("fullName") ||
+          queryErr.message.includes("phone") ||
           queryErr.code === "P2021" ||
           queryErr.code === "P2022")
       ) {
-        await prisma.$executeRawUnsafe(`
-          ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT;
-          ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT;
-          ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT;
-        `).catch(() => {});
+        for (const sql of [
+          `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT`,
+          `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT`,
+          `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT`,
+        ]) {
+          try {
+            await prisma.$executeRawUnsafe(sql);
+          } catch {
+            // Ignore
+          }
+        }
         user = await prisma.user.findUnique({
           where: { id: payload.sub },
           select: userSelect,
