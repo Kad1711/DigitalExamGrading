@@ -1,230 +1,750 @@
-# 🎓 Digital Exam Grading V1
-### Hệ Thống Chấm Điểm Bài Thi Trắc Nghiệm THPT Tự Động Bằng Thị Giác Máy Tính (Computer Vision & OMR)
+# 🎓 Digital Exam Grading V2
+
+### Hệ thống hỗ trợ tổ chức và chấm thi trắc nghiệm OMR cho trường Trung học Cơ sở (THCS)
 
 [![CI Pipeline](https://github.com/Kad1711/DigitalExamGrading/actions/workflows/ci.yml/badge.svg)](https://github.com/Kad1711/DigitalExamGrading/actions/workflows/ci.yml)
 [![Docker Ready](https://img.shields.io/badge/docker-compose%20v2-2496ED?logo=docker&logoColor=white)](compose.yaml)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg)](https://nodejs.org/)
 [![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![PostgreSQL](https://img.shields.io/badge/postgresql-17-blue.svg)](https://www.postgresql.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Redis](https://img.shields.io/badge/redis-7.x-red.svg)](https://redis.io/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-**Digital Exam Grading** là nền tảng toàn diện hỗ trợ các trường THPT, trung tâm khảo thí và giáo viên số hóa quy trình tổ chức thi: từ phát hành phiếu thi PDF chuẩn OMR, tổ chức lớp học, import danh sách học sinh thông minh, chấm điểm tự động từ ảnh chụp điện thoại/máy scan qua Computer Vision, đến phúc khảo đáp án và công bố điểm bảo mật cho học sinh tra cứu online.
-hi
+---
+
+## 📌 Giới thiệu
+
+**Digital Exam Grading V2** là hệ thống hỗ trợ số hóa quy trình **tổ chức, nhận dạng, chấm và công bố kết quả bài thi trắc nghiệm OMR** dành cho trường **Trung học Cơ sở (THCS – Khối 6, 7, 8, 9)**.
+
+Hệ thống kết hợp:
+
+- 🧠 **Computer Vision / OpenCV** để nhận dạng phiếu OMR.
+- 📐 **Homography** để hiệu chỉnh ảnh chụp nghiêng và biến dạng phối cảnh.
+- ⚙️ **Redis + BullMQ** để xử lý chấm bài hàng loạt bất đồng bộ.
+- 👁️ **Human Review** để rà soát các trường hợp tô mờ, tô nhiều đáp án hoặc nhận dạng không chắc chắn.
+- 🏫 **RBAC 6 vai trò** phù hợp với quy trình vận hành trong trường THCS.
+- 📊 Thống kê, phổ điểm và quản lý kết quả thi.
+- 🔐 Quy trình phê duyệt kết quả theo cấp độ kỳ thi.
+
+> **Phạm vi dự án:** Hệ thống tập trung vào tổ chức và chấm thi trắc nghiệm OMR, không nhằm thay thế toàn bộ phần mềm quản lý nhà trường.
+
 ---
 
 ## 📑 Mục lục
+
 1. [Kiến trúc hệ thống](#-kiến-trúc-hệ-thống)
-2. [Các tính năng nổi bật](#-các-tính-năng-nổi-bật)
-3. [Công nghệ sử dụng](#-công-nghệ-sử-dụng)
-4. [Yêu cầu môi trường](#-yêu-cầu-môi-trường)
-5. [Cài đặt & Khởi chạy cục bộ](#-cài-đặt--khởi-chạy-cục-bộ)
-6. [Tài khoản mặc định thử nghiệm](#-tài-khoản-mặc-định-thử-nghiệm)
-7. [Quy trình in & Chấm phiếu thi giấy](#-quy-trình-in--chấm-phiếu-thi-giấy)
-8. [Kiểm thử tự động (Testing)](#-kiểm-thử-tự-động-testing)
-9. [Hướng dẫn triển khai Production](#-hướng-dẫn-triển-khai-production)
+2. [Mô hình phân quyền RBAC](#-mô-hình-phân-quyền-rbac)
+3. [Quy trình nghiệp vụ cốt lõi](#-quy-trình-nghiệp-vụ-cốt-lõi)
+4. [Các tính năng nổi bật](#-các-tính-năng-nổi-bật)
+5. [Công nghệ sử dụng](#-công-nghệ-sử-dụng)
+6. [Cấu trúc dự án](#-cấu-trúc-dự-án)
+7. [Yêu cầu môi trường](#-yêu-cầu-môi-trường)
+8. [Cài đặt và khởi chạy](#-cài-đặt-và-khởi-chạy)
+9. [Quy trình chấm phiếu OMR](#-quy-trình-chấm-phiếu-omr)
+10. [Kiểm thử tự động](#-kiểm-thử-tự-động)
+11. [Triển khai Production](#-triển-khai-production)
+12. [Phạm vi phát triển tiếp theo](#-phạm-vi-phát-triển-tiếp-theo)
 
 ---
 
-## 🏛 Kiến trúc hệ thống
+# 🏛 Kiến trúc hệ thống
 
-Dự án được thiết kế theo mô hình Monorepo 3 tầng độc lập, cô lập ranh giới mạng và dịch vụ:
+Digital Exam Grading được tổ chức theo kiến trúc Monorepo gồm ba thành phần chính:
 
-```
+```text
 DigitalExamGrading/
+│
 ├── apps/
-│   ├── api/             # RESTful API Server (Node.js Express, Prisma, PostgreSQL)
-│   ├── ai-service/      # OMR Engine (Python FastAPI, OpenCV, Homography)
-│   └── web/             # Frontend SPA (React, Vite, Tailwind CSS v4)
-├── scripts/             # Scripts điều phối Docker, DB healthcheck, dev banner
-└── compose.yaml         # Docker Compose cho PostgreSQL 17 cục bộ
+│   ├── api/
+│   │   └── RESTful API
+│   │       Node.js + Express + Prisma + PostgreSQL
+│   │
+│   ├── ai-service/
+│   │   └── OMR Computer Vision Engine
+│   │       Python + FastAPI + OpenCV
+│   │
+│   └── web/
+│       └── Frontend SPA
+│           React + Vite + Tailwind CSS
+│
+├── scripts/
+│   └── Docker / Database / Development utilities
+│
+└── compose.yaml
+    └── PostgreSQL + Redis + AI Service
 ```
 
-### Ranh giới mạng & bảo mật (Network Hardening):
-- **Web Client:** `0.0.0.0:5173` (Truy cập được từ máy tính, điện thoại trong mạng LAN).
-- **Backend API:** `LAN :5000` (CORS whitelist chặt chẽ, bảo vệ dữ liệu nhạy cảm).
-- **AI Service:** `127.0.0.1:8000` (Chỉ API backend giao tiếp nội bộ, không lộ ra ngoài).
-- **PostgreSQL:** `127.0.0.1:5432` (Cô lập an toàn trong máy chủ/container).
+### Luồng xử lý chính
+
+```text
+Người dùng
+    │
+    ▼
+React Web
+    │
+    ▼
+Express REST API
+    │
+    ├──────────────► PostgreSQL
+    │
+    ├──────────────► Redis / BullMQ
+    │                     │
+    │                     ▼
+    │                 Grading Worker
+    │
+    └──────────────► FastAPI AI Service
+                          │
+                          ▼
+                       OpenCV
+                          │
+                          ▼
+                     Kết quả OMR
+```
 
 ---
 
-## ✨ Các tính năng nổi bật
+## 🔐 Ranh giới mạng
 
-### 1. Xử lý ảnh & Chấm thi OMR (Optical Mark Recognition)
-- **Cân chỉnh góc nghiêng tự động:** Thuật toán 4 mốc góc (Corner Markers) kết hợp phép biến đổi hình chiếu (Perspective Transform / Homography) nắn phẳng ảnh chụp từ góc nghiêng.
-- **Phân loại ô tô 4 trạng thái:** `MARKED` (Tô chuẩn), `BLANK` (Để trống), `MULTIPLE` (Tô nhiều ô), `UNCERTAIN` (Tô mờ hoặc tẩy sót).
-- **Giải mã mã QR tích hợp:** Tự động đọc mã kỳ thi và loại đề trên phiếu thi để đối soát đáp án.
-- **Cắt trích xuất câu hỏi (Review Crop):** Tự động cắt ảnh từng câu hỏi có nghi vấn để giáo viên xem lại và chấm phúc khảo trực quan.
+| Thành phần | Binding | Mục đích |
+|---|---|---|
+| Web Client | `0.0.0.0:5173` | Cho phép truy cập trong mạng LAN |
+| Backend API | `:5000` | REST API có JWT, CORS và rate limiting |
+| AI Service | `127.0.0.1:8000` | Chỉ Backend giao tiếp với AI |
+| Redis | `127.0.0.1:6379` | Queue xử lý OMR |
+| PostgreSQL | `127.0.0.1:5433` | Cơ sở dữ liệu chính |
 
-### 2. Quản lý kỳ thi & Thang điểm
-- **Vòng đời kỳ thi chuẩn hoá:** `DRAFT` ➔ `PUBLISHED` ➔ `CLOSED` ➔ `ARCHIVED`.
-- **Hỗ trợ đa dạng số lượng câu:** Tạo phiếu thi vector PDF chuẩn 20 câu, 40 câu, 50 câu, 100 câu khổ A4.
-- **Thang điểm linh hoạt:** Thang điểm chia đều (`EQUAL`) hoặc tuỳ biến theo từng câu (`CUSTOM`).
-
-### 3. Quản lý lớp học & Import Excel thông minh
-- **Nhận diện tiêu đề Heuristic:** Tự động phát hiện dòng tiêu đề và ánh xạ cột từ các file Excel phổ biến tại Việt Nam (vnEdu, SMAS, file Excel trường).
-- **Chuẩn hóa SBD 6 số OMR:** Tự động sinh SBD chuẩn dạng `KKLLSS` (2 số Khối + 2 số Lớp + 2 số STT, ví dụ `090601`), tránh trùng lặp mã.
-- **Tự động tạo tài khoản học sinh:** Khởi tạo tài khoản tra cứu điểm thi đồng bộ theo danh sách lớp.
-
-### 4. Cổng tra cứu điểm thi dành cho Học sinh
-- Học sinh đăng nhập bằng Số báo danh/Mã học sinh và mật khẩu được cấp.
-- Chỉ hiển thị kết quả khi kỳ thi đã được công bố chính thức (`resultsPublishedAt !== null`) và bài thi đã ở trạng thái `FINAL`.
-- Xem tổng điểm, số câu đúng/sai, chi tiết đáp án của bản thân.
-
-### 5. Quản trị viên (Admin) & Bảo mật dữ liệu
-- Phê duyệt tài khoản giáo viên đăng ký mới.
-- Quản lý khóa/mở khóa tài khoản, đặt lại mật khẩu an toàn.
-- **Bảo vệ quyền riêng tư:** Che (mask) email và số điện thoại, hỗ trợ nút con mắt bật/tắt hiển thị, loại bỏ hiển thị ID kỹ thuật nội bộ.
+AI Service, Redis và PostgreSQL không cần được public trực tiếp ra mạng LAN.
 
 ---
 
-## 🛠 Công nghệ sử dụng
+# 👥 Mô hình phân quyền RBAC
+
+Hệ thống sử dụng **6 vai trò chính**.
+
+| UserRole | Vai trò | Trách nhiệm chính |
+|---|---|---|
+| `SUPER_ADMIN` | Quản trị hệ thống | Quản trị tài khoản, role, trạng thái tài khoản và cấu hình kỹ thuật |
+| `PRINCIPAL` | Hiệu trưởng | Giám sát toàn trường và phê duyệt cuối kết quả kỳ thi `FINAL` |
+| `VICE_PRINCIPAL` | Hiệu phó chuyên môn | Quản lý chuyên môn giáo viên, phân công giảng dạy và phê duyệt `MIDTERM` |
+| `EXAM_OFFICER` | Cán bộ khảo thí | Tổ chức kỳ thi tập trung, xử lý OMR, hậu kiểm và trình duyệt kết quả |
+| `TEACHER` | Giáo viên | Tổ chức kiểm tra thường xuyên cho môn/lớp được phân công |
+| `STUDENT` | Học sinh | Tra cứu kết quả đã được công bố |
+
+---
+
+## 👨‍🏫 Tổ trưởng chuyên môn
+
+**Tổ trưởng chuyên môn không phải một UserRole riêng.**
+
+Tổ trưởng vẫn có:
+
+```text
+UserRole = TEACHER
+```
+
+và được xác định bằng:
+
+```text
+Teacher.isSubjectLeader = true
+```
+
+kết hợp với:
+
+```text
+Teacher.primarySubjectId
+```
+
+Tổ trưởng chỉ được phê duyệt Master AnswerKey của **đúng môn chuyên môn mình phụ trách**.
+
+Ví dụ:
+
+```text
+Teacher
+├── role: TEACHER
+├── title: Tổ trưởng chuyên môn
+├── isSubjectLeader: true
+├── primarySubject: Toán
+└── TeachingAssignments
+    ├── Toán - 6A1
+    └── Toán - 7A1
+```
+
+---
+
+# 🔄 Quy trình nghiệp vụ cốt lõi
+
+## 1. Kiểm tra thường xuyên
+
+Áp dụng cho:
+
+```text
+REGULAR
+MIN_15
+```
+
+Quy trình:
+
+```text
+Giáo viên
+    ↓
+Tạo bài kiểm tra
+    ↓
+Chọn lớp được phân công
+    ↓
+Thiết lập đáp án
+    ↓
+Sinh phiếu OMR
+    ↓
+Upload ảnh
+    ↓
+Chấm OMR
+    ↓
+Hậu kiểm
+    ↓
+FINAL
+    ↓
+Công bố trực tiếp
+```
+
+Giáo viên chỉ được tạo bài kiểm tra:
+
+- Đúng môn chuyên môn chính.
+- Đúng lớp đang được phân công.
+- Không cần Ban Giám hiệu phê duyệt.
+
+---
+
+## 2. Kỳ thi Giữa kỳ
+
+Áp dụng cho:
+
+```text
+MIDTERM
+```
+
+```text
+Cán bộ khảo thí
+        ↓
+Tạo kỳ thi tập trung
+        ↓
+Tổ trưởng chuyên môn
+        ↓
+Duyệt Master AnswerKey
+        ↓
+Upload phiếu thi
+        ↓
+Redis / BullMQ
+        ↓
+OpenCV OMR
+        ↓
+Hậu kiểm kỹ thuật
+        ↓
+Cán bộ khảo thí gửi duyệt
+        ↓
+Hiệu phó chuyên môn
+        ↓
+Phê duyệt
+        ↓
+PUBLISHED
+```
+
+Sau khi Hiệu phó phê duyệt thành công:
+
+```text
+resultsPublishedAt = now()
+```
+
+Kết quả được công bố tự động.
+
+---
+
+## 3. Kỳ thi Cuối kỳ
+
+Áp dụng cho:
+
+```text
+FINAL
+```
+
+```text
+Cán bộ khảo thí
+        ↓
+Tạo kỳ thi
+        ↓
+Tổ trưởng chuyên môn
+        ↓
+Duyệt Master AnswerKey
+        ↓
+Chấm OMR hàng loạt
+        ↓
+Hậu kiểm kỹ thuật
+        ↓
+Hiệu phó chuyên môn
+        ↓
+Rà soát chuyên môn
+        ↓
+Hiệu trưởng
+        ↓
+Phê duyệt cuối
+        ↓
+PUBLISHED
+```
+
+Hiệu phó chỉ thực hiện bước rà soát chuyên môn.
+
+Kết quả chỉ được công bố khi **Hiệu trưởng phê duyệt cuối cùng**.
+
+---
+
+# ✨ Các tính năng nổi bật
+
+## 🧠 1. Nhận dạng và chấm OMR
+
+Hệ thống sử dụng Computer Vision để xử lý phiếu thi:
+
+- Nhận diện 4 Corner Markers.
+- Hiệu chỉnh phối cảnh bằng Homography.
+- Chuẩn hóa vùng ảnh.
+- Phân tích tỷ lệ tô.
+- Xác định đáp án.
+- Tính confidence.
+- Đánh dấu trường hợp cần hậu kiểm.
+
+Các trạng thái nhận dạng:
+
+| Trạng thái | Ý nghĩa |
+|---|---|
+| `MARKED` | Một phương án được tô rõ |
+| `BLANK` | Không có phương án |
+| `MULTIPLE` | Có nhiều phương án được tô |
+| `UNCERTAIN` | Kết quả không đủ độ tin cậy |
+
+---
+
+## 🔍 2. Human Review
+
+Các câu hỏi có độ tin cậy thấp có thể được đưa vào giao diện hậu kiểm.
+
+Hệ thống lưu vùng ảnh crop tương ứng để người có quyền đối chiếu với phiếu thi thực tế.
+
+---
+
+## ⚡ 3. Chấm hàng loạt với Redis + BullMQ
+
+Khi tải nhiều phiếu thi:
+
+```text
+Frontend
+    ↓
+1 Batch Request
+    ↓
+Backend
+    ↓
+BullMQ Queue
+    ↓
+Redis
+    ↓
+Grading Worker
+    ↓
+AI Service
+```
+
+Frontend theo dõi tiến độ xử lý bằng polling.
+
+Khi Redis/BullMQ không khả dụng, hệ thống có thể chuyển sang cơ chế xử lý tuần tự dự phòng.
+
+---
+
+## 🏫 4. Quản lý khối và lớp THCS
+
+Hệ thống chỉ hỗ trợ:
+
+```text
+Khối 6
+Khối 7
+Khối 8
+Khối 9
+```
+
+Ví dụ lớp:
+
+```text
+6A1
+6A2
+7A1
+8A1
+9A1
+```
+
+---
+
+## 🔢 5. Chuẩn hóa SBD OMR 6 số
+
+Định dạng:
+
+```text
+KKLLSS
+```
+
+Trong đó:
+
+- `KK`: mã khối (`06`, `07`, `08`, `09`)
+- `LL`: thứ tự lớp trong khối
+- `SS`: số thứ tự học sinh
+
+Ví dụ:
+
+```text
+090215
+```
+
+có thể biểu diễn học sinh thứ 15 thuộc lớp thứ 2 của Khối 9.
+
+---
+
+## 📄 6. Phiếu OMR PDF
+
+Hệ thống hỗ trợ sinh phiếu OMR dạng PDF vector A4.
+
+Phiếu có thể bao gồm:
+
+- SBD 6 chữ số.
+- Mã đề 3 chữ số.
+- QR Code định danh kỳ thi.
+- Corner Markers.
+- Vùng trả lời trắc nghiệm.
+
+---
+
+## 📊 7. Thống kê kết quả
+
+Hệ thống hỗ trợ:
+
+- Điểm trung bình.
+- Điểm cao nhất / thấp nhất.
+- Phổ điểm.
+- Tỷ lệ hoàn thành.
+- Số bài cần hậu kiểm.
+- Thống kê theo lớp.
+- Thống kê kỳ thi tập trung.
+
+---
+
+## 🎓 8. Cổng học sinh
+
+Học sinh chỉ được xem kết quả khi:
+
+```text
+Exam đã được công bố
+AND
+Submission = FINAL
+AND
+Danh tính đã được xác nhận
+AND
+ExamCandidate khớp với học sinh
+```
+
+Hệ thống không cho phép học sinh truy cập dữ liệu của học sinh khác.
+
+Ảnh scan gốc của phiếu thi hiện **không được cung cấp cho học sinh** trong phiên bản THCS V2.
+
+---
+
+# 🛠 Công nghệ sử dụng
 
 | Tầng | Công nghệ |
-| :--- | :--- |
-| **Frontend** | React 19, Vite, Tailwind CSS v4, Lucide React, Axios, React Router v7 |
-| **Backend** | Node.js 24, Express 5, Prisma ORM 7, Zod Validation, JWT, Bcrypt |
-| **Cơ sở dữ liệu** | PostgreSQL 17 (Docker hoặc Cloud Postgres) |
-| **AI / OMR** | Python 3.11, FastAPI, OpenCV, NumPy, Pillow, Pyzbar |
-| **DevOps & Tooling**| Docker Compose, Concurrently, ESLint, Pytest |
+|---|---|
+| Frontend | React 19, JavaScript, Vite, Tailwind CSS v4, Lucide React, Axios |
+| Backend | Node.js 24, Express 5, Prisma ORM 7, Zod, JWT, bcrypt |
+| Database | PostgreSQL 17 |
+| Queue | Redis 7 + BullMQ |
+| AI Service | Python 3.11, FastAPI, OpenCV, NumPy, Pillow |
+| Testing | Node Test Runner, Supertest, Pytest, ESLint |
+| Deployment | Docker / Docker Compose |
 
 ---
 
-## 📋 Yêu cầu môi trường
+# 📁 Cấu trúc dự án
 
-- **Hệ điều hành:** Windows 10/11, macOS, hoặc Linux
-- **Node.js:** `>= 22.0.0` (Khuyên dùng Node 24 LTS)
-- **Python:** `3.11.x`
-- **Docker Desktop:** Đã cài đặt và đang chạy (để khởi chạy PostgreSQL)
+```text
+DigitalExamGrading/
+│
+├── apps/
+│   ├── api/
+│   │   ├── prisma/
+│   │   ├── src/
+│   │   └── tests/
+│   │
+│   ├── ai-service/
+│   │   ├── app/
+│   │   └── tests/
+│   │
+│   └── web/
+│       ├── src/
+│       └── public/
+│
+├── scripts/
+├── compose.yaml
+├── package.json
+└── README.md
+```
 
 ---
 
-## 🚀 Cài đặt & Khởi chạy cục bộ
+# 📋 Yêu cầu môi trường
 
-### 1. Clone mã nguồn
+- Windows 10/11, Linux hoặc macOS.
+- Node.js `>= 22`.
+- Python `3.11`.
+- Docker Desktop / Docker Engine.
+- Git.
+
+Khuyến nghị:
+
+```text
+Node.js 24 LTS
+PostgreSQL 17
+Redis 7
+Python 3.11
+```
+
+---
+
+# 🚀 Cài đặt và khởi chạy
+
+## 1. Clone repository
+
 ```bash
 git clone https://github.com/Kad1711/DigitalExamGrading.git
 cd DigitalExamGrading
 ```
 
-### 2. Cấu hình biến môi trường
-Tạo tệp `.env` tại thư mục gốc của từng ứng dụng (tham khảo `.env.example` nếu có):
+---
 
-**`apps/api/.env`:**
+## 2. Cài đặt dependencies
+
+```bash
+npm install
+npm --prefix apps/api install
+npm --prefix apps/web install
+```
+
+AI Service được khuyến nghị chạy qua Docker.
+
+---
+
+## 3. Cấu hình môi trường
+
+Tạo:
+
+```text
+apps/api/.env
+```
+
+Ví dụ:
+
 ```env
 PORT=5000
 NODE_ENV=development
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/exam_grading_db"
-TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/exam_grading_test"
-JWT_SECRET="your_jwt_secret_key_change_in_production"
+
+DATABASE_URL="<YOUR_DEVELOPMENT_DATABASE_URL>"
+TEST_DATABASE_URL="<YOUR_ISOLATED_TEST_DATABASE_URL>"
+
+JWT_SECRET="<GENERATE_A_STRONG_RANDOM_SECRET>"
+
 AI_SERVICE_URL="http://127.0.0.1:8000"
+REDIS_URL="redis://127.0.0.1:6379"
+
 SUBMISSION_STORAGE_DIR="./storage/submissions"
+
 CORS_ORIGIN="http://localhost:5173"
 ```
 
-**`apps/web/.env`:**
+Tạo:
+
+```text
+apps/web/.env
+```
+
 ```env
 VITE_API_URL="http://localhost:5000"
 ```
 
-### 3. Cài đặt Dependencies
+> Không commit file `.env` hoặc thông tin xác thực vào repository.
 
-**Cài đặt toàn bộ dependencies:**
+---
+
+## 4. Khởi động hạ tầng
+
 ```bash
-# Cài đặt Node modules cho Root, API và Web
-npm install
-npm --prefix apps/api install
-npm --prefix apps/web install
-
-# Thiết lập môi trường ảo Python cho AI Service
-cd apps/ai-service
-python -m venv .venv
-
-# Kích hoạt venv (Windows PowerShell):
-.venv\Scripts\Activate.ps1
-# (Trên Linux/macOS): source .venv/bin/activate
-
-pip install -r requirements.txt
-cd ../..
+docker compose up -d
 ```
 
-### 4. Khởi tạo Cơ sở dữ liệu Prisma
+Kiểm tra:
+
+```bash
+docker ps
+```
+
+Các dịch vụ chính:
+
+```text
+PostgreSQL
+Redis
+AI Service
+```
+
+---
+
+## 5. Prisma
+
 ```bash
 cd apps/api
-npx prisma db push
+
+npx prisma generate
+npx prisma migrate deploy
+
 cd ../..
 ```
 
-### 5. Khởi chạy toàn bộ hệ thống
+Trong môi trường phát triển khi cần tạo migration mới:
 
-#### Cách 1: Khởi chạy 1 lệnh ăn ngay với Docker Compose (Production-ready)
-Không cần cài đặt thủ công Node hay Python, chạy toàn bộ 4 services trong container:
 ```bash
-npm run docker:up
-# hoặc: docker compose up --build
+npx prisma migrate dev
 ```
-Hệ thống sẽ tự động cấu hình:
-- 🌐 **Web Frontend:** `http://localhost:5173` (Nginx reverse proxy)
-- ⚙️ **Backend API:** `http://localhost:5000`
-- 🧠 **AI OMR Service:** `http://localhost:8000`
-- 🐘 **PostgreSQL 17:** `localhost:5433`
 
-Dừng hệ thống: `npm run docker:down`
+> Không sử dụng `prisma migrate reset` trên cơ sở dữ liệu chứa dữ liệu cần bảo toàn.
 
-#### Cách 2: Khởi chạy chế độ phát triển cục bộ (Hybrid Dev)
-Dành cho lập trình viên muốn live-reload code trực tiếp trên máy:
+---
+
+## 6. Khởi chạy Development
+
+Từ thư mục root:
+
 ```bash
 npm run dev
 ```
-Lệnh này sẽ tự động khởi động container **PostgreSQL 17** và chạy song song 3 ứng dụng cục bộ với live-reload.
 
----
+Các dịch vụ:
 
-## 🔑 Tài khoản mặc định thử nghiệm
-
-| Vai trò | Tài khoản | Mật khẩu mặc định | Ghi chú |
-| :--- | :--- | :--- | :--- |
-| **Quản trị viên (Admin)** | `admin@digitalexam.local` | `Admin@123456` | Quản lý giáo viên, phê duyệt tài khoản |
-| **Giáo viên (Teacher)** | `teacher@digitalexam.local` | `Teacher@123456` | Tạo kỳ thi, quản lý lớp, tải phiếu, chấm bài |
-| **Học sinh (Student)** | SBD hoặc Email được cấp | `123456` | Cổng tra cứu điểm thi học sinh |
-
----
-
-## 📝 Quy trình in & Chấm phiếu thi giấy
-
-Để đạt độ chính xác nhận diện OMR cao nhất:
-
-1. **In phiếu PDF:**
-   - Chọn kỳ thi trên giao diện Giáo viên ➔ Bấm **"Tải phiếu trả lời PDF"**.
-   - Khi in, chọn khổ giấy **A4**, tỷ lệ in **Actual Size (100%)**.
-   - *Lưu ý:* Tuyệt đối không chọn *Fit to page* làm sai lệch tọa độ đo quang học.
-2. **Tô phiếu thi:**
-   - Dùng bút chì 2B tô kín và đậm các ô tròn tương ứng với SBD, Mã đề và Đáp án.
-3. **Chụp ảnh bài làm:**
-   - Đặt bài thi trên mặt phẳng, đủ ánh sáng đều (tránh bóng đổ của tay/điện thoại).
-   - Chụp vuông góc, lấy trọn vẹn **đủ 4 ô vuông màu đen ở 4 góc** tờ giấy và mã QR ở góc trên.
-4. **Tải lên và Chấm điểm:**
-   - Tải ảnh chụp lên hệ thống, OMR sẽ tự động căn chỉnh và xuất kết quả chi tiết trong vòng 1-2 giây.
-
----
-
-## 🧪 Kiểm thử tự động (Testing)
-
-Dự án duy trì tỷ lệ kiểm thử nghiêm ngặt, đảm bảo tính toàn vẹn nghiệp vụ:
-
-### 1. Kiểm thử AI OMR (Python)
-```bash
-cd apps/ai-service
-.venv\Scripts\python -m pytest tests
+```text
+Web       http://localhost:5173
+API       http://localhost:5000
+AI        http://127.0.0.1:8000
+Redis     127.0.0.1:6379
+Postgres  127.0.0.1:5433
 ```
-*Kết quả:* **37/37 tests PASS** (Kiểm tra góc xoay, marker, calibration, ô mờ, ô tô đè).
 
-### 2. Kiểm thử Backend API (Node.js)
+---
+
+# 📝 Quy trình chấm phiếu OMR
+
+## 1. In phiếu
+
+Tại kỳ thi:
+
+```text
+Chi tiết kỳ thi
+→ Tải mẫu phiếu trả lời OMR
+```
+
+Khi in:
+
+- Khổ giấy A4.
+- `Actual Size / 100%`.
+- Không chọn `Fit to page`.
+
+---
+
+## 2. Tô phiếu
+
+Khuyến nghị:
+
+- Bút chì 2B hoặc bút mực đen.
+- Tô kín vòng tròn.
+- Không đánh dấu ngoài vùng đáp án.
+- Ghi đúng SBD và mã đề.
+
+---
+
+## 3. Chụp hoặc scan
+
+Ảnh cần:
+
+- Đủ toàn bộ phiếu.
+- Nhìn thấy rõ 4 Corner Markers.
+- Không bị bóng lớn.
+- Hạn chế nhòe.
+- Không cắt mất QR Code hoặc vùng trả lời.
+
+---
+
+## 4. Upload
+
+Có thể:
+
+- Upload một phiếu.
+- Kéo thả nhiều ảnh.
+- Chấm hàng loạt.
+
+Hệ thống tự động:
+
+```text
+Upload
+→ Queue
+→ Perspective Correction
+→ OMR Detection
+→ Identity Resolution
+→ Scoring
+→ Human Review nếu cần
+→ FINAL
+```
+
+---
+
+# 🧪 Kiểm thử tự động
+
+## Backend API
+
 ```bash
 npm --prefix apps/api test
 ```
-*Kết quả:* Chạy trên cơ sở dữ liệu kiểm thử độc lập `exam_grading_test`, không ảnh hưởng dữ liệu thật.
 
-### 3. Kiểm thử Frontend Lint & Build
+Các nhóm test bao gồm:
+
+- RBAC.
+- Teacher/Class scope.
+- Exam lifecycle.
+- OMR grading.
+- Submission persistence.
+- Candidate mapping.
+- Publication.
+- Student result security.
+- Analytics.
+- Export security.
+- Database isolation.
+
+---
+
+## AI / Computer Vision
+
+```bash
+docker exec -e PYTHONPATH=. digital_exam_ai pytest tests/
+```
+
+Bộ test kiểm tra:
+
+- Bubble calibration.
+- Marker robustness.
+- Synthetic OMR.
+- Perspective distortion.
+- Image rotation.
+- Bubble classification.
+
+---
+
+## Frontend
+
 ```bash
 npm --prefix apps/web run lint
 npm --prefix apps/web run build
@@ -232,32 +752,82 @@ npm --prefix apps/web run build
 
 ---
 
-## 🌐 Hướng dẫn triển khai Production
+# 🌐 Triển khai Production
 
-### 1. Triển khai API trên Render.com
-- **Build Command:** `npm --prefix apps/api install && npx prisma generate --schema=apps/api/prisma/schema.prisma`
-- **Start Command:** `npm --prefix apps/api run start`
-- **Environment Variables:**
-  - `DATABASE_URL`: Chuỗi kết nối PostgreSQL (Render Postgres hoặc Neon)
-  - `CORS_ORIGIN`: Tên miền frontend (ví dụ: `https://yourdomain.com`)
-  - `AI_SERVICE_URL`: Địa chỉ nội bộ hoặc domain của dịch vụ AI
+## Database Migration
 
-### 2. Triển khai Frontend Web trên Vercel / Cloudflare Pages
-- **Root Directory:** `apps/web`
-- **Build Command:** `npm run build`
-- **Output Directory:** `dist`
-- **Environment Variable:**
-  - `VITE_API_URL`: `https://api.yourdomain.com`
+Production sử dụng:
 
-### 3. Triển khai trọn gói trên VPS Linux (Khuyên dùng cho thi thật)
-Khởi chạy toàn bộ hệ thống bằng Docker Compose trên 1 máy chủ VPS riêng biệt:
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
+npx prisma migrate deploy
+```
+
+Không sử dụng:
+
+```bash
+npx prisma migrate reset
 ```
 
 ---
 
-## 📄 Bản quyền & Tác giả
+## Kiến trúc triển khai gợi ý
 
-- Dự án được phát triển phục vụ công tác chuyển đổi số trong giáo dục và khảo thí THPT.
-- Phát hành theo giấy phép [MIT License](LICENSE).
+```text
+Frontend
+   │
+   ▼
+Backend API
+   │
+   ├── PostgreSQL
+   ├── Redis
+   └── AI Service
+```
+
+Có thể triển khai theo:
+
+- Docker Compose trên VPS.
+- Frontend trên nền tảng hosting SPA.
+- Backend Node.js trên nền tảng container/PaaS.
+- PostgreSQL Managed Service.
+- Redis Managed Service.
+- AI Service chạy container riêng.
+
+Các thông tin xác thực Production phải được cấu hình bằng **Environment Variables hoặc Secret Manager**, tuyệt đối không lưu trực tiếp trong repository.
+
+---
+
+# 🔮 Phạm vi phát triển tiếp theo
+
+Các tính năng chưa thuộc phạm vi THCS V2 hiện tại:
+
+- Phúc khảo trực tuyến.
+- Học sinh xem ảnh scan gốc.
+- Lịch thi đầy đủ.
+- Phòng thi.
+- Phân công giám thị.
+- Các mô hình AI học sâu.
+- Hệ thống LMS.
+- Điểm danh.
+- Học phí.
+- Quản lý nhân sự toàn trường.
+
+---
+
+# 🎯 Định hướng đề tài
+
+> **Digital Exam Grading là hệ thống hỗ trợ tổ chức, nhận dạng, chấm và công bố kết quả bài thi trắc nghiệm OMR cho trường Trung học Cơ sở.**
+
+Mục tiêu của dự án là hỗ trợ nhà trường giảm thao tác chấm thủ công, tăng tốc độ xử lý bài thi, giảm sai sót và cung cấp quy trình hậu kiểm rõ ràng, minh bạch.
+
+---
+
+# 📄 License
+
+This project is distributed under the **MIT License**.
+
+---
+
+<p align="center">
+  <b>Digital Exam Grading V2</b><br/>
+  OMR Examination Management for Middle Schools
+</p>
