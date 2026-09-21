@@ -403,14 +403,18 @@ export async function reviewSubmissionIdentity({ submissionId, studentNumber, us
   });
 
   // Tự động liên kết học sinh trong lớp nếu chưa gán
-  if (cleanSbd && submission.exam?.classId) {
+  const reviewExamClassIds = [
+    ...(submission.exam?.classId ? [submission.exam.classId] : []),
+    ...(submission.exam?.examClasses ? submission.exam.examClasses.map((ec) => ec.classId) : []),
+  ];
+  if (cleanSbd && reviewExamClassIds.length > 0) {
     try {
       const existingCandidate = await prisma.examCandidate.findFirst({
         where: { examId: submission.examId, studentNumber: cleanSbd },
       });
       if (!existingCandidate) {
         const enrollments = await prisma.studentEnrollment.findMany({
-          where: { classId: submission.exam.classId },
+          where: { classId: { in: reviewExamClassIds } },
           include: {
             student: {
               include: { user: { select: { email: true } } },

@@ -9,7 +9,11 @@ export const createExamSchema = z.object({
   title: z.string().min(1, "Ten ky thi khong duoc de trong.").max(255),
   description: z.string().max(1000).optional(),
   subjectId: z.string().min(1, "subjectId la bat buoc."),
-  classId: z.string().min(1, "classId la bat buoc."),
+  classId: z.string().optional().nullable(),
+  classIds: z.array(z.string()).optional(),
+  gradeId: z.string().optional().nullable(),
+  durationMinutes: z.number().int().min(1).max(300).default(45).optional(),
+  sheetPreset: z.string().default("PRESET_TERM_50Q").optional(),
   questionCount: z
     .number({ invalid_type_error: "questionCount phai la so." })
     .int("questionCount phai la so nguyen.")
@@ -28,7 +32,11 @@ export const updateExamSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   description: z.string().max(1000).nullable().optional(),
   subjectId: z.string().min(1).optional(),
-  classId: z.string().min(1).optional(),
+  classId: z.string().nullable().optional(),
+  classIds: z.array(z.string()).optional(),
+  gradeId: z.string().nullable().optional(),
+  durationMinutes: z.number().int().min(1).max(300).optional(),
+  sheetPreset: z.string().optional(),
   questionCount: z.number().int().min(1).optional(),
   maxScore: z.number().positive().max(10).optional(),
   scoringType: z.enum(["EQUAL", "CUSTOM"]).optional(),

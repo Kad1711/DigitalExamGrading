@@ -8,8 +8,9 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
     where: { id: examId },
     include: {
       teacher: true,
-      subject: { select: { code: true, name: true } },
+      subject: { select: { id: true, code: true, name: true } },
       class: { select: { id: true, name: true } },
+      examClasses: { include: { class: { select: { id: true, name: true } } } },
     },
   });
 
@@ -17,12 +18,39 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
     throw new AppError("Kỳ thi không tồn tại hoặc đã bị xóa.", 404, "EXAM_NOT_FOUND");
   }
 
-  if (userRole !== "ADMIN" && exam.teacher?.userId !== teacherUserId) {
-    throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
+  let teacherAssignedClassIds = null;
+  if (userRole !== "ADMIN") {
+    const teacher = await prisma.teacher.findUnique({ where: { userId: teacherUserId } });
+    if (!teacher) {
+      throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
+    }
+
+    const isDirectOwner = exam.teacherId && exam.teacherId === teacher.id;
+    const examClassIds = [
+      ...(exam.classId ? [exam.classId] : []),
+      ...(exam.examClasses ? exam.examClasses.map((ec) => ec.classId) : []),
+    ];
+
+    const myAssignments = await prisma.teachingAssignment.findMany({
+      where: {
+        teacherId: teacher.id,
+        subjectId: exam.subjectId,
+        classId: { in: examClassIds },
+      },
+      select: { classId: true },
+    });
+
+    if (!isDirectOwner && myAssignments.length === 0) {
+      throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
+    }
+
+    if (!isDirectOwner || exam.examClasses?.length > 0) {
+      teacherAssignedClassIds = myAssignments.map((a) => a.classId);
+    }
   }
 
   // Fetch all submissions for this exam with answers
-  const submissions = await prisma.examSubmission.findMany({
+  let submissions = await prisma.examSubmission.findMany({
     where: { examId },
     include: {
       answers: {
@@ -34,6 +62,15 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
     },
     orderBy: { createdAt: "asc" },
   });
+
+  if (teacherAssignedClassIds && teacherAssignedClassIds.length > 0) {
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: { classId: { in: teacherAssignedClassIds } },
+      select: { student: { select: { studentCode: true } } },
+    });
+    const allowedSbdSet = new Set(enrollments.map((e) => e.student.studentCode));
+    submissions = submissions.filter((s) => s.resolvedStudentNumber && allowedSbdSet.has(s.resolvedStudentNumber));
+  }
 
   const totalSubmissions = submissions.length;
   const finalSubmissions = submissions.filter((s) => s.status === "FINAL");

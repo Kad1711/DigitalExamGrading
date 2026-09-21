@@ -52,6 +52,7 @@ export default function ExamDetailPage() {
   const [showEditMetadataModal, setShowEditMetadataModal] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editDuration, setEditDuration] = useState(45);
   const [savingMetadata, setSavingMetadata] = useState(false);
 
   // Selected Exam Code & Answer Key
@@ -113,6 +114,7 @@ export default function ExamDetailPage() {
       setExamCodes(codesData);
       setEditTitle(examData.title || "");
       setEditDescription(examData.description || "");
+      setEditDuration(examData.durationMinutes || 45);
 
       if (codesData.length > 0 && !selectedCodeId) {
         setSelectedCodeId(codesData[0].id);
@@ -199,6 +201,7 @@ export default function ExamDetailPage() {
       const res = await api.patch(`/exams/${examId}`, {
         title: editTitle.trim(),
         description: editDescription.trim() || null,
+        durationMinutes: editDuration ? Number(editDuration) : 45,
       });
 
       const updated = res.data.data;
@@ -686,13 +689,35 @@ export default function ExamDetailPage() {
                 <Badge variant="blue" size="sm">
                   {exam.subject?.name || "Môn học"}
                 </Badge>
-                <Badge variant="gray" size="sm">
-                  {exam.class?.name || "Lớp"}
-                </Badge>
+                {exam.grade && (
+                  <Badge variant="purple" size="sm">
+                    {exam.grade.name}
+                  </Badge>
+                )}
+                {exam.examClasses && exam.examClasses.length > 0 ? (
+                  exam.examClasses.map((ec) => (
+                    <Badge key={ec.id} variant="gray" size="sm">
+                      {ec.class?.name || "Lớp"}
+                    </Badge>
+                  ))
+                ) : exam.class ? (
+                  <Badge variant="gray" size="sm">
+                    {exam.class.name}
+                  </Badge>
+                ) : null}
                 <span>&bull;</span>
                 <span className="font-semibold text-slate-800">
                   {exam.questionCount} câu
                 </span>
+                {exam.durationMinutes && (
+                  <>
+                    <span>&bull;</span>
+                    <span className="inline-flex items-center gap-1 text-slate-700 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      {exam.durationMinutes} phút
+                    </span>
+                  </>
+                )}
                 <span>&bull;</span>
                 <span>
                   Thang <strong>{Number(exam.maxScore)}đ</strong>
@@ -701,6 +726,23 @@ export default function ExamDetailPage() {
                 <span className="text-slate-500">
                   {formatScoringType(exam.scoringType)}
                 </span>
+                {exam.sheetPreset && (
+                  <Badge variant="indigo" size="sm">
+                    {exam.sheetPreset === "PRESET_15MIN_30Q"
+                      ? "Mẫu 15p - 30 câu"
+                      : exam.sheetPreset === "PRESET_15MIN_20Q"
+                      ? "Mẫu 15p - 20 câu"
+                      : exam.sheetPreset === "PRESET_45MIN_40Q"
+                      ? "Mẫu 45p - 40 câu"
+                      : exam.sheetPreset === "PRESET_TERM_50Q"
+                      ? "Mẫu Học kỳ - 50 câu"
+                      : exam.sheetPreset === "PRESET_45MIN_60Q"
+                      ? "Mẫu 45p - 60 câu"
+                      : exam.sheetPreset === "PRESET_90MIN_60Q"
+                      ? "Mẫu 90p - 60 câu"
+                      : "Mẫu Tùy chỉnh"}
+                  </Badge>
+                )}
               </div>
             </div>
 
@@ -1457,6 +1499,38 @@ export default function ExamDetailPage() {
               disabled={savingMetadata}
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
+              className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              Thời gian làm bài (phút)
+            </label>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              {[15, 45, 60, 90].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  disabled={savingMetadata}
+                  onClick={() => setEditDuration(t)}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                    Number(editDuration) === t
+                      ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  {t} phút
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              min="5"
+              max="240"
+              disabled={savingMetadata}
+              value={editDuration}
+              onChange={(e) => setEditDuration(e.target.value)}
               className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
             />
           </div>

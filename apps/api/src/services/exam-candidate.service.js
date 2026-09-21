@@ -1,21 +1,56 @@
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
+import { assertExamAccess } from "./exam.service.js";
+
+function getExamClassIds(exam) {
+  return [
+    ...(exam.classId ? [exam.classId] : []),
+    ...(exam.examClasses ? exam.examClasses.map((ec) => ec.classId) : []),
+  ];
+}
 
 export async function verifyExamOwnership(examId, teacherUserId, userRole = "TEACHER") {
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
-    include: { teacher: true, class: true },
+    include: {
+      teacher: true,
+      class: true,
+      examClasses: true,
+    },
   });
 
   if (!exam) {
     throw new AppError("Kỳ thi không tồn tại hoặc đã bị xóa.", 404, "EXAM_NOT_FOUND");
   }
 
-  if (userRole !== "ADMIN" && exam.teacher?.userId !== teacherUserId) {
+  if (userRole === "ADMIN") {
+    return exam;
+  }
+
+  const teacher = await prisma.teacher.findUnique({ where: { userId: teacherUserId } });
+  if (!teacher) {
     throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
   }
 
-  return exam;
+  if (exam.teacherId && exam.teacherId === teacher.id) {
+    return exam;
+  }
+
+  const classIds = getExamClassIds(exam);
+  if (classIds.length > 0) {
+    const assignment = await prisma.teachingAssignment.findFirst({
+      where: {
+        teacherId: teacher.id,
+        subjectId: exam.subjectId,
+        classId: { in: classIds },
+      },
+    });
+    if (assignment) {
+      return exam;
+    }
+  }
+
+  throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
 }
 
 export async function listExamCandidates(teacherUserId, examId, userRole = "TEACHER") {
@@ -58,9 +93,10 @@ export async function listExamCandidates(teacherUserId, examId, userRole = "TEAC
 
 export async function getEligibleStudents(teacherUserId, examId, userRole = "TEACHER") {
   const exam = await verifyExamOwnership(examId, teacherUserId, userRole);
+  const classIds = getExamClassIds(exam);
 
   const enrollments = await prisma.studentEnrollment.findMany({
-    where: { classId: exam.classId },
+    where: classIds.length > 0 ? { classId: { in: classIds } } : { classId: "none" },
     include: {
       student: {
         select: {
@@ -128,8 +164,9 @@ export async function assignCandidate(teacherUserId, examId, { studentId, studen
     throw new AppError("Không tìm thấy thông tin học sinh.", 404, "STUDENT_PROFILE_NOT_FOUND");
   }
 
-  if (student.enrollments.length > 0) {
-    const isEnrolledInExamClass = student.enrollments.some((en) => en.classId === exam.classId);
+  const classIds = getExamClassIds(exam);
+  if (student.enrollments.length > 0 && classIds.length > 0) {
+    const isEnrolledInExamClass = student.enrollments.some((en) => classIds.includes(en.classId));
     if (!isEnrolledInExamClass) {
       throw new AppError(
         "Học sinh không thuộc lớp của kỳ thi này.",
@@ -264,9 +301,10 @@ export async function autoAssignCandidates(teacherUserId, examId, userRole = "TE
   }
 
   // Lưu ý: Cho phép tự động gán cả khi đã công bố kết quả để học sinh có thể lập tức tra cứu điểm
+  const classIds = getExamClassIds(exam);
 
   const enrollments = await prisma.studentEnrollment.findMany({
-    where: { classId: exam.classId },
+    where: classIds.length > 0 ? { classId: { in: classIds } } : { classId: "none" },
     include: {
       student: {
         include: {

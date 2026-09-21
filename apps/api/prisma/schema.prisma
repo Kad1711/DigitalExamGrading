@@ -202,6 +202,7 @@ model Grade {
   name  String @unique
 
   classes Class[]
+  exams   Exam[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -219,6 +220,7 @@ model Class {
   enrollments StudentEnrollment[]
   assignments TeachingAssignment[]
   exams       Exam[]
+  examClasses ExamClass[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -290,9 +292,12 @@ model Exam {
   title       String
   description String?
 
-  teacherId String
-  subjectId String
-  classId   String
+  teacherId       String?
+  subjectId       String
+  classId         String?
+  gradeId         String?
+  durationMinutes Int?    @default(45)
+  sheetPreset     String? @default("PRESET_TERM_50Q")
 
   questionCount Int
   maxScore      Decimal     @db.Decimal(6, 4)
@@ -308,9 +313,11 @@ model Exam {
   resultsPublishedAt         DateTime?
   resultsPublishedByUserId   String?
 
-  teacher              Teacher               @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  teacher              Teacher?              @relation(fields: [teacherId], references: [id], onDelete: SetNull)
   subject              Subject               @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  class                Class                 @relation(fields: [classId], references: [id], onDelete: Restrict)
+  class                Class?                @relation(fields: [classId], references: [id], onDelete: SetNull)
+  grade                Grade?                @relation(fields: [gradeId], references: [id], onDelete: SetNull)
+  examClasses          ExamClass[]
   resultsPublishedByUser User?               @relation("ExamResultPublisher", fields: [resultsPublishedByUserId], references: [id], onDelete: SetNull)
   examCodes            ExamCode[]
   answerSheetTemplates AnswerSheetTemplate[]
@@ -324,7 +331,22 @@ model Exam {
   @@index([teacherId])
   @@index([subjectId])
   @@index([classId])
+  @@index([gradeId])
   @@index([status])
+}
+
+model ExamClass {
+  id        String   @id @default(cuid())
+  examId    String
+  classId   String
+  createdAt DateTime @default(now())
+
+  exam  Exam  @relation(fields: [examId], references: [id], onDelete: Cascade)
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, classId])
+  @@index([examId])
+  @@index([classId])
 }
 
 model ExamCode {
@@ -364,6 +386,7 @@ model AnswerSheetTemplate {
   examId              String
   version             Int    @default(1)
   templateVersion     String @default("OMR_V1")
+  sheetPreset         String? @default("PRESET_TERM_50Q")
   studentNumberDigits Int    @default(6)
   examCodeDigits      Int    @default(3)
   questionsPerPage    Int    @default(50)

@@ -47,12 +47,90 @@ export default function ExamCreatePage() {
   const [description, setDescription] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [classId, setClassId] = useState("");
+  const [selectedClassIds, setSelectedClassIds] = useState([]);
+  const [selectedGradeId, setSelectedGradeId] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(45);
+  const [customDuration, setCustomDuration] = useState(false);
+  const [customQuestionCount, setCustomQuestionCount] = useState(false);
+  const [sheetPreset, setSheetPreset] = useState("PRESET_45MIN_40Q");
   const [questionCount, setQuestionCount] = useState(40);
   const [maxScore, setMaxScore] = useState(10);
   const [scoringType, setScoringType] = useState("EQUAL");
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  const PRESET_OPTIONS = [
+    {
+      id: "PRESET_15MIN_30Q",
+      label: "15 phút - 30 câu",
+      subLabel: "Kiểm tra 15 phút (2 cột x 15 dòng)",
+      duration: 15,
+      questions: 30,
+      badge: "15 phút",
+    },
+    {
+      id: "PRESET_15MIN_20Q",
+      label: "15 phút - 20 câu",
+      subLabel: "Kiểm tra nhanh (2 cột x 10 dòng)",
+      duration: 15,
+      questions: 20,
+      badge: "15 phút",
+    },
+    {
+      id: "PRESET_45MIN_40Q",
+      label: "45 phút - 40 câu",
+      subLabel: "Kiểm tra 1 tiết (2 cột x 20 dòng)",
+      duration: 45,
+      questions: 40,
+      badge: "45 phút",
+    },
+    {
+      id: "PRESET_TERM_50Q",
+      label: "Học kỳ - 50 câu",
+      subLabel: "Khảo sát chung / Chuẩn (2 cột x 25 dòng)",
+      duration: 60,
+      questions: 50,
+      badge: "60 phút",
+    },
+    {
+      id: "PRESET_45MIN_60Q",
+      label: "45 phút - 60 câu",
+      subLabel: "Đề tốc độ 60 câu (3 cột x 20 dòng)",
+      duration: 45,
+      questions: 60,
+      badge: "45 phút",
+    },
+    {
+      id: "PRESET_90MIN_60Q",
+      label: "90 phút - 60 câu",
+      subLabel: "Thi học kỳ 90 phút (3 cột x 20 dòng)",
+      duration: 90,
+      questions: 60,
+      badge: "90 phút",
+    },
+    {
+      id: "PRESET_CUSTOM",
+      label: "Tùy chỉnh số câu / thời gian",
+      subLabel: "Tự do nhập số câu và thời gian thi",
+      duration: null,
+      questions: null,
+      badge: "Tự chọn",
+    },
+  ];
+
+  const handleSelectPreset = (p) => {
+    setSheetPreset(p.id);
+    if (p.id !== "PRESET_CUSTOM") {
+      setDurationMinutes(p.duration);
+      setQuestionCount(p.questions);
+      setCustomDuration(false);
+      setCustomQuestionCount(false);
+    } else {
+      setCustomDuration(true);
+      setCustomQuestionCount(true);
+    }
+  };
 
   useEffect(() => {
     loadOptions();
@@ -78,8 +156,14 @@ export default function ExamCreatePage() {
       setGrades(grList);
 
       if (subs.length > 0) setSubjectId(subs[0].id);
-      if (clsList.length > 0) setClassId(clsList[0].id);
-      if (grList.length > 0) setNewClassGradeId(grList[0].id);
+      if (clsList.length > 0) {
+        setClassId(clsList[0].id);
+        setSelectedClassIds([clsList[0].id]);
+      }
+      if (grList.length > 0) {
+        setNewClassGradeId(grList[0].id);
+        setSelectedGradeId(grList[0].id);
+      }
     } catch (err) {
       const code = err.response?.data?.error?.code;
       const raw = err.response?.data?.error?.message;
@@ -270,8 +354,9 @@ export default function ExamCreatePage() {
       return;
     }
 
-    if (!classId) {
-      setErrorMsg("Vui lòng chọn lớp học.");
+    const classIdsToSend = selectedClassIds.length > 0 ? selectedClassIds : (classId ? [classId] : []);
+    if (classIdsToSend.length === 0) {
+      setErrorMsg("Vui lòng chọn ít nhất một lớp học tham gia kỳ thi.");
       return;
     }
 
@@ -295,7 +380,11 @@ export default function ExamCreatePage() {
         title: title.trim(),
         description: description.trim() || undefined,
         subjectId,
-        classId,
+        classId: classIdsToSend[0],
+        classIds: classIdsToSend,
+        gradeId: selectedGradeId || undefined,
+        durationMinutes: Number(durationMinutes) || 45,
+        sheetPreset,
         questionCount: qCount,
         maxScore: mScore,
         scoringType,
@@ -394,7 +483,7 @@ export default function ExamCreatePage() {
                 />
               </div>
 
-              {/* Subject & Class (2 columns) */}
+              {/* Subject & Grade Selection */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label
@@ -420,13 +509,67 @@ export default function ExamCreatePage() {
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label
-                      htmlFor="classId"
-                      className="block text-xs font-semibold text-slate-700 uppercase tracking-wider"
-                    >
-                      Lớp học <span className="text-rose-500">*</span>
+                  <label
+                    htmlFor="gradeId"
+                    className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
+                  >
+                    Khối học (Tùy chọn)
+                  </label>
+                  <select
+                    id="gradeId"
+                    disabled={submitting}
+                    value={selectedGradeId}
+                    onChange={(e) => setSelectedGradeId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all cursor-pointer"
+                  >
+                    <option value="">Tất cả các khối</option>
+                    {grades.map((gr) => (
+                      <option key={gr.id} value={gr.id}>
+                        {gr.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Multi-Class Assignment */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+                      Lớp học tham gia kỳ thi <span className="text-rose-500">*</span>
                     </label>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Chọn một hoặc nhiều lớp. Giáo viên được phân công giảng dạy môn này ở các lớp đã chọn sẽ cùng truy cập đề thi để chấm bài.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {selectedGradeId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const inGrade = classes.filter(
+                            (c) => (c.gradeId || c.grade?.id) === selectedGradeId
+                          );
+                          const inGradeIds = inGrade.map((c) => c.id);
+                          const allSelected = inGradeIds.every((id) =>
+                            selectedClassIds.includes(id)
+                          );
+                          if (allSelected) {
+                            setSelectedClassIds((prev) =>
+                              prev.filter((id) => !inGradeIds.includes(id))
+                            );
+                          } else {
+                            setSelectedClassIds((prev) => [
+                              ...new Set([...prev, ...inGradeIds]),
+                            ]);
+                          }
+                        }}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                      >
+                        Chọn toàn khối
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -439,72 +582,242 @@ export default function ExamCreatePage() {
                       Tạo lớp mới
                     </button>
                   </div>
-                  <select
-                    id="classId"
-                    required
-                    disabled={submitting}
-                    value={classId}
-                    onChange={(e) => setClassId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all cursor-pointer"
-                  >
-                    {classes.map((cls) => (
-                      <option key={cls.id} value={cls.id}>
-                        {cls.name} ({cls.grade?.name || cls.gradeName || "Khối"})
-                      </option>
-                    ))}
-                  </select>
+                </div>
+
+                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
+                  {classes
+                    .filter((cls) => {
+                      if (!selectedGradeId) return true;
+                      return (cls.gradeId || cls.grade?.id) === selectedGradeId;
+                    })
+                    .map((cls) => {
+                      const isSelected = selectedClassIds.includes(cls.id);
+                      return (
+                        <button
+                          key={cls.id}
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => {
+                            setSelectedClassIds((prev) =>
+                              prev.includes(cls.id)
+                                ? prev.filter((id) => id !== cls.id)
+                                : [...prev, cls.id]
+                            );
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                              : "bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
+                          }`}
+                        >
+                          {isSelected ? (
+                            <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                          ) : (
+                            <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 inline-block" />
+                          )}
+                          {cls.name}
+                        </button>
+                      );
+                    })}
+                </div>
+                <div className="text-[11px] text-slate-600 font-medium">
+                  Đã chọn:{" "}
+                  <strong className="text-blue-700 font-bold">
+                    {selectedClassIds.length}
+                  </strong>{" "}
+                  lớp ({classes.filter((c) => selectedClassIds.includes(c.id)).map((c) => c.name).join(", ") || "Chưa chọn lớp nào"})
                 </div>
               </div>
 
-              {/* Question Count & Max Score */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label
-                    htmlFor="questionCount"
-                    className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
-                  >
-                    Số câu hỏi trắc nghiệm{" "}
-                    <span className="text-rose-500">*</span>
+              {/* Presets & Answer Sheet Templates */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Mẫu Phiếu Trắc nghiệm Chuẩn THCS (Presets)
                   </label>
-                  <input
-                    id="questionCount"
-                    type="number"
-                    min={1}
-                    max={100}
-                    required
-                    disabled={submitting}
-                    value={questionCount}
-                    onChange={(e) => setQuestionCount(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Phiếu OMR 1 trang hỗ trợ tối đa 50 câu.
-                  </p>
+                  <span className="text-xs text-blue-600 font-medium">
+                    Tự động cấu hình số câu & phiếu OMR
+                  </span>
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="maxScore"
-                    className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
-                  >
-                    Thang điểm tối đa <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    id="maxScore"
-                    type="number"
-                    step="0.1"
-                    min={1}
-                    max={10}
-                    required
-                    disabled={submitting}
-                    value={maxScore}
-                    onChange={(e) => setMaxScore(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Thang điểm tiêu chuẩn THPT là 10.0 điểm.
-                  </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {PRESET_OPTIONS.map((p) => {
+                    const isSelected = sheetPreset === p.id;
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => handleSelectPreset(p)}
+                        className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                          isSelected
+                            ? "bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/20 shadow-xs"
+                            : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="text-xs font-bold text-slate-900 line-clamp-1">
+                              {p.label}
+                            </span>
+                            <span
+                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                                isSelected
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {p.badge}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 leading-snug">
+                            {p.subLabel}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+              </div>
+
+              {/* Quick Pills for Duration and Question Count */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                {/* Duration */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                    Thời gian làm bài
+                  </label>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {[15, 45, 60, 90].map((dur) => (
+                      <button
+                        key={dur}
+                        type="button"
+                        onClick={() => {
+                          setDurationMinutes(dur);
+                          setCustomDuration(false);
+                        }}
+                        className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                          durationMinutes === dur && !customDuration
+                            ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        {dur} phút
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setCustomDuration(true)}
+                      className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                        customDuration
+                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      Khác...
+                    </button>
+                  </div>
+                  {customDuration && (
+                    <div className="flex items-center gap-2 animate-in fade-in duration-150">
+                      <input
+                        type="number"
+                        min={1}
+                        max={300}
+                        value={durationMinutes}
+                        onChange={(e) => setDurationMinutes(e.target.value)}
+                        placeholder="Nhập số phút"
+                        className="w-28 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600"
+                      />
+                      <span className="text-xs text-slate-500 font-medium">phút</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Question Count */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                    Số câu hỏi trắc nghiệm <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {[20, 30, 40, 50, 60].map((count) => (
+                      <button
+                        key={count}
+                        type="button"
+                        onClick={() => {
+                          setQuestionCount(count);
+                          setCustomQuestionCount(false);
+                          if (count === 30) setSheetPreset("PRESET_15MIN_30Q");
+                          else if (count === 20) setSheetPreset("PRESET_15MIN_20Q");
+                          else if (count === 40) setSheetPreset("PRESET_45MIN_40Q");
+                          else if (count === 50) setSheetPreset("PRESET_TERM_50Q");
+                          else if (count === 60) setSheetPreset("PRESET_45MIN_60Q");
+                        }}
+                        className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                          Number(questionCount) === count && !customQuestionCount
+                            ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        {count} câu
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomQuestionCount(true);
+                        setSheetPreset("PRESET_CUSTOM");
+                      }}
+                      className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                        customQuestionCount
+                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      Khác...
+                    </button>
+                  </div>
+                  {customQuestionCount ? (
+                    <div className="flex items-center gap-2 animate-in fade-in duration-150">
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={questionCount}
+                        onChange={(e) => setQuestionCount(e.target.value)}
+                        placeholder="Nhập số câu"
+                        className="w-28 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600"
+                      />
+                      <span className="text-xs text-slate-500 font-medium">câu (1 - 100)</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      Khóa chặt đúng <strong>{questionCount}</strong> câu theo mẫu phiếu trả lời OMR.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Max Score */}
+              <div className="w-full sm:w-1/2">
+                <label
+                  htmlFor="maxScore"
+                  className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
+                >
+                  Thang điểm tối đa <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  id="maxScore"
+                  type="number"
+                  step="0.1"
+                  min={1}
+                  max={10}
+                  required
+                  disabled={submitting}
+                  value={maxScore}
+                  onChange={(e) => setMaxScore(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Thang điểm tiêu chuẩn bậc THCS là 10.0 điểm.
+                </p>
               </div>
 
               {/* Scoring Type Radio Cards */}

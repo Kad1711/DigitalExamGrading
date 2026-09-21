@@ -228,21 +228,17 @@ export async function renderAnswerSheetPdf(layoutJson) {
         // 7. Column Headers for Answers Area
         doc.save();
         doc.font(fontBold).fontSize(7.5).fillColor("#000000");
-        // Column 1 header
-        doc.text("CÂU", toPt(20), toPt(101));
-        doc.text("A", toPt(36), toPt(101));
-        doc.text("B", toPt(45), toPt(101));
-        doc.text("C", toPt(54), toPt(101));
-        doc.text("D", toPt(63), toPt(101));
-
-        // Column 2 header (if questions exist in col 2)
-        const hasCol2 = page.answers.some((q) => q.column === 2);
-        if (hasCol2) {
-          doc.text("CÂU", toPt(112), toPt(101));
-          doc.text("A", toPt(128), toPt(101));
-          doc.text("B", toPt(137), toPt(101));
-          doc.text("C", toPt(146), toPt(101));
-          doc.text("D", toPt(155), toPt(101));
+        const columnsPresent = [...new Set(page.answers.map((q) => q.column))].sort((a, b) => a - b);
+        for (const colNum of columnsPresent) {
+          const sampleQ = page.answers.find((q) => q.column === colNum);
+          if (!sampleQ) continue;
+          doc.text("CÂU", toPt(sampleQ.labelBox.xMm), toPt(101));
+          for (const l of ["A", "B", "C", "D"]) {
+            if (sampleQ.options && sampleQ.options[l]) {
+              const b = sampleQ.options[l];
+              doc.text(l, toPt(b.xMm - 2.5), toPt(101), { width: toPt(5), align: "center" });
+            }
+          }
         }
         doc.restore();
 
@@ -250,27 +246,23 @@ export async function renderAnswerSheetPdf(layoutJson) {
         doc.save();
         for (const q of page.answers) {
           // Question number
-          doc.font(fontBold).fontSize(7.5).fillColor("#000000");
+          doc.font(fontBold).fontSize(7.2).fillColor("#000000");
           const qNumStr = q.questionNumber < 10 ? `0${q.questionNumber}` : String(q.questionNumber);
           doc.text(qNumStr, toPt(q.labelBox.xMm), toPt(q.labelBox.yMm + 1.2), {
-            width: toPt(12),
+            width: toPt(q.labelBox.widthMm),
             align: "left",
           });
 
           // Bubbles A, B, C, D
           for (const letter of ["A", "B", "C", "D"]) {
-            const opt = q.options[letter];
-            if (!opt) continue;
-            const cx = toPt(opt.xMm);
-            const cy = toPt(opt.yMm);
-            const r = toPt(opt.radiusMm);
-
-            // Vector circle stroke
+            const b = q.options[letter];
+            if (!b) continue;
+            const cx = toPt(b.xMm);
+            const cy = toPt(b.yMm);
+            const r = toPt(b.radiusMm);
             doc.circle(cx, cy, r).lineWidth(0.6).strokeColor("#000000").stroke();
-
-            // Inner letter
             doc.font(fontRegular).fontSize(5.5).fillColor("#000000");
-            doc.text(letter, cx - 2.2, cy - 2.8, { width: 4.4, align: "center" });
+            doc.text(letter, cx - 2, cy - 2.8, { width: 4, align: "center" });
           }
         }
         doc.restore();

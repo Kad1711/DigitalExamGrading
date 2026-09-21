@@ -23,6 +23,8 @@ export async function assertExamAccess(examId, reqUser) {
     include: {
       subject: { select: { id: true, name: true, code: true } },
       class: { select: { id: true, name: true } },
+      grade: { select: { id: true, name: true, level: true } },
+      examClasses: { include: { class: { select: { id: true, name: true } } } },
       teacher: { select: { id: true, fullName: true, teacherCode: true } },
       examCodes: { select: { id: true, code: true } },
     },
@@ -37,15 +39,35 @@ export async function assertExamAccess(examId, reqUser) {
   }
 
   const teacher = await getTeacherProfile(reqUser.id);
-  if (exam.teacherId !== teacher.id) {
-    throw new AppError(
-      "Ban khong co quyen truy cap ky thi nay.",
-      403,
-      "EXAM_ACCESS_DENIED"
-    );
+  // 1. Direct owner
+  if (exam.teacherId && exam.teacherId === teacher.id) {
+    return exam;
   }
 
-  return exam;
+  // 2. Or teacher teaches this exam's subject in the primary class or any assigned examClasses
+  const examClassIds = [
+    ...(exam.classId ? [exam.classId] : []),
+    ...(exam.examClasses ? exam.examClasses.map((ec) => ec.classId) : []),
+  ];
+
+  if (examClassIds.length > 0) {
+    const assignment = await prisma.teachingAssignment.findFirst({
+      where: {
+        teacherId: teacher.id,
+        subjectId: exam.subjectId,
+        classId: { in: examClassIds },
+      },
+    });
+    if (assignment) {
+      return exam;
+    }
+  }
+
+  throw new AppError(
+    "Ban khong co quyen truy cap ky thi nay.",
+    403,
+    "EXAM_ACCESS_DENIED"
+  );
 }
 
 export function assertExamDraft(exam) {
@@ -63,7 +85,7 @@ export function assertExamDraft(exam) {
 // =====================================================
 
 export async function createExam(data, reqUser) {
-  let teacherId;
+  let teacherId = null;
   if (reqUser.role === "TEACHER") {
     const teacher = await getTeacherProfile(reqUser.id);
     teacherId = teacher.id;
@@ -74,14 +96,7 @@ export async function createExam(data, reqUser) {
       const adminTeacher = await prisma.teacher.findUnique({
         where: { userId: reqUser.id },
       });
-      if (!adminTeacher) {
-        throw new AppError(
-          "ADMIN chua co ho so giao vien. Vui long truyen teacherId hop le.",
-          400,
-          "TEACHER_PROFILE_NOT_FOUND"
-        );
-      }
-      teacherId = adminTeacher.id;
+      teacherId = adminTeacher ? adminTeacher.id : null;
     }
   }
 
@@ -90,10 +105,11 @@ export async function createExam(data, reqUser) {
     throw new AppError("Mon hoc khong ton tai.", 404, "SUBJECT_NOT_FOUND");
   }
 
-  const cls = await prisma.class.findUnique({ where: { id: data.classId } });
-  if (!cls) {
-    throw new AppError("Lop hoc khong ton tai.", 404, "CLASS_NOT_FOUND");
-  }
+  const classIds = Array.isArray(data.classIds) && data.classIds.length > 0
+    ? data.classIds
+    : (data.classId ? [data.classId] : []);
+
+  const primaryClassId = classIds.length > 0 ? classIds[0] : (data.classId || null);
 
   return prisma.exam.create({
     data: {
@@ -101,37 +117,72 @@ export async function createExam(data, reqUser) {
       description: data.description ?? null,
       teacherId,
       subjectId: data.subjectId,
-      classId: data.classId,
+      classId: primaryClassId,
+      gradeId: data.gradeId ?? null,
+      durationMinutes: data.durationMinutes ?? 45,
+      sheetPreset: data.sheetPreset ?? "PRESET_TERM_50Q",
       questionCount: data.questionCount,
       maxScore: data.maxScore,
       scoringType: data.scoringType,
       allowStudentViewAnswers: data.allowStudentViewAnswers ?? false,
       allowStudentViewImage: data.allowStudentViewImage ?? false,
       status: "DRAFT",
+      examClasses: classIds.length > 0
+        ? {
+            create: classIds.map((cId) => ({ classId: cId })),
+          }
+        : undefined,
     },
     include: {
       subject: { select: { id: true, name: true, code: true } },
       class: { select: { id: true, name: true } },
+      grade: { select: { id: true, name: true, level: true } },
+      examClasses: { include: { class: { select: { id: true, name: true } } } },
       teacher: { select: { id: true, fullName: true, teacherCode: true } },
     },
   });
 }
 
 export async function listExams(query, reqUser) {
-  const { status, subjectId, classId, search, page, limit } = query;
+  const { status, subjectId, classId, gradeId, search, page = 1, limit = 20 } = query;
   const where = {};
 
   if (reqUser.role === "TEACHER") {
     const teacher = await getTeacherProfile(reqUser.id);
-    where.teacherId = teacher.id;
+    const assignments = await prisma.teachingAssignment.findMany({
+      where: { teacherId: teacher.id },
+      select: { classId: true, subjectId: true },
+    });
+    const assignedClassIds = assignments.map((a) => a.classId);
+    const assignedSubjectIds = [...new Set(assignments.map((a) => a.subjectId))];
+
+    where.OR = [
+      { teacherId: teacher.id },
+      {
+        subjectId: { in: assignedSubjectIds },
+        OR: [
+          { classId: { in: assignedClassIds } },
+          { examClasses: { some: { classId: { in: assignedClassIds } } } },
+        ],
+      },
+    ];
   }
 
   if (status) where.status = status;
   if (subjectId) where.subjectId = subjectId;
-  if (classId) where.classId = classId;
+  if (gradeId) where.gradeId = gradeId;
+  if (classId) {
+    where.OR = [
+      { classId },
+      { examClasses: { some: { classId } } },
+    ];
+  }
   if (search) where.title = { contains: search, mode: "insensitive" };
 
-  const skip = (page - 1) * limit;
+  const pageNum = parseInt(page, 10) || 1;
+  const limitNum = parseInt(limit, 10) || 20;
+  const skip = (pageNum - 1) * limitNum;
+
   const [total, exams] = await Promise.all([
     prisma.exam.count({ where }),
     prisma.exam.findMany({
@@ -139,18 +190,20 @@ export async function listExams(query, reqUser) {
       include: {
         subject: { select: { id: true, name: true, code: true } },
         class: { select: { id: true, name: true } },
+        grade: { select: { id: true, name: true, level: true } },
+        examClasses: { include: { class: { select: { id: true, name: true } } } },
         teacher: { select: { id: true, fullName: true } },
-        _count: { select: { examCodes: true } },
+        _count: { select: { examCodes: true, submissions: true } },
       },
       orderBy: { createdAt: "desc" },
       skip,
-      take: limit,
+      take: limitNum,
     }),
   ]);
 
   return {
     data: exams,
-    pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
   };
 }
 
@@ -178,7 +231,6 @@ export async function updateExam(examId, data, reqUser) {
   }
 
   if (exam.status === "PUBLISHED") {
-    // In PUBLISHED state, only safe metadata (title, description, allowStudentViewAnswers, allowStudentViewImage) are allowed!
     const lockedFields = [
       "subjectId",
       "classId",
@@ -197,22 +249,41 @@ export async function updateExam(examId, data, reqUser) {
     }
   }
 
+  const updateData = {
+    title: data.title,
+    description: data.description,
+    subjectId: data.subjectId,
+    classId: data.classId !== undefined ? data.classId : undefined,
+    gradeId: data.gradeId !== undefined ? data.gradeId : undefined,
+    durationMinutes: data.durationMinutes !== undefined ? data.durationMinutes : undefined,
+    sheetPreset: data.sheetPreset !== undefined ? data.sheetPreset : undefined,
+    questionCount: data.questionCount,
+    maxScore: data.maxScore,
+    scoringType: data.scoringType,
+    allowStudentViewAnswers: data.allowStudentViewAnswers,
+    allowStudentViewImage: data.allowStudentViewImage,
+  };
+
+  if (data.classIds && Array.isArray(data.classIds)) {
+    await prisma.examClass.deleteMany({ where: { examId } });
+    if (data.classIds.length > 0) {
+      await prisma.examClass.createMany({
+        data: data.classIds.map((cId) => ({ examId, classId: cId })),
+      });
+      if (!data.classId) {
+        updateData.classId = data.classIds[0];
+      }
+    }
+  }
+
   return prisma.exam.update({
     where: { id: examId },
-    data: {
-      title: data.title,
-      description: data.description,
-      subjectId: data.subjectId,
-      classId: data.classId,
-      questionCount: data.questionCount,
-      maxScore: data.maxScore,
-      scoringType: data.scoringType,
-      allowStudentViewAnswers: data.allowStudentViewAnswers,
-      allowStudentViewImage: data.allowStudentViewImage,
-    },
+    data: updateData,
     include: {
       subject: { select: { id: true, name: true, code: true } },
       class: { select: { id: true, name: true } },
+      grade: { select: { id: true, name: true, level: true } },
+      examClasses: { include: { class: { select: { id: true, name: true } } } },
       teacher: { select: { id: true, fullName: true } },
     },
   });

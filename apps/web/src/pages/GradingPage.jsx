@@ -719,12 +719,19 @@ export default function GradingPage() {
                     onChange={(e) => setSelectedExamId(e.target.value)}
                     className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all cursor-pointer"
                   >
-                    {exams.map((ex) => (
-                      <option key={ex.id} value={ex.id}>
-                        {ex.title} ({ex.subject?.name || "Môn"} -{" "}
-                        {ex.class?.name || "Lớp"} | {ex.questionCount} câu)
-                      </option>
-                    ))}
+                    {exams.map((ex) => {
+                      const classNames =
+                        ex.examClasses && ex.examClasses.length > 0
+                          ? ex.examClasses.map((ec) => ec.class?.name).filter(Boolean).join(", ")
+                          : ex.class?.name || (ex.grade ? `Khối ${ex.grade.name}` : "Toàn khối");
+                      return (
+                        <option key={ex.id} value={ex.id}>
+                          {ex.title} ({ex.subject?.name || "Môn"} - {classNames} |{" "}
+                          {ex.durationMinutes ? `${ex.durationMinutes}p, ` : ""}
+                          {ex.questionCount} câu)
+                        </option>
+                      );
+                    })}
                   </select>
                 )}
               </div>
@@ -733,10 +740,21 @@ export default function GradingPage() {
                 <div className="bg-slate-50 rounded-lg p-3 text-xs space-y-1.5 border border-slate-200">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Môn học / Lớp:</span>
-                    <span className="font-semibold text-slate-800">
-                      {selectedExam.subject?.name} &bull; {selectedExam.class?.name}
+                    <span className="font-semibold text-slate-800 text-right">
+                      {selectedExam.subject?.name} &bull;{" "}
+                      {selectedExam.examClasses && selectedExam.examClasses.length > 0
+                        ? selectedExam.examClasses.map((ec) => ec.class?.name).filter(Boolean).join(", ")
+                        : selectedExam.class?.name || (selectedExam.grade ? `Khối ${selectedExam.grade.name}` : "Chưa chọn")}
                     </span>
                   </div>
+                  {selectedExam.durationMinutes && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Thời gian làm bài:</span>
+                      <span className="font-semibold text-slate-800">
+                        {selectedExam.durationMinutes} phút
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-slate-500">Quy mô đề:</span>
                     <span className="font-semibold text-slate-800">

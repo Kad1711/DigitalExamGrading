@@ -82,6 +82,7 @@ export async function createOrRegenerateTemplate(examId, options = {}, reqUser) 
       examId,
       version: nextVersion,
       templateVersion: TEMPLATE_VERSION,
+      sheetPreset: exam.sheetPreset || "PRESET_TERM_50Q",
       studentNumberDigits,
       examCodeDigits,
       questionsPerPage,

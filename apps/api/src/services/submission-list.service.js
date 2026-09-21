@@ -10,7 +10,17 @@ import { normalizeExamCode } from "../utils/exam-code.js";
 async function assertTeacherExamAccess(examId, reqUser) {
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
-    select: { id: true, teacherId: true, title: true, status: true, questionCount: true, maxScore: true },
+    select: {
+      id: true,
+      teacherId: true,
+      subjectId: true,
+      classId: true,
+      title: true,
+      status: true,
+      questionCount: true,
+      maxScore: true,
+      examClasses: { select: { classId: true } },
+    },
   });
   if (!exam) {
     throw new AppError("Ky thi khong ton tai.", 404, "EXAM_NOT_FOUND");
@@ -28,14 +38,33 @@ async function assertTeacherExamAccess(examId, reqUser) {
     );
   }
   const teacher = await getTeacherProfile(reqUser.id);
-  if (exam.teacherId !== teacher.id) {
-    throw new AppError(
-      "Ban khong co quyen truy cap danh sach bai nop cua ky thi nay.",
-      403,
-      "EXAM_ACCESS_DENIED"
-    );
+  if (exam.teacherId && exam.teacherId === teacher.id) {
+    return { exam, teacher };
   }
-  return { exam, teacher };
+
+  const examClassIds = [
+    ...(exam.classId ? [exam.classId] : []),
+    ...(exam.examClasses ? exam.examClasses.map((ec) => ec.classId) : []),
+  ];
+
+  if (examClassIds.length > 0) {
+    const assignment = await prisma.teachingAssignment.findFirst({
+      where: {
+        teacherId: teacher.id,
+        subjectId: exam.subjectId,
+        classId: { in: examClassIds },
+      },
+    });
+    if (assignment) {
+      return { exam, teacher };
+    }
+  }
+
+  throw new AppError(
+    "Ban khong co quyen truy cap danh sach bai nop cua ky thi nay.",
+    403,
+    "EXAM_ACCESS_DENIED"
+  );
 }
 
 /**

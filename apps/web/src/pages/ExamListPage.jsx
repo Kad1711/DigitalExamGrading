@@ -454,184 +454,214 @@ export default function ExamListPage() {
                           />
                         )}
                       </th>
-                      <th className="py-3.5 px-4 font-semibold min-w-[240px]">Tên kỳ thi</th>
+                      <th className="py-3.5 px-4 font-semibold min-w-[220px]">Tên kỳ thi</th>
                       <th className="py-3.5 px-4 font-semibold whitespace-nowrap">Môn học</th>
-                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Lớp</th>
-                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Số câu</th>
+                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Lớp áp dụng</th>
+                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Thời gian & Số câu</th>
                       <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Thang điểm</th>
                       <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Mã đề</th>
                       <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-center">Trạng thái</th>
-                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-right min-w-[200px]">Thao tác</th>
+                      <th className="py-3.5 px-4 font-semibold whitespace-nowrap text-right min-w-[220px]">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {filteredExams.map((exam) => (
-                      <tr
-                        key={exam.id}
-                        className="hover:bg-slate-50/70 transition-colors group"
-                      >
-                        <td className="py-4 px-3 text-center">
-                          {exam.status === "DRAFT" ? (
-                            <input
-                              type="checkbox"
-                              checked={selectedDraftExamIds.includes(exam.id)}
-                              onChange={() => toggleSelectDraftExam(exam.id)}
-                              className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                            />
-                          ) : (
-                            <span className="text-slate-300 text-xs">&mdash;</span>
-                          )}
-                        </td>
-                        <td className="py-4 px-4 min-w-[240px]">
-                          <Link
-                            to={examDetailPath(exam)}
-                            className="hover:text-blue-600 font-semibold text-slate-900 line-clamp-2 leading-snug transition-colors text-sm"
-                          >
-                            {exam.title}
-                          </Link>
-                        </td>
-                        <td className="py-4 px-4 text-slate-700 whitespace-nowrap text-xs font-medium">
-                          {exam.subject?.name || "—"}
-                        </td>
-                        <td className="py-4 px-4 text-slate-700 whitespace-nowrap text-center text-xs font-semibold">
-                          {exam.class?.name || "—"}
-                        </td>
-                        <td className="py-4 px-4 text-slate-700 whitespace-nowrap text-center text-xs">
-                          <span className="font-semibold text-slate-900">{exam.questionCount}</span> câu
-                        </td>
-                        <td className="py-4 px-4 text-slate-700 font-medium whitespace-nowrap text-center text-xs">
-                          <span className="font-semibold text-slate-900">{Number(exam.maxScore)}</span>đ
-                        </td>
-                        <td className="py-4 px-4 text-center whitespace-nowrap">
-                          <Badge variant="gray" size="sm">
-                            {exam._count?.examCodes || 0} mã
-                          </Badge>
-                        </td>
-                        <td className="py-4 px-4 text-center whitespace-nowrap">
-                          <ExamStatusBadge status={exam.status} size="sm" />
-                        </td>
-                        <td className="py-4 px-4 text-right whitespace-nowrap">
-                          <div className="inline-flex items-center justify-end gap-1.5">
+                    {filteredExams.map((exam) => {
+                      const classNames = exam.examClasses && exam.examClasses.length > 0
+                        ? exam.examClasses.map((ec) => ec.class?.name).filter(Boolean).join(", ")
+                        : (exam.class?.name || "—");
+
+                      return (
+                        <tr
+                          key={exam.id}
+                          className="hover:bg-slate-50/70 transition-colors group"
+                        >
+                          <td className="py-4 px-3 text-center">
                             {exam.status === "DRAFT" ? (
-                              <>
-                                <Button
-                                  variant="primary"
-                                  size="sm"
-                                  icon={Settings}
-                                  onClick={() => navigate(examDetailPath(exam))}
-                                >
-                                  Thiết lập
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  icon={Trash2}
-                                  onClick={() => setExamToDelete(exam)}
-                                  className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
-                                  title="Xóa kỳ thi nháp"
-                                >
-                                  Xóa
-                                </Button>
-                                <div className="inline-flex items-center pl-1 border-l border-slate-200">
-                                  <button
-                                    type="button"
-                                    onClick={() => setExamToClone(exam)}
-                                    className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
-                                    title="Nhân bản kỳ thi"
-                                  >
-                                    <Copy className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </>
-                            ) : exam.status === "PUBLISHED" ? (
-                              <>
-                                <Button
-                                  variant="primary"
-                                  size="sm"
-                                  icon={ScanLine}
-                                  onClick={() => navigate(`/grade?examId=${exam.id}`)}
-                                >
-                                  Chấm bài
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  icon={FileCheck}
-                                  onClick={() => navigate(`/exams/${exam.id}/submissions`)}
-                                  title="Quản lý bài đã chấm và công bố kết quả"
-                                >
-                                  Bài đã chấm
-                                </Button>
-                                <div className="inline-flex items-center gap-1 pl-1 border-l border-slate-200">
-                                  <button
-                                    type="button"
-                                    onClick={() => navigate(examDetailPath(exam))}
-                                    className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 transition-colors cursor-pointer"
-                                    title="Xem chi tiết kỳ thi & đề thi"
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => navigate(`/exams/${exam.id}/analytics`)}
-                                    className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
-                                    title="Thống kê kết quả thi & phổ điểm"
-                                  >
-                                    <BarChart3 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setExamToClone(exam)}
-                                    className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
-                                    title="Nhân bản kỳ thi để sửa cấu hình"
-                                  >
-                                    <Copy className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </>
+                              <input
+                                type="checkbox"
+                                checked={selectedDraftExamIds.includes(exam.id)}
+                                onChange={() => toggleSelectDraftExam(exam.id)}
+                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
                             ) : (
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  icon={FileCheck}
-                                  onClick={() => navigate(`/exams/${exam.id}/submissions`)}
-                                  title="Quản lý bài đã chấm và công bố kết quả"
-                                >
-                                  Bài đã chấm
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  icon={Eye}
-                                  onClick={() => navigate(examDetailPath(exam))}
-                                >
-                                  Chi tiết
-                                </Button>
-                                <div className="inline-flex items-center gap-1 pl-1 border-l border-slate-200">
-                                  <button
-                                    type="button"
-                                    onClick={() => navigate(`/exams/${exam.id}/analytics`)}
-                                    className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
-                                    title="Thống kê kết quả thi"
-                                  >
-                                    <BarChart3 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setExamToClone(exam)}
-                                    className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
-                                    title="Nhân bản kỳ thi"
-                                  >
-                                    <Copy className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </>
+                              <span className="text-slate-300">&bull;</span>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-4 px-4 font-medium text-slate-900">
+                            <div className="flex flex-col">
+                              <Link
+                                to={examDetailPath(exam)}
+                                className="font-bold text-slate-900 hover:text-blue-600 transition-colors line-clamp-1"
+                              >
+                                {exam.title}
+                              </Link>
+                              {exam.sheetPreset && (
+                                <span className="text-[11px] text-indigo-600 font-medium mt-0.5">
+                                  {exam.sheetPreset === "PRESET_15MIN_30Q"
+                                    ? "Preset 15p - 30 câu"
+                                    : exam.sheetPreset === "PRESET_15MIN_20Q"
+                                    ? "Preset 15p - 20 câu"
+                                    : exam.sheetPreset === "PRESET_45MIN_40Q"
+                                    ? "Preset 45p - 40 câu"
+                                    : exam.sheetPreset === "PRESET_TERM_50Q"
+                                    ? "Preset Học kỳ - 50 câu"
+                                    : exam.sheetPreset === "PRESET_45MIN_60Q"
+                                    ? "Preset 45p - 60 câu"
+                                    : exam.sheetPreset === "PRESET_90MIN_60Q"
+                                    ? "Preset 90p - 60 câu"
+                                    : "Tùy chỉnh"}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-4 px-4 whitespace-nowrap text-slate-700">
+                            <Badge variant="blue" size="sm">
+                              {exam.subject?.name || "—"}
+                            </Badge>
+                          </td>
+                          <td className="py-4 px-4 whitespace-nowrap text-center">
+                            <Badge variant="gray" size="sm" title={classNames}>
+                              {classNames}
+                            </Badge>
+                          </td>
+                          <td className="py-4 px-4 whitespace-nowrap text-center text-slate-700 text-xs">
+                            <span className="font-semibold text-slate-900">
+                              {exam.durationMinutes ? `${exam.durationMinutes}p / ` : ""}
+                              {exam.questionCount} câu
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 whitespace-nowrap text-center text-slate-700 text-xs">
+                            <span className="font-semibold text-slate-900">
+                              {Number(exam.maxScore)}đ
+                            </span>
+                            <span className="text-slate-400 block text-[10px]">
+                              {formatScoringType(exam.scoringType)}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 whitespace-nowrap text-center">
+                            <span className="text-xs font-semibold text-slate-700">
+                              {exam._count?.examCodes || 0} mã
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 whitespace-nowrap text-center">
+                            <ExamStatusBadge status={exam.status} size="sm" />
+                          </td>
+                          <td className="py-4 px-4 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {exam.status === "DRAFT" ? (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    icon={Settings}
+                                    onClick={() => navigate(examDetailPath(exam))}
+                                    title="Thiết lập cấu hình kỳ thi"
+                                  >
+                                    Thiết lập
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    icon={Trash2}
+                                    onClick={() => setExamToDelete(exam)}
+                                    className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                                    title="Xóa kỳ thi nháp"
+                                  >
+                                    Xóa
+                                  </Button>
+                                </>
+                              ) : exam.status === "PUBLISHED" ? (
+                                <>
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
+                                    icon={ScanLine}
+                                    onClick={() => navigate(`/grade?examId=${exam.id}`)}
+                                    title="Chấm bài thi ngay"
+                                  >
+                                    Chấm bài
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    icon={FileCheck}
+                                    onClick={() => navigate(`/exams/${exam.id}/submissions`)}
+                                    title="Quản lý bài đã chấm và công bố kết quả"
+                                  >
+                                    Bài đã chấm
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    icon={Eye}
+                                    onClick={() => navigate(examDetailPath(exam))}
+                                    title="Xem chi tiết kỳ thi"
+                                  >
+                                    Chi tiết
+                                  </Button>
+                                  <div className="inline-flex items-center gap-1 pl-1 border-l border-slate-200">
+                                    <button
+                                      type="button"
+                                      onClick={() => navigate(`/exams/${exam.id}/analytics`)}
+                                      className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
+                                      title="Thống kê kết quả thi & phổ điểm"
+                                    >
+                                      <BarChart3 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setExamToClone(exam)}
+                                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
+                                      title="Nhân bản kỳ thi để sửa cấu hình"
+                                    >
+                                      <Copy className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    icon={FileCheck}
+                                    onClick={() => navigate(`/exams/${exam.id}/submissions`)}
+                                    title="Quản lý bài đã chấm và công bố kết quả"
+                                  >
+                                    Bài đã chấm
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    icon={Eye}
+                                    onClick={() => navigate(examDetailPath(exam))}
+                                  >
+                                    Chi tiết
+                                  </Button>
+                                  <div className="inline-flex items-center gap-1 pl-1 border-l border-slate-200">
+                                    <button
+                                      type="button"
+                                      onClick={() => navigate(`/exams/${exam.id}/analytics`)}
+                                      className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
+                                      title="Thống kê kết quả thi"
+                                    >
+                                      <BarChart3 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setExamToClone(exam)}
+                                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
+                                      title="Nhân bản kỳ thi"
+                                    >
+                                      <Copy className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

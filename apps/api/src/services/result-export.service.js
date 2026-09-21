@@ -41,8 +41,30 @@ async function assertExportAccess(examId, user) {
       throw new AppError("Chỉ giáo viên sở hữu kỳ thi hoặc Quản trị viên mới có quyền xuất kết quả.", 403, "FORBIDDEN");
     }
     const teacher = await getTeacherProfile(user.id);
-    if (exam.teacherId !== teacher.id) {
-      throw new AppError("Bạn không có quyền xuất kết quả kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
+    const isDirectOwner = exam.teacherId && exam.teacherId === teacher.id;
+    if (!isDirectOwner) {
+      const examWithClasses = await prisma.exam.findUnique({
+        where: { id: examId },
+        select: {
+          subjectId: true,
+          classId: true,
+          examClasses: { select: { classId: true } },
+        },
+      });
+      const examClassIds = [
+        ...(examWithClasses?.classId ? [examWithClasses.classId] : []),
+        ...(examWithClasses?.examClasses ? examWithClasses.examClasses.map((ec) => ec.classId) : []),
+      ];
+      const assignment = await prisma.teachingAssignment.findFirst({
+        where: {
+          teacherId: teacher.id,
+          subjectId: examWithClasses.subjectId,
+          classId: { in: examClassIds },
+        },
+      });
+      if (!assignment) {
+        throw new AppError("Bạn không có quyền xuất kết quả kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
+      }
     }
   }
   if (!exam.resultsPublishedAt) {

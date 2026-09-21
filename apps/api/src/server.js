@@ -8,16 +8,30 @@ import prisma from "./config/prisma.js";
 const PORT = process.env.PORT || 5000;
 
 // Auto-ensure DB schema changes before starting HTTP listener
-const userColumnStatements = [
+const schemaEnsureStatements = [
   `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT`,
   `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fullName" TEXT`,
   `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT`,
+  `ALTER TABLE "Exam" ALTER COLUMN "teacherId" DROP NOT NULL`,
+  `ALTER TABLE "Exam" ALTER COLUMN "classId" DROP NOT NULL`,
+  `ALTER TABLE "Exam" ADD COLUMN IF NOT EXISTS "gradeId" TEXT`,
+  `ALTER TABLE "Exam" ADD COLUMN IF NOT EXISTS "durationMinutes" INTEGER DEFAULT 45`,
+  `ALTER TABLE "Exam" ADD COLUMN IF NOT EXISTS "sheetPreset" TEXT DEFAULT 'PRESET_TERM_50Q'`,
+  `ALTER TABLE "AnswerSheetTemplate" ADD COLUMN IF NOT EXISTS "sheetPreset" TEXT DEFAULT 'PRESET_TERM_50Q'`,
+  `CREATE TABLE IF NOT EXISTS "ExamClass" (
+    "id" TEXT NOT NULL,
+    "examId" TEXT NOT NULL,
+    "classId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "ExamClass_pkey" PRIMARY KEY ("id")
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ExamClass_examId_classId_key" ON "ExamClass"("examId", "classId")`,
 ];
-for (const sql of userColumnStatements) {
+for (const sql of schemaEnsureStatements) {
   try {
     await prisma.$executeRawUnsafe(sql);
   } catch (migErr) {
-    console.warn(`[SERVER] DB ensure notice (${sql}):`, migErr.message);
+    console.warn(`[SERVER] DB ensure notice (${sql.slice(0, 40)}...):`, migErr.message);
   }
 }
 console.log("[SERVER] Database schema verified & updated successfully.");

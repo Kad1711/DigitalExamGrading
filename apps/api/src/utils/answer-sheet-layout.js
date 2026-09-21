@@ -122,33 +122,109 @@ export function buildExamCodeGrid(xMm, yMm, digits) {
   };
 }
 
+export const SHEET_PRESETS = {
+  PRESET_15MIN_20Q: {
+    id: "PRESET_15MIN_20Q",
+    name: "Kiểm tra 15 phút - 20 câu",
+    questionCount: 20,
+    durationMinutes: 15,
+    columns: 2,
+    questionsPerPage: 50,
+  },
+  PRESET_15MIN_30Q: {
+    id: "PRESET_15MIN_30Q",
+    name: "Kiểm tra 15 phút - 30 câu",
+    questionCount: 30,
+    durationMinutes: 15,
+    columns: 2,
+    questionsPerPage: 50,
+  },
+  PRESET_45MIN_40Q: {
+    id: "PRESET_45MIN_40Q",
+    name: "Kiểm tra 45 phút - 40 câu",
+    questionCount: 40,
+    durationMinutes: 45,
+    columns: 2,
+    questionsPerPage: 50,
+  },
+  PRESET_TERM_50Q: {
+    id: "PRESET_TERM_50Q",
+    name: "Học kỳ / Chuẩn - 50 câu",
+    questionCount: 50,
+    durationMinutes: 60,
+    columns: 2,
+    questionsPerPage: 50,
+  },
+  PRESET_45MIN_60Q: {
+    id: "PRESET_45MIN_60Q",
+    name: "Kiểm tra 45 phút - 60 câu",
+    questionCount: 60,
+    durationMinutes: 45,
+    columns: 3,
+    questionsPerPage: 60,
+  },
+  PRESET_90MIN_60Q: {
+    id: "PRESET_90MIN_60Q",
+    name: "Kiểm tra 90 phút - 60 câu",
+    questionCount: 60,
+    durationMinutes: 90,
+    columns: 3,
+    questionsPerPage: 60,
+  },
+  PRESET_CUSTOM: {
+    id: "PRESET_CUSTOM",
+    name: "Tùy chỉnh số câu",
+    questionCount: null,
+    durationMinutes: 45,
+    columns: null,
+    questionsPerPage: 60,
+  },
+};
+
 /**
  * Build answer question rows for a page.
  */
-export function buildAnswerRows(startQuestion, endQuestion, startYMm) {
+export function buildAnswerRows(startQuestion, endQuestion, startYMm, options = {}) {
   const totalQuestions = endQuestion - startQuestion + 1;
-  const col1Count = Math.min(25, Math.ceil(totalQuestions / 2));
-  const rowHeight = 6.3;
-  const col1X = 20.0;
-  const col2X = 112.0;
+  const numColumns = options.numColumns || (totalQuestions > 50 ? 3 : 2);
+  const rowsPerColumn = Math.ceil(totalQuestions / numColumns);
+
   const optionLetters = ["A", "B", "C", "D"];
-  const optionSpacing = 9.0;
-  const optionStartOffset = 18.0;
+
+  let colXPositions;
+  let optionSpacing;
+  let optionStartOffset;
+  let rowHeight;
+  let labelWidth;
+
+  if (numColumns === 3) {
+    colXPositions = [20.0, 78.0, 136.0];
+    optionSpacing = 8.5;
+    optionStartOffset = 16.0;
+    rowHeight = rowsPerColumn <= 20 ? 6.5 : 5.8;
+    labelWidth = 12.0;
+  } else {
+    colXPositions = [20.0, 112.0];
+    optionSpacing = 9.0;
+    optionStartOffset = 18.0;
+    rowHeight = rowsPerColumn <= 15 ? 7.0 : (rowsPerColumn <= 20 ? 6.6 : 6.3);
+    labelWidth = 14.0;
+  }
 
   const questions = [];
 
   for (let q = startQuestion; q <= endQuestion; q++) {
     const indexInPage = q - startQuestion;
-    const isCol2 = indexInPage >= col1Count;
-    const colX = isCol2 ? col2X : col1X;
-    const rowInCol = isCol2 ? indexInPage - col1Count : indexInPage;
-    const yMm = startYMm + rowInCol * rowHeight;
+    const colIndex = Math.min(numColumns - 1, Math.floor(indexInPage / rowsPerColumn));
+    const rowIndex = indexInPage % rowsPerColumn;
+    const colX = colXPositions[colIndex];
+    const yMm = startYMm + rowIndex * rowHeight;
     const centerY = Math.round((yMm + rowHeight / 2) * 100) / 100;
 
-    const options = {};
+    const optCoords = {};
     optionLetters.forEach((letter, i) => {
       const centerX = Math.round((colX + optionStartOffset + i * optionSpacing) * 100) / 100;
-      options[letter] = {
+      optCoords[letter] = {
         letter,
         xMm: centerX,
         yMm: centerY,
@@ -158,14 +234,14 @@ export function buildAnswerRows(startQuestion, endQuestion, startYMm) {
 
     questions.push({
       questionNumber: q,
-      column: isCol2 ? 2 : 1,
+      column: colIndex + 1,
       labelBox: {
         xMm: colX,
         yMm,
-        widthMm: 14.0,
+        widthMm: labelWidth,
         heightMm: rowHeight,
       },
-      options,
+      options: optCoords,
     });
   }
 
@@ -184,13 +260,17 @@ export function buildAnswerSheetGeometry({
   questionsPerPage = QUESTIONS_PER_PAGE,
 }) {
   const questionCount = exam.questionCount || 40;
-  const totalPages = Math.max(1, Math.ceil(questionCount / questionsPerPage));
+  // If exam has > 50 questions, allow 60 on page 1 if fits in 3 columns
+  const effectiveQuestionsPerPage = questionCount <= 60 ? questionCount : questionsPerPage;
+  const totalPages = Math.max(1, Math.ceil(questionCount / effectiveQuestionsPerPage));
   const markers = getCornerMarkers();
   const pages = [];
 
   for (let p = 1; p <= totalPages; p++) {
-    const startQ = (p - 1) * questionsPerPage + 1;
-    const endQ = Math.min(questionCount, p * questionsPerPage);
+    const startQ = (p - 1) * effectiveQuestionsPerPage + 1;
+    const endQ = Math.min(questionCount, p * effectiveQuestionsPerPage);
+    const pageQuestionCount = endQ - startQ + 1;
+    const numColumns = pageQuestionCount > 50 ? 3 : 2;
 
     // QR code position & metadata payload
     const qrBox = {
@@ -221,7 +301,7 @@ export function buildAnswerSheetGeometry({
     const examCode = buildExamCodeGrid(64.0, 42.0, examCodeDigits);
 
     // Answer questions
-    const answers = buildAnswerRows(startQ, endQ, 106.0);
+    const answers = buildAnswerRows(startQ, endQ, 106.0, { numColumns });
 
     pages.push({
       pageNumber: p,
@@ -246,7 +326,7 @@ export function buildAnswerSheetGeometry({
     settings: {
       studentNumberDigits,
       examCodeDigits,
-      questionsPerPage,
+      questionsPerPage: effectiveQuestionsPerPage,
       bubbleRadiusMm: BUBBLE_RADIUS_MM,
     },
     markers,

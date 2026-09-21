@@ -32,6 +32,7 @@ export async function assertSubmissionAccess(submissionId, reqUser) {
           teacher: { select: { id: true, fullName: true, teacherCode: true } },
           subject: { select: { id: true, name: true, code: true } },
           class: { select: { id: true, name: true } },
+          examClasses: { include: { class: { select: { id: true, name: true } } } },
         },
       },
       examCode: { select: { id: true, code: true } },
@@ -54,11 +55,38 @@ export async function assertSubmissionAccess(submissionId, reqUser) {
   }
 
   const teacher = await getTeacherProfile(reqUser.id);
-  if (submission.exam.teacherId !== teacher.id) {
-    throw new AppError("Bạn không có quyền truy cập bài nộp này.", 403, "SUBMISSION_ACCESS_DENIED");
+  if (submission.exam.teacherId && submission.exam.teacherId === teacher.id) {
+    return submission;
   }
 
-  return submission;
+  const examWithClasses = await prisma.exam.findUnique({
+    where: { id: submission.examId },
+    select: {
+      subjectId: true,
+      classId: true,
+      examClasses: { select: { classId: true } },
+    },
+  });
+
+  const examClassIds = [
+    ...(examWithClasses?.classId ? [examWithClasses.classId] : []),
+    ...(examWithClasses?.examClasses ? examWithClasses.examClasses.map((ec) => ec.classId) : []),
+  ];
+
+  if (examClassIds.length > 0) {
+    const assignment = await prisma.teachingAssignment.findFirst({
+      where: {
+        teacherId: teacher.id,
+        subjectId: examWithClasses.subjectId,
+        classId: { in: examClassIds },
+      },
+    });
+    if (assignment) {
+      return submission;
+    }
+  }
+
+  throw new AppError("Bạn không có quyền truy cập bài nộp này.", 403, "SUBMISSION_ACCESS_DENIED");
 }
 
 /**
@@ -531,14 +559,18 @@ export async function createSubmission({
   }
 
   // Tự động liên kết học sinh trong lớp với SBD nếu chưa được gán
-  if (resolvedStudentNumber && exam.classId && !identityNeedsReview) {
+  const allExamClassIds = [
+    ...(exam.classId ? [exam.classId] : []),
+    ...(exam.examClasses ? exam.examClasses.map((ec) => ec.classId) : []),
+  ];
+  if (resolvedStudentNumber && allExamClassIds.length > 0 && !identityNeedsReview) {
     try {
       const existingCandidate = await prisma.examCandidate.findFirst({
         where: { examId, studentNumber: resolvedStudentNumber },
       });
       if (!existingCandidate) {
         const enrollments = await prisma.studentEnrollment.findMany({
-          where: { classId: exam.classId },
+          where: { classId: { in: allExamClassIds } },
           include: {
             student: {
               include: { user: { select: { email: true } } },
