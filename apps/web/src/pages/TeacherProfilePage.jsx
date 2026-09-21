@@ -234,15 +234,87 @@ export default function TeacherProfilePage() {
     }
   };
 
-  const isAdmin = profile?.role === "ADMIN" || user?.role === "ADMIN";
-  const isStudent = profile?.role === "STUDENT" || user?.role === "STUDENT";
-  const isTeacher = profile?.role === "TEACHER" || user?.role === "TEACHER";
+  const currentRole = profile?.role || user?.role;
+  const isAdmin = currentRole === "ADMIN";
+  const isStudent = currentRole === "STUDENT";
+  const isTeacher = currentRole === "TEACHER";
+
+  const getRolePermissionInfo = (role) => {
+    switch (role) {
+      case "ADMIN":
+        return {
+          title: "Hồ sơ Quản trị viên",
+          subtitle: "Quản lý thông tin tài khoản kỹ thuật và bảo mật quản trị hệ thống.",
+          permissionLabel: "Toàn quyền quản trị hệ thống",
+          badgeColor: "text-amber-700 bg-amber-50 border-amber-200",
+          emailLabel: "Email quản trị viên",
+        };
+      case "PRINCIPAL":
+        return {
+          title: "Hồ sơ Hiệu trưởng",
+          subtitle: "Quản lý thông tin tài khoản Ban Giám hiệu — Lãnh đạo nhà trường.",
+          permissionLabel: "Phê duyệt cuối & Giám sát toàn trường",
+          badgeColor: "text-purple-700 bg-purple-50 border-purple-200",
+          emailLabel: "Email Hiệu trưởng",
+        };
+      case "VICE_PRINCIPAL":
+        return {
+          title: "Hồ sơ Phó Hiệu trưởng",
+          subtitle: "Quản lý thông tin tài khoản Ban Giám hiệu — Phụ trách chuyên môn.",
+          permissionLabel: "Quản lý chuyên môn & Phân công giảng dạy",
+          badgeColor: "text-blue-700 bg-blue-50 border-blue-200",
+          emailLabel: "Email Phó Hiệu trưởng",
+        };
+      case "EXAM_BOARD":
+        return {
+          title: "Hồ sơ Ban Khảo thí",
+          subtitle: "Quản lý thông tin tài khoản Bộ phận Khảo thí & Khảo sát chất lượng.",
+          permissionLabel: "Tổ chức kỳ thi chính quy & Chấm thi OMR",
+          badgeColor: "text-indigo-700 bg-indigo-50 border-indigo-200",
+          emailLabel: "Email Ban Khảo thí",
+        };
+      case "ACADEMIC_BOARD":
+        return {
+          title: "Hồ sơ Ban Giáo dục và Đào tạo",
+          subtitle: "Quản lý thông tin tài khoản Bộ phận Quản lý Học vụ & Chuyên môn trường.",
+          permissionLabel: "Vận hành dữ liệu học vụ & Thẩm định kết quả",
+          badgeColor: "text-emerald-700 bg-emerald-50 border-emerald-200",
+          emailLabel: "Email Ban Giáo dục & Đào tạo",
+        };
+      case "TEACHER":
+        return {
+          title: "Hồ sơ Giáo viên",
+          subtitle: "Quản lý thông tin cá nhân và bảo mật tài khoản giáo viên.",
+          permissionLabel: "Tổ chức kiểm tra thường xuyên & Quản lý lớp dạy",
+          badgeColor: "text-blue-700 bg-blue-50 border-blue-200",
+          emailLabel: "Email giáo viên",
+        };
+      case "STUDENT":
+        return {
+          title: "Hồ sơ Học sinh",
+          subtitle: "Xem thông tin số báo danh, lớp học và quản lý bảo mật tài khoản học sinh.",
+          permissionLabel: "Xem kết quả thi cá nhân",
+          badgeColor: "text-blue-700 bg-blue-50 border-blue-200",
+          emailLabel: "Email học sinh",
+        };
+      default:
+        return {
+          title: "Hồ sơ người dùng",
+          subtitle: "Quản lý thông tin cá nhân và bảo mật tài khoản.",
+          permissionLabel: "Người dùng hệ thống",
+          badgeColor: "text-slate-700 bg-slate-50 border-slate-200",
+          emailLabel: "Email đăng nhập",
+        };
+    }
+  };
+
+  const roleInfo = getRolePermissionInfo(currentRole);
 
   const displayName =
     fullName ||
     profile?.fullName ||
     user?.fullName ||
-    (isStudent ? "Học sinh" : isTeacher ? "Giáo viên" : "Quản trị viên");
+    formatUserRole(currentRole);
   const initials = getInitials(displayName, profile?.email || user?.email);
   const currentAvatarUrl = profile?.avatarUrl || user?.avatarUrl;
 
@@ -267,14 +339,10 @@ export default function TeacherProfilePage() {
         {/* Page Title */}
         <div className="mb-6">
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            {isStudent ? "Hồ sơ học sinh" : isTeacher ? "Hồ sơ giáo viên" : "Hồ sơ quản trị viên"}
+            {roleInfo.title}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            {isStudent
-              ? "Xem thông tin số báo danh, lớp học và quản lý bảo mật tài khoản."
-              : isTeacher
-              ? "Quản lý thông tin cá nhân và bảo mật tài khoản giáo viên."
-              : "Quản lý thông tin cá nhân và bảo mật tài khoản quản trị hệ thống."}
+            {roleInfo.subtitle}
           </p>
         </div>
 
@@ -375,8 +443,8 @@ export default function TeacherProfilePage() {
                     ) : (
                       <span className="flex items-center gap-1.5">
                         <span className="font-semibold text-slate-700">Quyền hạn:</span>
-                        <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
-                          Toàn quyền hệ thống
+                        <span className={`font-semibold px-2 py-0.5 rounded border text-[11px] ${roleInfo.badgeColor}`}>
+                          {roleInfo.permissionLabel}
                         </span>
                       </span>
                     )}
@@ -554,7 +622,7 @@ export default function TeacherProfilePage() {
                       ) : (
                         <div className="sm:col-span-2">
                           <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                            Email quản trị viên
+                            {roleInfo.emailLabel}
                           </label>
                           <input
                             type="text"
