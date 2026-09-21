@@ -220,11 +220,11 @@ export default function AdminManagementPage() {
                 <Landmark className="w-5 h-5" />
               </span>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Ban Giám Hiệu & Bộ Phận Chuyên Môn
+                Quản lý Ban Giám Hiệu & Phòng Ban Chuyên Môn
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Quản lý tài khoản Ban Giám hiệu (Hiệu trưởng, Hiệu phó chuyên môn) và Bộ phận chuyên môn (Ban Chuyên môn, Ban Khảo thí).
+              Quản lý tài khoản Ban Giám hiệu (Hiệu trưởng, Hiệu phó) và các Phòng ban chuyên môn (Ban Khảo thí, Ban Chuyên môn).
             </p>
           </div>
           <Button

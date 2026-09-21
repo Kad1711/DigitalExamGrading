@@ -116,7 +116,7 @@ export default function AppHeader() {
       active: isAdminDashboardActive,
     },
     {
-      label: "Ban giám hiệu & Chuyên môn",
+      label: "Quản lý phòng ban",
       href: "/admin/management",
       icon: Landmark,
       active: isAdminManagementActive,

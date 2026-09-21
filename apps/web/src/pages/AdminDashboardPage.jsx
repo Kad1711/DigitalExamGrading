@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Calendar,
   Layers,
+  Landmark,
 } from "lucide-react";
 import { formatExamStatus } from "../utils/enum-map";
 
@@ -145,6 +146,15 @@ export default function AdminDashboardPage() {
               />
               <span>{refreshing ? "Đang cập nhật..." : "Làm mới"}</span>
             </button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Landmark}
+              onClick={() => navigate("/admin/management")}
+            >
+              Quản lý phòng ban
+            </Button>
 
             <Button
               variant="primary"
