@@ -380,8 +380,8 @@ export async function publishExamResults({ examId, user, note }) {
   const isOfficial = ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType);
 
   if (isOfficial) {
-    if (!["EXAM_BOARD", "ACADEMIC_BOARD", "ADMIN"].includes(user.role)) {
-      throw new AppError("Chỉ Ban khảo thí, Ban giáo dục hoặc Quản trị viên mới có quyền công bố kết quả kỳ thi chính quy.", 403, "FORBIDDEN");
+    if (!["EXAM_BOARD", "ADMIN"].includes(user.role)) {
+      throw new AppError("Chỉ Ban khảo thí hoặc Quản trị viên mới có quyền công bố kết quả kỳ thi chính quy.", 403, "FORBIDDEN");
     }
     if (exam.publicationApprovalStatus !== "APPROVED") {
       throw new AppError(
@@ -469,8 +469,8 @@ export async function unpublishExamResults({ examId, user, note }) {
   const isOfficial = ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType);
 
   if (isOfficial) {
-    if (!["EXAM_BOARD", "ACADEMIC_BOARD", "ADMIN"].includes(user.role)) {
-      throw new AppError("Chỉ Ban khảo thí, Ban giáo dục hoặc Quản trị viên mới có quyền thu hồi công bố kết quả.", 403, "FORBIDDEN");
+    if (!["EXAM_BOARD", "ADMIN"].includes(user.role)) {
+      throw new AppError("Chỉ Ban khảo thí hoặc Quản trị viên mới có quyền thu hồi công bố kết quả.", 403, "FORBIDDEN");
     }
   } else {
     if (user.role === "TEACHER") {
@@ -501,7 +501,7 @@ export async function unpublishExamResults({ examId, user, note }) {
       data: {
         resultsPublishedAt: null,
         resultsPublishedByUserId: null,
-        publicationApprovalStatus: isOfficial ? "NOT_REQUIRED" : "NOT_REQUIRED",
+        publicationApprovalStatus: "NOT_REQUESTED",
       },
     });
     await tx.examResultPublicationLog.create({
@@ -521,6 +521,13 @@ export async function unpublishExamResults({ examId, user, note }) {
  * Returns current publication status of an exam.
  */
 export async function getPublicationStatus({ examId, user }) {
+  if (user.role === "ADMIN") {
+    throw new AppError(
+      "Quản trị viên không có quyền truy cập trạng thái công bố kết quả.",
+      403,
+      "FORBIDDEN"
+    );
+  }
   await assertExamAccess(examId, user);
   const exam = await prisma.exam.findUnique({
     where: { id: examId },

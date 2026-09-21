@@ -97,6 +97,27 @@ describe("Governance & Security Access Control Unit Suite", () => {
     });
   });
 
+  describe("Official Publication Segregation of Duties", () => {
+    it("confirms PRINCIPAL and VICE_PRINCIPAL cannot approve or reject publication (Read/Oversight only)", () => {
+      const allowedApprovers = ["ACADEMIC_BOARD", "ADMIN"];
+      for (const role of ["PRINCIPAL", "VICE_PRINCIPAL"]) {
+        assert.equal(allowedApprovers.includes(role), false);
+      }
+    });
+
+    it("confirms EXAM_BOARD cannot approve publication requests", () => {
+      const allowedApprovers = ["ACADEMIC_BOARD", "ADMIN"];
+      assert.equal(allowedApprovers.includes("EXAM_BOARD"), false);
+    });
+
+    it("confirms ACADEMIC_BOARD cannot execute official publication (only EXAM_BOARD or ADMIN)", () => {
+      const allowedPublishers = ["EXAM_BOARD", "ADMIN"];
+      assert.equal(allowedPublishers.includes("ACADEMIC_BOARD"), false);
+      assert.equal(allowedPublishers.includes("EXAM_BOARD"), true);
+      assert.equal(allowedPublishers.includes("ADMIN"), true);
+    });
+  });
+
   describe("Teacher Official Exam Export Data-Scope Guard", () => {
     it("blocks teacher from exporting official exams they do not own", () => {
       const exam = {

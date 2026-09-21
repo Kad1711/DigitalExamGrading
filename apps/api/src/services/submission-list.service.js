@@ -20,6 +20,9 @@ import { normalizeExamCode } from "../utils/exam-code.js";
  * @returns { submissions, total, page, pageSize, totalPages, hasDuplicateSbd, duplicateGroupCount, duplicateSubmissionCount }
  */
 export async function listExamSubmissions({ examId, user, query }) {
+  if (user.role === "ADMIN") {
+    throw new AppError("Quản trị viên không có quyền xem danh sách bài nộp.", 403, "FORBIDDEN");
+  }
   await assertExamAccess(examId, user);
 
   const {
@@ -215,6 +218,9 @@ export async function listExamSubmissions({ examId, user, query }) {
  * Returns a summary of submission statistics for an exam.
  */
 export async function getExamSubmissionsSummary({ examId, user }) {
+  if (user.role === "ADMIN") {
+    throw new AppError("Quản trị viên không có quyền xem danh sách bài nộp.", 403, "FORBIDDEN");
+  }
   await assertExamAccess(examId, user);
 
   const [totalSubmissions, provisionalCount, finalCount, identityNeedsReviewCount, needsAnswerReviewCount] = await Promise.all([

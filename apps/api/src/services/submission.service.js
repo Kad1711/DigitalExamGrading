@@ -46,16 +46,59 @@ export async function assertSubmissionAccess(submissionId, reqUser) {
     throw new AppError("Không tìm thấy bài nộp trong hệ thống.", 404, "SUBMISSION_NOT_FOUND");
   }
 
-  await assertExamAccess(submission.examId, reqUser);
-  return submission;
+  if (reqUser.role === "ADMIN") {
+    throw new AppError("Quản trị viên không có quyền truy cập bài nộp.", 403, "FORBIDDEN");
+  }
+
+  // School leadership oversight (read-only)
+  if (["PRINCIPAL", "VICE_PRINCIPAL", "ACADEMIC_BOARD"].includes(reqUser.role)) {
+    return submission;
+  }
+
+  // Exam Board can view submissions for official exams or exams created by them
+  if (reqUser.role === "EXAM_BOARD") {
+    if (
+      submission.exam.createdByUserId === reqUser.id ||
+      ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(submission.exam.examType)
+    ) {
+      return submission;
+    }
+  }
+
+  if (reqUser.role !== "TEACHER") {
+    throw new AppError("Chỉ giáo viên phụ trách mới có quyền truy cập bài nộp.", 403, "FORBIDDEN");
+  }
+
+  const teacher = await getTeacherProfile(reqUser.id);
+  if (submission.exam.teacherId && submission.exam.teacherId === teacher.id) {
+    return submission;
+  }
+
+  const examClassIds = [
+    ...(submission.exam.classId ? [submission.exam.classId] : []),
+    ...(submission.exam.examClasses ? submission.exam.examClasses.map((ec) => ec.classId) : []),
+  ];
+
+  if (examClassIds.length > 0) {
+    const assignment = await prisma.teachingAssignment.findFirst({
+      where: {
+        teacherId: teacher.id,
+        subjectId: submission.exam.subjectId,
+        classId: { in: examClassIds },
+      },
+    });
+    if (assignment) {
+      return submission;
+    }
+  }
+
+  throw new AppError("Bạn không có quyền truy cập bài nộp này.", 403, "SUBMISSION_ACCESS_DENIED");
 }
 
 /**
  * Formats a submission model into a clean API response DTO.
  */
 export function formatSubmissionResponse(sub, answers = [], auditLogs = []) {
-  const isProvisional = sub.status === "PROVISIONAL";
-
   const formattedAnswers = answers.map((ans) => ({
     id: ans.id,
     questionNumber: ans.questionNumber,
@@ -66,16 +109,39 @@ export function formatSubmissionResponse(sub, answers = [], auditLogs = []) {
     confidence: ans.confidence !== null ? Number(ans.confidence) : null,
     manualResolvedAnswer: ans.manualResolvedAnswer,
     isOverridden: ans.isOverridden,
-    isCorrect: ans.isCorrect,
+    isCorrect: ans.isCorrect ?? (ans.result === "CORRECT"),
     score: ans.score !== null ? Number(ans.score) : null,
     hasReviewCrop: !!ans.reviewCropStorageKey,
-    needsReview: ans.omrStatus === "MULTIPLE" || ans.omrStatus === "UNCERTAIN",
+    needsReview: ans.needsReview ?? (ans.omrStatus === "MULTIPLE" || ans.omrStatus === "UNCERTAIN"),
+    teacherResolution: ans.teacherResolution,
+    resolvedByTeacher: ans.resolvedByTeacher,
+    resolvedAnswer: ans.resolvedAnswer,
+    reviewedAt: ans.reviewedAt,
+    effectiveAnswer: ans.effectiveAnswer,
+    result: ans.result,
+    scoreEarned: ans.scoreEarned !== null ? Number(ans.scoreEarned) : (ans.score !== null ? Number(ans.score) : null),
+    correctAnswer: ans.correctAnswerSnapshot,
+    correctAnswerSnapshot: ans.correctAnswerSnapshot,
+    scoreSnapshot: ans.scoreSnapshot !== null ? Number(ans.scoreSnapshot) : null,
+    fillRatios: ans.fillRatios,
+    reviewCropUrl: ans.reviewCropStorageKey
+      ? `/submissions/${sub.id}/answers/${ans.questionNumber}/review-crop`
+      : null,
   }));
 
   return {
     id: sub.id,
+    status: sub.status,
     examId: sub.examId,
     examTitle: sub.exam?.title || null,
+    identity: {
+      detectedStudentNumber: sub.detectedStudentNumber,
+      candidateStudentNumber: sub.candidateStudentNumber,
+      studentNumberOmrStatus: sub.studentNumberOmrStatus,
+      resolvedStudentNumber: sub.resolvedStudentNumber,
+      identityNeedsReview: sub.identityNeedsReview,
+      identityReviewedAt: sub.identityReviewedAt,
+    },
     student: {
       detectedSbd: sub.detectedStudentNumber,
       resolvedSbd: sub.resolvedStudentNumber,
@@ -152,8 +218,11 @@ export async function createSubmission({
   const t0 = performance.now();
 
   // 1. Verify exam access & status
-  if (!["TEACHER", "EXAM_BOARD", "ADMIN"].includes(user.role)) {
-    throw new AppError("Chỉ giáo viên phụ trách, Ban khảo thí hoặc Quản trị viên mới có quyền chấm bài.", 403, "FORBIDDEN");
+  if (user.role === "ADMIN") {
+    throw new AppError("Quản trị viên không có quyền nộp bài thi.", 403, "FORBIDDEN");
+  }
+  if (!["TEACHER", "EXAM_BOARD"].includes(user.role)) {
+    throw new AppError("Chỉ giáo viên phụ trách hoặc Ban khảo thí mới có quyền chấm bài.", 403, "FORBIDDEN");
   }
   const exam = await assertExamAccess(examId, user);
   await assertExamManageAccess(exam, user);

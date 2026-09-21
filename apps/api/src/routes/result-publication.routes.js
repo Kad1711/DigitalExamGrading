@@ -28,7 +28,7 @@ const oversightRoles = authorizeRoles(
 );
 const examBoardOrAdmin = authorizeRoles("EXAM_BOARD", "ADMIN");
 const academicBoardOrAdmin = authorizeRoles("ACADEMIC_BOARD", "ADMIN");
-const canPublishOrUnpublish = authorizeRoles("TEACHER", "EXAM_BOARD", "ACADEMIC_BOARD", "ADMIN");
+const canPublishOrUnpublish = authorizeRoles("TEACHER", "EXAM_BOARD", "ADMIN");
 
 // Approval queue for Academic Board & School Management
 router.get("/publication/approval-queue", oversightRoles, getPublicationApprovalQueueController);

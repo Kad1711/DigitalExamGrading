@@ -1,4 +1,4 @@
-﻿import cors from "cors";
+import cors from "cors";
 
 /**
  * Configure CORS options based on environment and CORS_ORIGIN.
@@ -13,9 +13,11 @@
  * - Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
  * - Allowed Headers: Content-Type, Authorization
  */
-export function getCorsOptions(nodeEnv = process.env.NODE_ENV, corsOrigin = process.env.CORS_ORIGIN) {
-  const isProd = nodeEnv === "production";
-  const trimmed = typeof corsOrigin === "string" ? corsOrigin.trim() : "";
+export function getCorsOptions(nodeEnv = process.env.NODE_ENV, corsOrigin) {
+  const envVal = nodeEnv ?? process.env.NODE_ENV;
+  const isProd = envVal === "production";
+  const rawOrigin = arguments.length > 1 ? corsOrigin : process.env.CORS_ORIGIN;
+  const trimmed = typeof rawOrigin === "string" ? rawOrigin.trim() : "";
 
   let origin;
   if (trimmed) {
