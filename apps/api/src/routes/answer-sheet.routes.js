@@ -11,19 +11,18 @@ import {
 const router = Router({ mergeParams: true });
 
 router.use(authenticate);
-const denyStudent = authorizeRoles("ADMIN", "TEACHER");
-const adminOnly = authorizeRoles("ADMIN");
+const staffRoles = authorizeRoles("SUPER_ADMIN", "TEACHER", "EXAM_OFFICER", "PRINCIPAL", "VICE_PRINCIPAL");
 
 // Create / regenerate template (DRAFT only)
-router.post("/:examId/answer-sheet-template", denyStudent, createTemplateController);
+router.post("/:examId/answer-sheet-template", staffRoles, createTemplateController);
 
 // Get latest template metadata
-router.get("/:examId/answer-sheet-template", denyStudent, getLatestTemplateController);
+router.get("/:examId/answer-sheet-template", staffRoles, getLatestTemplateController);
 
 // Get full layoutJson
-router.get("/:examId/answer-sheet-template/layout", denyStudent, getTemplateLayoutController);
+router.get("/:examId/answer-sheet-template/layout", staffRoles, getTemplateLayoutController);
 
 // Download vector PDF
-router.get("/:examId/answer-sheet-template/pdf", denyStudent, downloadTemplatePdfController);
+router.get("/:examId/answer-sheet-template/pdf", staffRoles, downloadTemplatePdfController);
 
 export default router;

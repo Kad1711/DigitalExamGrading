@@ -10,19 +10,19 @@ const router = Router();
 // Toan bo routes cua admin deu can dang nhap
 router.use(authenticate);
 
-const adminOnly = authorizeRoles("ADMIN");
-const canViewOversight = authorizeRoles("ADMIN", "PRINCIPAL", "VICE_PRINCIPAL");
-const canManageTeacherProfessional = authorizeRoles("ADMIN", "VICE_PRINCIPAL");
-const canViewTeachers = authorizeRoles("ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "ACADEMIC_BOARD");
+const adminOnly = authorizeRoles("SUPER_ADMIN");
+const canViewOversight = authorizeRoles("SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL");
+const canManageTeacherProfessional = authorizeRoles("SUPER_ADMIN", "VICE_PRINCIPAL");
+const canViewTeachers = authorizeRoles("SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL");
 
 /**
  * GET /api/admin/test
- * Chi ADMIN truy cap duoc. Dung de verify RBAC.
+ * Chi SUPER_ADMIN truy cap duoc. Dung de verify RBAC.
  */
 router.get("/test", adminOnly, (req, res) => {
   res.status(200).json({
     success: true,
-    message: "RBAC OK - ban la ADMIN.",
+    message: "RBAC OK - ban la SUPER_ADMIN.",
     data: { user: req.user },
   });
 });

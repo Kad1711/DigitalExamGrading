@@ -107,6 +107,15 @@ export async function putAnswerKey(examId, codeId, answers, reqUser) {
   await assertExamManageAccess(exam, reqUser);
   const examCode = await assertExamCodeBelongsToExam(examId, codeId);
 
+  const submissionCount = await prisma.examSubmission.count({ where: { examId } });
+  if (submissionCount > 0) {
+    throw new AppError(
+      "Không thể chỉnh sửa đáp án gốc khi kỳ thi đã có bài làm được chấm.",
+      409,
+      "ANSWER_KEY_IMMUTABLE_ONCE_SUBMISSIONS_EXIST"
+    );
+  }
+
   if (exam.status !== "DRAFT") {
     throw new AppError(
       "Khong the sua AnswerKey khi ky thi da duoc publish.",
@@ -144,10 +153,10 @@ export async function putAnswerKey(examId, codeId, answers, reqUser) {
     }
   }
 
-  // Transaction: replace toan bo
+  // Transaction: replace toan bo va vo hieu hoa phe duyet cu neu co
   const result = await prisma.$transaction(async (tx) => {
     await tx.answerKey.deleteMany({ where: { examCodeId: codeId } });
-    return tx.answerKey.createMany({
+    const inserted = await tx.answerKey.createMany({
       data: answers.map((a) => ({
         examCodeId: codeId,
         questionNumber: a.questionNumber,
@@ -155,6 +164,18 @@ export async function putAnswerKey(examId, codeId, answers, reqUser) {
         score: scoringType === "EQUAL" ? equalScore : Number(a.score),
       })),
     });
+
+    // Invalidate stale approval
+    await tx.exam.update({
+      where: { id: examId },
+      data: {
+        answerKeyApprovedAt: null,
+        answerKeyApprovedByTeacherId: null,
+        publicationApprovalStatus: "NOT_REQUIRED",
+      },
+    });
+
+    return inserted;
   });
 
   return result;
@@ -178,4 +199,88 @@ export async function getAnswerKey(examId, codeId, reqUser) {
       score: Number(ak.score),
     })),
   };
+}
+
+/**
+ * Phê duyệt đáp án gốc kỳ thi bởi Tổ trưởng chuyên môn (Subject Leader).
+ * Áp dụng cho kỳ thi tập trung MIDTERM / FINAL.
+ */
+export async function approveAnswerKey(examId, reqUser) {
+  const exam = await prisma.exam.findUnique({
+    where: { id: examId },
+    include: {
+      examCodes: {
+        include: {
+          _count: { select: { answerKeys: true } },
+        },
+      },
+    },
+  });
+
+  if (!exam) {
+    throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
+  }
+
+  if (reqUser.role !== "TEACHER") {
+    throw new AppError(
+      "Chỉ Tổ trưởng chuyên môn phụ trách đúng môn học của kỳ thi mới có quyền phê duyệt đáp án gốc.",
+      403,
+      "FORBIDDEN_NOT_SUBJECT_LEADER"
+    );
+  }
+
+  const teacher = await prisma.teacher.findUnique({ where: { userId: reqUser.id } });
+
+  const isAuthorizedSubjectLeader =
+    teacher &&
+    teacher.isSubjectLeader === true &&
+    teacher.primarySubjectId === exam.subjectId;
+
+  if (!isAuthorizedSubjectLeader) {
+    throw new AppError(
+      "Chỉ Tổ trưởng chuyên môn phụ trách đúng môn học của kỳ thi mới có quyền phê duyệt đáp án gốc.",
+      403,
+      "FORBIDDEN_NOT_SUBJECT_LEADER"
+    );
+  }
+
+  if (!exam.examCodes || exam.examCodes.length === 0) {
+    throw new AppError(
+      "Kỳ thi chưa có mã đề nào được tạo. Không thể phê duyệt đáp án.",
+      422,
+      "NO_EXAM_CODES"
+    );
+  }
+
+  for (const code of exam.examCodes) {
+    if (code._count.answerKeys !== exam.questionCount) {
+      throw new AppError(
+        `Mã đề "${code.code}" chưa có đủ ${exam.questionCount} đáp án (hiện có ${code._count.answerKeys}).`,
+        422,
+        "INCOMPLETE_ANSWER_KEYS"
+      );
+    }
+  }
+
+  const now = new Date();
+  const updatedExam = await prisma.exam.update({
+    where: { id: examId },
+    data: {
+      answerKeyApprovedAt: now,
+      answerKeyApprovedByTeacherId: teacher ? teacher.id : null,
+    },
+    include: {
+      answerKeyApprovedByTeacher: {
+        select: {
+          id: true,
+          fullName: true,
+          teacherCode: true,
+          title: true,
+          isSubjectLeader: true,
+        },
+      },
+    },
+  });
+
+  return updatedExam;
 }

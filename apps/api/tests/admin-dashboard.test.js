@@ -29,12 +29,14 @@ test("Admin Dashboard System Statistics Test Suite", async (t) => {
     assert.equal(typeof data.tierStats.thpt.students, "number");
     assert.equal(typeof data.tierStats.thpt.classes, "number");
 
-    // Grade breakdown includes THCS & THPT levels
+    // Grade breakdown includes THCS levels
     assert.ok(Array.isArray(data.grades), "Must have grades array");
     const levels = data.grades.map((g) => g.level);
     assert.ok(levels.includes(6), "Must include Khối 6");
+    assert.ok(levels.includes(7), "Must include Khối 7");
+    assert.ok(levels.includes(8), "Must include Khối 8");
     assert.ok(levels.includes(9), "Must include Khối 9");
-    assert.ok(levels.includes(12), "Must include Khối 12");
+    assert.ok(!levels.includes(12), "Must NOT include Khối 12 in THCS scope");
 
     // Subjects
     assert.ok(Array.isArray(data.subjects), "Must have subjects array");
@@ -56,13 +58,13 @@ test("Admin Dashboard System Statistics Test Suite", async (t) => {
     assert.equal(data.systemHealth.dbStatus, "CONNECTED");
   });
 
-  await t.test("2. RBAC protection: non-ADMIN role is strictly denied", async () => {
+  await t.test("2. RBAC protection: non-SUPER_ADMIN role is strictly denied", async () => {
     const { authorizeRoles } = await import("../src/middlewares/role.middleware.js");
-    const adminOnlyMiddleware = authorizeRoles("ADMIN");
+    const adminOnlyMiddleware = authorizeRoles("SUPER_ADMIN");
 
     const teacherReq = { user: { role: "TEACHER" } };
     const studentReq = { user: { role: "STUDENT" } };
-    const adminReq = { user: { role: "ADMIN" } };
+    const adminReq = { user: { role: "SUPER_ADMIN" } };
 
     let teacherErr = null;
     adminOnlyMiddleware(teacherReq, {}, (err) => {
@@ -86,7 +88,7 @@ test("Admin Dashboard System Statistics Test Suite", async (t) => {
       adminErr = err;
       adminNextCalled = true;
     });
-    assert.ok(!adminErr, "No error should be passed for ADMIN");
-    assert.equal(adminNextCalled, true, "Admin must be authorized");
+    assert.ok(!adminErr, "No error should be passed for SUPER_ADMIN");
+    assert.equal(adminNextCalled, true, "Super Admin must be authorized");
   });
 });

@@ -16,14 +16,13 @@ const router = Router();
 router.use(authenticate);
 
 const viewSubmissionRoles = authorizeRoles(
-  "TEACHER",
-  "EXAM_BOARD",
-  "ACADEMIC_BOARD",
+  "SUPER_ADMIN",
   "PRINCIPAL",
   "VICE_PRINCIPAL",
-  "ADMIN"
+  "EXAM_OFFICER",
+  "TEACHER"
 );
-const mutateSubmissionRoles = authorizeRoles("TEACHER", "EXAM_BOARD", "ADMIN");
+const mutateSubmissionRoles = authorizeRoles("SUPER_ADMIN", "EXAM_OFFICER", "TEACHER");
 
 // Submission Details & Deletion
 router.get("/:submissionId", viewSubmissionRoles, getSubmissionController);

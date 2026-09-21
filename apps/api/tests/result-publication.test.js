@@ -39,7 +39,7 @@ async function setupPublicationContext() {
     });
   }
 
-  const adminUser = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+  const adminUser = await prisma.user.findFirst({ where: { role: "SUPER_ADMIN" } });
   if (!adminUser) throw new Error("No Admin found");
 
   const subject = await prisma.subject.findFirst();
@@ -182,7 +182,7 @@ async function setupPublicationContext() {
   return {
     teacherA: { id: teacherUserA.id, role: "TEACHER" },
     teacherB: { id: teacherUserB.id, role: "TEACHER" },
-    admin: { id: adminUser.id, role: "ADMIN" },
+    admin: { id: adminUser.id, role: "SUPER_ADMIN" },
     exam,
     examCode,
     template,

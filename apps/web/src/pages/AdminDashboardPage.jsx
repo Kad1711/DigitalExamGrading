@@ -262,11 +262,7 @@ export default function AdminDashboardPage() {
                   </div>
                   <div className="mt-2 text-xs text-slate-500 flex items-center gap-1.5">
                     <span className="font-medium text-slate-600">
-                      {overview?.classes.thcs || 0} THCS
-                    </span>
-                    <span>•</span>
-                    <span className="font-medium text-slate-600">
-                      {overview?.classes.thpt || 0} THPT
+                      Toàn bộ cấp THCS (Khối 6 - 9)
                     </span>
                   </div>
                 </div>
@@ -366,16 +362,13 @@ export default function AdminDashboardPage() {
                       Quy mô Khối lớp & Cấp học
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Phân bổ học sinh và lớp học trên toàn bộ hệ thống THCS (Khối 6-9) & THPT (Khối 10-12)
+                      Phân bổ học sinh và lớp học trên toàn bộ hệ thống THCS (Khối 6, 7, 8, 9)
                     </p>
                   </div>
 
                   <div className="flex items-center gap-2 text-xs">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 font-bold rounded-lg">
-                      THCS: {tierStats?.thcs.students || 0} HS ({tierStats?.thcs.classes || 0} lớp)
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 font-bold rounded-lg">
-                      THPT: {tierStats?.thpt.students || 0} HS ({tierStats?.thpt.classes || 0} lớp)
+                      Toàn trường THCS: {overview?.students.total || 0} HS ({overview?.classes.total || 0} lớp)
                     </span>
                   </div>
                 </div>

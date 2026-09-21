@@ -30,14 +30,13 @@ export default function AppHeader() {
     navigate("/login");
   };
 
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user?.role === "SUPER_ADMIN";
   const isTeacher = user?.role === "TEACHER";
   const isStudent = user?.role === "STUDENT";
   const isPrincipal = user?.role === "PRINCIPAL";
   const isVicePrincipal = user?.role === "VICE_PRINCIPAL";
-  const isExamBoard = user?.role === "EXAM_BOARD";
-  const isAcademicBoard = user?.role === "ACADEMIC_BOARD";
-  const isManagement = isPrincipal || isVicePrincipal || isExamBoard || isAcademicBoard;
+  const isExamOfficer = user?.role === "EXAM_OFFICER";
+  const isManagement = isPrincipal || isVicePrincipal || isExamOfficer;
 
   const isExamsActive = location.pathname.startsWith("/exams");
   const isClassesActive = location.pathname.startsWith("/classes");
@@ -181,13 +180,19 @@ export default function AppHeader() {
     },
   ];
 
-  // Nav for VICE_PRINCIPAL — teacher professional management
+  // Nav for VICE_PRINCIPAL — teacher professional management & publication approval
   const vicePrincipalNavItems = [
     {
       label: "Kỳ thi & Đề thi",
       href: "/exams",
       icon: FileText,
       active: isExamsActive,
+    },
+    {
+      label: "Hàng đợi phê duyệt",
+      href: "/exams?tab=approval-queue",
+      icon: ShieldCheck,
+      active: isApprovalQueueActive,
     },
     {
       label: "Chuyên môn GV",
@@ -215,8 +220,8 @@ export default function AppHeader() {
     },
   ];
 
-  // Nav for EXAM_BOARD — can create official exams + grade
-  const examBoardNavItems = [
+  // Nav for EXAM_OFFICER — can create official exams + grade
+  const examOfficerNavItems = [
     {
       label: "Kỳ thi chính thức",
       href: "/exams",
@@ -243,34 +248,6 @@ export default function AppHeader() {
     },
   ];
 
-  // Nav for ACADEMIC_BOARD — can approve publication requests
-  const academicBoardNavItems = [
-    {
-      label: "Kỳ thi & Đề thi",
-      href: "/exams",
-      icon: FileText,
-      active: isExamsActive,
-    },
-    {
-      label: "Hàng đợi phê duyệt",
-      href: "/exams?tab=approval-queue",
-      icon: ShieldCheck,
-      active: isApprovalQueueActive,
-    },
-    {
-      label: "Lớp học & Học sinh",
-      href: "/classes",
-      icon: Users,
-      active: isClassesActive,
-    },
-    {
-      label: "Hồ sơ",
-      href: "/profile",
-      icon: UserCheck,
-      active: isProfileActive,
-    },
-  ];
-
   const currentNavItems = isTeacher
     ? teacherNavItems
     : isStudent
@@ -281,10 +258,8 @@ export default function AppHeader() {
     ? principalNavItems
     : isVicePrincipal
     ? vicePrincipalNavItems
-    : isExamBoard
-    ? examBoardNavItems
-    : isAcademicBoard
-    ? academicBoardNavItems
+    : isExamOfficer
+    ? examOfficerNavItems
     : [];
 
   // Home redirect per role
@@ -330,10 +305,10 @@ export default function AppHeader() {
               </div>
             </Link>
 
-            {/* School System Scope Badge: THCS & THPT */}
+            {/* School System Scope Badge: THCS (Khối 6-9) */}
             <div className="mt-3 flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-lg text-[11px] font-semibold text-slate-600">
               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-              <span>Hệ thống THCS & THPT</span>
+              <span>Hệ thống THCS (Khối 6-9)</span>
             </div>
           </div>
 

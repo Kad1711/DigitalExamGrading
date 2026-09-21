@@ -7,7 +7,7 @@ import { listExamCandidates } from "../src/services/exam-candidate.service.js";
 import { listStudentResults } from "../src/services/student-result.service.js";
 
 test("Phase 10 — V1 Final RBAC Security Matrix Suite", async (t) => {
-  const adminUser = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+  const adminUser = await prisma.user.findFirst({ where: { role: "SUPER_ADMIN" } });
   const teacherUser = await prisma.user.findFirst({ where: { role: "TEACHER" }, include: { teacher: true } });
   const studentUser = await prisma.user.findFirst({ where: { role: "STUDENT" }, include: { student: true } });
 

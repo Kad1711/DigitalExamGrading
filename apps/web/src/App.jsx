@@ -22,10 +22,10 @@ const AdminManagementPage = lazy(() => import("./pages/AdminManagementPage"));
 const VicePrincipalTeacherManagementPage = lazy(() => import("./pages/VicePrincipalTeacherManagementPage"));
 
 // Role groups for route protection
-const ALL_STAFF_ROLES = ["ADMIN", "TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"];
-const EXAM_CREATOR_ROLES = ["ADMIN", "TEACHER", "EXAM_BOARD"];
-const GRADING_ROLES = ["ADMIN", "TEACHER", "EXAM_BOARD"];
-const MANAGEMENT_VIEW_ROLES = ["ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"];
+const ALL_STAFF_ROLES = ["SUPER_ADMIN", "TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"];
+const EXAM_CREATOR_ROLES = ["SUPER_ADMIN", "TEACHER", "EXAM_OFFICER"];
+const GRADING_ROLES = ["SUPER_ADMIN", "TEACHER", "EXAM_OFFICER"];
+const MANAGEMENT_VIEW_ROLES = ["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"];
 
 function PageLoading() {
   return (
@@ -42,9 +42,9 @@ function RootRedirect() {
   const { user, isAuthenticated, loading } = useAuth();
   if (loading) return null;
   if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
-  if (user.role === "ADMIN") return <Navigate to="/admin/dashboard" replace />;
+  if (user.role === "SUPER_ADMIN") return <Navigate to="/admin/dashboard" replace />;
   if (user.role === "STUDENT") return <Navigate to="/student/exams" replace />;
-  // All staff roles (TEACHER, PRINCIPAL, VICE_PRINCIPAL, EXAM_BOARD, ACADEMIC_BOARD) go to /exams
+  // All staff roles (TEACHER, PRINCIPAL, VICE_PRINCIPAL, EXAM_OFFICER) go to /exams
   return <Navigate to="/exams" replace />;
 }
 
@@ -61,7 +61,7 @@ export default function App() {
           <Route
             path="/admin/dashboard"
             element={
-              <RequireRole roles={["ADMIN"]}>
+              <RequireRole roles={["SUPER_ADMIN"]}>
                 <AdminDashboardPage />
               </RequireRole>
             }
@@ -69,7 +69,7 @@ export default function App() {
           <Route
             path="/admin/management"
             element={
-              <RequireRole roles={["ADMIN"]}>
+              <RequireRole roles={["SUPER_ADMIN"]}>
                 <AdminManagementPage />
               </RequireRole>
             }
@@ -77,7 +77,7 @@ export default function App() {
           <Route
             path="/vice-principal/teachers"
             element={
-              <RequireRole roles={["ADMIN", "VICE_PRINCIPAL"]}>
+              <RequireRole roles={["SUPER_ADMIN", "VICE_PRINCIPAL"]}>
                 <VicePrincipalTeacherManagementPage />
               </RequireRole>
             }
@@ -85,7 +85,7 @@ export default function App() {
           <Route
             path="/admin/teachers"
             element={
-              <RequireRole roles={["ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"]}>
+              <RequireRole roles={["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"]}>
                 <AdminTeacherListPage />
               </RequireRole>
             }
@@ -95,7 +95,7 @@ export default function App() {
           <Route
             path="/profile"
             element={
-              <RequireRole roles={["TEACHER", "STUDENT", "ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"]}>
+              <RequireRole roles={["TEACHER", "STUDENT", "SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"]}>
                 <TeacherProfilePage />
               </RequireRole>
             }

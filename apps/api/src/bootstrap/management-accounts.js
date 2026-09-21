@@ -4,39 +4,37 @@ import prisma from "../config/prisma.js";
 const SALT_ROUNDS = 12;
 
 /**
- * 5 Standard Management Accounts Configuration
- * admin@digitalexam.local is preserved as existing ADMIN.
- * 4 new management roles are bootstrapped idempotently without storing plaintext passwords in git.
+ * THCS V2 Institutional Management Accounts Configuration
+ * Super Admin (admin@digitalexam.local) manages system.
+ * 3 institutional management roles:
+ * - PRINCIPAL (Hiệu trưởng)
+ * - VICE_PRINCIPAL (Hiệu phó chuyên môn)
+ * - EXAM_OFFICER (Cán bộ khảo thí)
  */
 export const MANAGEMENT_ACCOUNTS = [
   {
-    email: "hieutruongdigital@digitalexam.local",
+    email: "hieutruong@digitalexam.local",
     role: "PRINCIPAL",
-    fullName: "Hiệu trưởng",
+    fullName: "Trần Văn Hiệu Trưởng",
   },
   {
-    email: "hieuphodigital@digitalexam.local",
+    email: "hieupho@digitalexam.local",
     role: "VICE_PRINCIPAL",
-    fullName: "Hiệu phó",
+    fullName: "Lê Thị Hiệu Phó",
   },
   {
-    email: "bankhaothidigital@digitalexam.local",
-    role: "EXAM_BOARD",
-    fullName: "Ban khảo thí",
-  },
-  {
-    email: "bangiaoducvadaotaodigital@digitalexam.local",
-    role: "ACADEMIC_BOARD",
-    fullName: "Ban Giáo dục và Đào tạo",
+    email: "khaothi@digitalexam.local",
+    role: "EXAM_OFFICER",
+    fullName: "Phạm Văn Khảo Thí",
   },
 ];
 
 /**
- * Idempotent Bootstrap for the 4 Management Accounts.
+ * Idempotent Bootstrap for the 3 Institutional Management Accounts.
  * Will not overwrite existing passwords or duplicate users.
  */
 export async function bootstrapManagementAccounts() {
-  const defaultPassword = process.env.DEFAULT_MANAGEMENT_PASSWORD || "DigitalExam@2026!";
+  const defaultPassword = process.env.DEFAULT_MANAGEMENT_PASSWORD || "Admin@123";
 
   for (const acc of MANAGEMENT_ACCOUNTS) {
     try {
@@ -57,7 +55,6 @@ export async function bootstrapManagementAccounts() {
         });
         console.log(`[BOOTSTRAP] Successfully initialized ${acc.role} account: ${acc.email}`);
       } else if (existing.role !== acc.role) {
-        // Ensure role matches target specification
         await prisma.user.update({
           where: { id: existing.id },
           data: { role: acc.role, fullName: acc.fullName || existing.fullName },

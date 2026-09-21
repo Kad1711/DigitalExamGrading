@@ -524,15 +524,15 @@ export default function ExamSubmissionsPage() {
 
   const examTitle = exam?.title || "Kỳ thi";
 
-  const isStaffManager = ["ADMIN", "EXAM_BOARD", "TEACHER"].includes(user?.role);
-  const isExamBoardOrAdmin = ["EXAM_BOARD", "ADMIN"].includes(user?.role);
-  const isAcademicBoardOrAdmin = ["ACADEMIC_BOARD", "ADMIN"].includes(user?.role);
+  const isStaffManager = ["SUPER_ADMIN", "EXAM_OFFICER", "TEACHER"].includes(user?.role);
+  const isExamOfficerOrAdmin = ["EXAM_OFFICER", "SUPER_ADMIN"].includes(user?.role);
+  const isVicePrincipalOrAdmin = ["VICE_PRINCIPAL", "SUPER_ADMIN"].includes(user?.role);
   const isOfficial =
     publication?.isOfficialExam ||
     ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam?.examType);
   const canApprove =
     publication?.canApprove ||
-    (isAcademicBoardOrAdmin && publication?.publicationApprovalStatus === "PENDING_APPROVAL");
+    (isVicePrincipalOrAdmin && ["PENDING_VICE_PRINCIPAL", "PENDING_APPROVAL"].includes(publication?.publicationApprovalStatus));
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -742,7 +742,7 @@ export default function ExamSubmissionsPage() {
               ) : isOfficial ? (
                 <>
                   {publication?.publicationApprovalStatus === "APPROVED" && (
-                    ["EXAM_BOARD", "ACADEMIC_BOARD", "ADMIN"].includes(user?.role) ? (
+                    ["EXAM_OFFICER", "SUPER_ADMIN"].includes(user?.role) ? (
                       <Button
                         variant="success"
                         size="sm"
@@ -810,7 +810,7 @@ export default function ExamSubmissionsPage() {
                   )}
                 </>
               ) : (
-                ["TEACHER", "ADMIN"].includes(user?.role) && (
+                ["TEACHER", "SUPER_ADMIN"].includes(user?.role) && (
                   <Button
                     variant="success"
                     size="sm"

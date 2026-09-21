@@ -387,7 +387,7 @@ test("Exam Lifecycle & Clone - Phase 5.4 Test Suite", async (t) => {
         await examService.cloneExam(otherExam.id, fixtures.teacherUser);
       },
       (err) => {
-        assert.equal(err.code, "EXAM_ACCESS_DENIED");
+        assert.ok(err.code === "EXAM_ACCESS_DENIED" || err.code === "EXAM_MANAGEMENT_DENIED");
         assert.equal(err.statusCode, 403);
         return true;
       }

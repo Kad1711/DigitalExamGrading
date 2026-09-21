@@ -3,7 +3,7 @@ import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 
 const SALT_ROUNDS = 12;
-const MANAGEMENT_ROLES = ["PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"];
+const MANAGEMENT_ROLES = ["PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"];
 
 /**
  * GET /api/admin/management-accounts

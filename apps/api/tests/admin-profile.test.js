@@ -124,9 +124,9 @@ test("Admin Teacher Management & Teacher Profile - Phase 5.5 Test Suite", async 
   });
 
   // Test 4: RBAC middleware protection
-  await t.test("4. RBAC protection: Teacher or Student token accessing ADMIN-only middleware gets 403 FORBIDDEN", async () => {
+  await t.test("4. RBAC protection: Teacher or Student token accessing SUPER_ADMIN-only middleware gets 403 FORBIDDEN", async () => {
     const teacherReq = { user: { id: createdTeacher.userId, role: "TEACHER" } };
-    const authAdminMw = authorizeRoles("ADMIN");
+    const authAdminMw = authorizeRoles("SUPER_ADMIN");
 
     const result = await runMiddleware(authAdminMw, teacherReq);
     assert.ok(result.err);
@@ -134,9 +134,9 @@ test("Admin Teacher Management & Teacher Profile - Phase 5.5 Test Suite", async 
     assert.equal(result.err.code, "FORBIDDEN");
   });
 
-  // Test 4b: ADMIN token rejected on /api/profile routes (including change-password)
-  await t.test("4b. RBAC protection: ADMIN token accessing /api/profile (including change-password) gets 403 FORBIDDEN", async () => {
-    const adminReq = { user: { id: "admin-id", role: "ADMIN" } };
+  // Test 4b: SUPER_ADMIN token rejected on /api/profile routes (including change-password)
+  await t.test("4b. RBAC protection: SUPER_ADMIN token accessing /api/profile (including change-password) gets 403 FORBIDDEN", async () => {
+    const adminReq = { user: { id: "admin-id", role: "SUPER_ADMIN" } };
     const authTeacherMw = authorizeRoles("TEACHER");
 
     const result = await runMiddleware(authTeacherMw, adminReq);

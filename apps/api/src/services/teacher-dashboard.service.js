@@ -4,7 +4,7 @@ import { AppError } from "../middlewares/error.middleware.js";
 export async function getTeacherDashboard(teacherUserId, userRole = "TEACHER") {
   let where = {};
 
-  if (userRole !== "ADMIN") {
+  if (userRole !== "SUPER_ADMIN") {
     const teacher = await prisma.teacher.findUnique({
       where: { userId: teacherUserId },
     });
@@ -123,7 +123,7 @@ export async function getTeacherDashboard(teacherUserId, userRole = "TEACHER") {
 }
 
 export async function getTeacherTeachingAssignments(teacherUserId, userRole = "TEACHER") {
-  if (userRole === "ADMIN") {
+  if (userRole === "SUPER_ADMIN") {
     const [allClasses, allSubjects] = await Promise.all([
       prisma.class.findMany({
         select: { id: true, name: true, gradeId: true },

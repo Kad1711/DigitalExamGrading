@@ -63,13 +63,12 @@ function handleAvatarUpload(req, res, next) {
 router.use(authenticate);
 router.use(
   authorizeRoles(
-    "TEACHER",
-    "STUDENT",
-    "ADMIN",
+    "SUPER_ADMIN",
     "PRINCIPAL",
     "VICE_PRINCIPAL",
-    "EXAM_BOARD",
-    "ACADEMIC_BOARD"
+    "EXAM_OFFICER",
+    "TEACHER",
+    "STUDENT"
   )
 );
 

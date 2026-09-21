@@ -554,6 +554,22 @@ export default function ExamDetailPage() {
     }
   };
 
+  const handleApproveAnswerKey = async () => {
+    try {
+      setActionLoading(true);
+      setErrorMsg("");
+      const res = await api.post(`/exams/${examId}/answer-key/approve`);
+      setExam(res.data.data);
+      setSuccessMsg("Phê duyệt đáp án gốc thành công!");
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      const raw = err.response?.data?.error?.message;
+      setErrorMsg(getErrorMessage(code, raw || "Không thể phê duyệt đáp án gốc."));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleClose = async () => {
     try {
       setActionLoading(true);
@@ -646,14 +662,20 @@ export default function ExamDetailPage() {
   const isArchived = exam.status === "ARCHIVED";
   const isLocked = !isDraft;
 
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user?.role === "SUPER_ADMIN";
   const isCreator = Boolean(exam.createdByUserId && exam.createdByUserId === user?.id);
   const isTeacherOwner = Boolean(exam.teacherId && user?.teacher?.id && exam.teacherId === user.teacher.id);
+  const isExamOfficer = user?.role === "EXAM_OFFICER";
   const isExamBoardOfficial =
-    user?.role === "EXAM_BOARD" &&
+    isExamOfficer &&
     ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType);
   const canManage = isAdmin || isCreator || isTeacherOwner || isExamBoardOfficial;
-  const canGrade = ["ADMIN", "TEACHER", "EXAM_BOARD"].includes(user?.role);
+  const isSubjectLeader = Boolean(
+    user?.role === "TEACHER" &&
+    user?.teacher?.isSubjectLeader &&
+    user?.teacher?.primarySubjectId === exam.subjectId
+  );
+  const canApproveAnswerKey = isSubjectLeader;
 
   // Readiness calculation
   const hasExamCodes = examCodes.length > 0;
@@ -1071,6 +1093,43 @@ export default function ExamDetailPage() {
                   >
                     {allCodesComplete ? "Đủ đáp án" : "Chưa đủ"}
                   </Badge>
+                </div>
+
+                {/* Step 3b: Phê duyệt đáp án gốc */}
+                <div
+                  className={`flex items-center justify-between p-2.5 rounded-lg border ${
+                    exam.answerKeyApprovedAt
+                      ? "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
+                      : "bg-slate-50 border-slate-200 text-slate-700"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-medium">
+                    {exam.answerKeyApprovedAt ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
+                    )}
+                    <span>Duyệt đáp án gốc</span>
+                  </div>
+                  {exam.answerKeyApprovedAt ? (
+                    <Badge variant="emerald" size="sm" title={`Duyệt bởi ${exam.answerKeyApprovedByTeacher?.fullName || "Tổ trưởng"}`}>
+                      Đã duyệt
+                    </Badge>
+                  ) : canApproveAnswerKey ? (
+                    <Button
+                      variant="primary"
+                      size="xs"
+                      onClick={handleApproveAnswerKey}
+                      disabled={actionLoading || !allCodesComplete}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      Phê duyệt
+                    </Button>
+                  ) : (
+                    <Badge variant="amber" size="sm">
+                      Chờ duyệt
+                    </Badge>
+                  )}
                 </div>
 
                 {/* Step 4 */}

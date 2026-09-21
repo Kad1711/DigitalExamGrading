@@ -243,3 +243,19 @@ export async function getAnswerKeyController(req, res, next) {
     next(err);
   }
 }
+
+export async function approveAnswerKeyController(req, res, next) {
+  try {
+    const updatedExam = await answerKeyService.approveAnswerKey(
+      req.params.examId,
+      req.user
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Phê duyệt đáp án gốc kỳ thi thành công.",
+      data: updatedExam,
+    });
+  } catch (err) {
+    next(err);
+  }
+}

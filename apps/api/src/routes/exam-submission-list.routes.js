@@ -9,7 +9,7 @@ import {
 const router = Router({ mergeParams: true });
 const canViewSubmissions = [
   authenticate,
-  authorizeRoles("TEACHER", "EXAM_BOARD", "ACADEMIC_BOARD", "PRINCIPAL", "VICE_PRINCIPAL", "ADMIN"),
+  authorizeRoles("SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER", "TEACHER"),
 ];
 
 // GET /api/exams/:examId/submissions

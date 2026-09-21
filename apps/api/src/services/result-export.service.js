@@ -21,7 +21,7 @@ function sanitizeCellValue(val) {
  * and the published dataset is consistent.
  */
 async function assertExportAccess(examId, user) {
-  if (user.role === "ADMIN") {
+  if (user.role === "SUPER_ADMIN") {
     throw new AppError("Quản trị viên không có quyền xuất kết quả kỳ thi.", 403, "FORBIDDEN");
   }
   const exam = await assertExamAccess(examId, user);

@@ -27,6 +27,7 @@ export async function assertExamAccess(examId, reqUser) {
       examClasses: { include: { class: { select: { id: true, name: true } } } },
       teacher: { select: { id: true, fullName: true, teacherCode: true } },
       createdByUser: { select: { id: true, fullName: true, role: true } },
+      answerKeyApprovedByTeacher: { select: { id: true, fullName: true, teacherCode: true, title: true, isSubjectLeader: true } },
       examCodes: { select: { id: true, code: true } },
     },
   });
@@ -35,13 +36,13 @@ export async function assertExamAccess(examId, reqUser) {
     throw new AppError("Ky thi khong ton tai.", 404, "EXAM_NOT_FOUND");
   }
 
-  // School oversight and Academic board can view all exams
-  if (["ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "ACADEMIC_BOARD"].includes(reqUser.role)) {
+  // School oversight and Management can view all exams
+  if (["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"].includes(reqUser.role)) {
     return exam;
   }
 
-  // Exam Board can view all official exams or exams created by them
-  if (reqUser.role === "EXAM_BOARD") {
+  // Exam Officer can view all official exams or exams created by them
+  if (reqUser.role === "EXAM_OFFICER") {
     if (
       exam.createdByUserId === reqUser.id ||
       ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType)
@@ -101,12 +102,12 @@ export function assertExamDraft(exam) {
 }
 
 export async function assertExamManageAccess(exam, reqUser) {
-  if (reqUser.role === "ADMIN") {
+  if (reqUser.role === "SUPER_ADMIN") {
     return true;
   }
 
-  if (reqUser.role === "EXAM_BOARD") {
-    // EXAM_BOARD can manage official exams they created or all official exams not owned by a normal teacher
+  if (reqUser.role === "EXAM_OFFICER") {
+    // EXAM_OFFICER can manage official exams they created or all official exams not owned by a normal teacher
     if (
       exam.createdByUserId === reqUser.id ||
       (!exam.teacherId && ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType))
@@ -212,17 +213,17 @@ export async function createExam(data, reqUser) {
         );
       }
     }
-  } else if (reqUser.role === "EXAM_BOARD") {
-    // EXAM_BOARD creates official examinations
+  } else if (reqUser.role === "EXAM_OFFICER") {
+    // EXAM_OFFICER creates official examinations (MIDTERM, FINAL, etc.)
     if (finalExamType === "REGULAR" || finalExamType === "MIN_15") {
       throw new AppError(
-        "Ban khảo thí chỉ phụ trách các kỳ thi chính quy (tối thiểu 45 phút, giữa kỳ, cuối kỳ).",
+        "Cán bộ khảo thí chỉ phụ trách các kỳ thi tập trung chính quy (Giữa kỳ, Cuối kỳ).",
         400,
         "OFFICIAL_EXAM_TYPE_REQUIRED"
       );
     }
     teacherId = null;
-  } else if (reqUser.role === "ADMIN") {
+  } else if (reqUser.role === "SUPER_ADMIN") {
     if (data.teacherId) {
       teacherId = data.teacherId;
     } else {
@@ -237,6 +238,16 @@ export async function createExam(data, reqUser) {
       403,
       "FORBIDDEN"
     );
+  }
+
+  if (data.gradeId) {
+    const grade = await prisma.grade.findUnique({ where: { id: data.gradeId } });
+    if (!grade) {
+      throw new AppError("Khối học không tồn tại.", 404, "GRADE_NOT_FOUND");
+    }
+    if (![6, 7, 8, 9].includes(grade.level)) {
+      throw new AppError("Hệ thống chỉ hỗ trợ các khối lớp THCS (Khối 6, 7, 8, 9).", 400, "INVALID_GRADE_LEVEL");
+    }
   }
 
   const subject = await prisma.subject.findUnique({ where: { id: data.subjectId } });
@@ -316,7 +327,7 @@ export async function listExams(query, reqUser) {
           : []),
       ],
     });
-  } else if (reqUser.role === "EXAM_BOARD") {
+  } else if (reqUser.role === "EXAM_OFFICER") {
     andClauses.push({
       OR: [
         { createdByUserId: reqUser.id },
@@ -433,10 +444,10 @@ export async function updateExam(examId, data, reqUser) {
         "EXAM_TYPE_NOT_ALLOWED"
       );
     }
-  } else if (reqUser.role === "EXAM_BOARD") {
+  } else if (reqUser.role === "EXAM_OFFICER") {
     if (data.examType && (data.examType === "REGULAR" || data.examType === "MIN_15")) {
       throw new AppError(
-        "Ban khảo thí chỉ phụ trách các kỳ thi chính quy (tối thiểu 45 phút, giữa kỳ, cuối kỳ).",
+        "Cán bộ khảo thí chỉ phụ trách các kỳ thi chính quy (tối thiểu 45 phút, giữa kỳ, cuối kỳ).",
         400,
         "OFFICIAL_EXAM_TYPE_REQUIRED"
       );

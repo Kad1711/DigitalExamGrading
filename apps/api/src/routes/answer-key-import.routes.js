@@ -11,16 +11,15 @@ import {
 const router = Router({ mergeParams: true });
 
 router.use(authenticate);
-const denyStudent = authorizeRoles("ADMIN", "TEACHER");
-const adminOnly = authorizeRoles("ADMIN");
+const staffRoles = authorizeRoles("SUPER_ADMIN", "TEACHER", "EXAM_OFFICER");
 
 // Template download (xlsx or csv)
-router.get("/:examId/answer-key/import-template", denyStudent, getImportTemplateController);
+router.get("/:examId/answer-key/import-template", staffRoles, getImportTemplateController);
 
 // Preview import (validate without writing to DB)
 router.post(
   "/:examId/answer-key/import/preview",
-  denyStudent,
+  staffRoles,
   handleFileUpload,
   previewImportController
 );
@@ -28,7 +27,7 @@ router.post(
 // Apply import (atomic replace in DB)
 router.post(
   "/:examId/answer-key/import",
-  denyStudent,
+  staffRoles,
   handleFileUpload,
   applyImportController
 );

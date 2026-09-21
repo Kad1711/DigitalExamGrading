@@ -36,9 +36,9 @@ export default function LoginPage() {
         return;
       }
 
-      if (user.role === "ADMIN") {
-        navigate("/admin/teachers", { replace: true });
-      } else if (user.role === "TEACHER") {
+      if (user.role === "SUPER_ADMIN") {
+        navigate("/admin/dashboard", { replace: true });
+      } else if (["TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"].includes(user.role)) {
         navigate("/exams", { replace: true });
       } else if (user.role === "STUDENT") {
         navigate("/student/results", { replace: true });

@@ -56,6 +56,7 @@ export async function login(email, password) {
         fullName: true,
         phone: true,
         title: true,
+        isSubjectLeader: true,
         primarySubjectId: true,
         primarySubject: {
           select: {
@@ -166,11 +167,12 @@ export async function login(email, password) {
   });
 
     const roleDefaultNames = {
-      ADMIN: "Quản trị hệ thống",
+      SUPER_ADMIN: "Quản trị hệ thống",
       PRINCIPAL: "Hiệu trưởng",
-      VICE_PRINCIPAL: "Hiệu phó",
-      EXAM_BOARD: "Ban khảo thí",
-      ACADEMIC_BOARD: "Ban Giáo dục và Đào tạo",
+      VICE_PRINCIPAL: "Hiệu phó chuyên môn",
+      EXAM_OFFICER: "Cán bộ khảo thí",
+      TEACHER: "Giáo viên",
+      STUDENT: "Học sinh",
     };
 
     return {

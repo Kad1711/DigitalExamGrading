@@ -22,11 +22,11 @@ async function setupClassTestFixture() {
     include: { teacher: true },
   });
 
-  const grade12 = await prisma.grade.findFirst({ where: { level: 12 } });
+  const grade9 = await prisma.grade.findFirst({ where: { level: 9 } });
 
   return {
     teacher,
-    grade12,
+    grade9,
     ts,
   };
 }
@@ -39,20 +39,20 @@ test("Class & Student Management Suite", async (t) => {
   await t.test("1. List available grades", async () => {
     const grades = await classService.listGrades();
     assert.ok(Array.isArray(grades));
-    assert.ok(grades.length >= 3, "Must have at least 3 grades (10, 11, 12)");
+    assert.ok(grades.length >= 4, "Must have 4 THCS grades (6, 7, 8, 9)");
   });
 
   await t.test("2. Create new class with valid grade", async () => {
-    const className = `12_TEST_${ctx.ts.toString().slice(-4)}`;
+    const className = `9_TEST_${ctx.ts.toString().slice(-4)}`;
     createdClass = await classService.createClass({
       name: className,
-      gradeId: ctx.grade12.id,
+      gradeId: ctx.grade9.id,
       teacherUserId: ctx.teacher.id,
     });
 
     assert.ok(createdClass.id);
     assert.equal(createdClass.name, className);
-    assert.equal(createdClass.gradeLevel, 12);
+    assert.equal(createdClass.gradeLevel, 9);
     assert.equal(createdClass.studentCount, 0);
   });
 
@@ -61,7 +61,7 @@ test("Class & Student Management Suite", async (t) => {
       async () => {
         await classService.createClass({
           name: createdClass.name,
-          gradeId: ctx.grade12.id,
+          gradeId: ctx.grade9.id,
           teacherUserId: ctx.teacher.id,
         });
       },
@@ -162,7 +162,7 @@ test("Class & Student Management Suite", async (t) => {
 
     const result = await classService.createBatchClasses({
       names,
-      gradeId: ctx.grade12.id,
+      gradeId: ctx.grade9.id,
       teacherUserId: ctx.teacher.id,
     });
 
@@ -179,7 +179,7 @@ test("Class & Student Management Suite", async (t) => {
 
     const result = await classService.createBatchClasses({
       names,
-      gradeId: ctx.grade12.id,
+      gradeId: ctx.grade9.id,
       teacherUserId: ctx.teacher.id,
     });
 
@@ -193,7 +193,7 @@ test("Class & Student Management Suite", async (t) => {
       () =>
         classService.createBatchClasses({
           names: [`${pfx}_A`],
-          gradeId: ctx.grade12.id,
+          gradeId: ctx.grade9.id,
         }),
       (err) => err.code === "ALL_CLASSES_ALREADY_EXIST"
     );
@@ -243,7 +243,7 @@ test("Class & Student Management Suite", async (t) => {
     // Create a new class with 3 students with distinct Vietnamese names: An, Hoanh, Khải
     const cls = await classService.createClass({
       name: `SortTest_${ctx.ts.toString().slice(-4)}`,
-      gradeId: ctx.grade12.id,
+      gradeId: ctx.grade9.id,
     });
 
     const s1 = await classService.addStudentToClass(cls.id, {
@@ -282,7 +282,7 @@ test("Class & Student Management Suite", async (t) => {
   await t.test("13. bulkRemoveStudentsFromClass removes selected students", async () => {
     const cls = await classService.createClass({
       name: `BulkStd_${ctx.ts.toString().slice(-4)}`,
-      gradeId: ctx.grade12.id,
+      gradeId: ctx.grade9.id,
     });
 
     const s1 = await classService.addStudentToClass(cls.id, {
@@ -310,7 +310,7 @@ test("Class & Student Management Suite", async (t) => {
   await t.test("14. clearClassStudents removes all students from class", async () => {
     const cls = await classService.createClass({
       name: `ClearStd_${ctx.ts.toString().slice(-4)}`,
-      gradeId: ctx.grade12.id,
+      gradeId: ctx.grade9.id,
     });
 
     await classService.addStudentToClass(cls.id, {
@@ -332,11 +332,11 @@ test("Class & Student Management Suite", async (t) => {
   await t.test("15. deleteClass and bulkDeleteClasses delete classes", async () => {
     const c1 = await classService.createClass({
       name: `Del1_${ctx.ts.toString().slice(-4)}`,
-      gradeId: ctx.grade12.id,
+      gradeId: ctx.grade9.id,
     });
     const c2 = await classService.createClass({
       name: `Del2_${ctx.ts.toString().slice(-4)}`,
-      gradeId: ctx.grade12.id,
+      gradeId: ctx.grade9.id,
     });
 
     // Delete single class
@@ -356,7 +356,7 @@ test("Class & Student Management Suite", async (t) => {
   });
 
   await t.test("17. standardizeClassSbd renumbers students by Vietnamese ABC and updates emails", async () => {
-    const grade9 = await prisma.grade.findFirst({ where: { level: 9 } }) || ctx.grade12;
+    const grade9 = await prisma.grade.findFirst({ where: { level: 9 } }) || ctx.grade9;
     const stdClass = await classService.createClass({
       name: `9C06_${ctx.ts.toString().slice(-4)}`,
       gradeId: grade9.id,

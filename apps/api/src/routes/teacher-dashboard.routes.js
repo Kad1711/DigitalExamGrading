@@ -7,7 +7,7 @@ import {
 } from "../controllers/teacher-dashboard.controller.js";
 
 const router = Router();
-const requireTeacherOrAdmin = [authenticate, authorizeRoles("TEACHER", "ADMIN")];
+const requireTeacherOrAdmin = [authenticate, authorizeRoles("TEACHER", "SUPER_ADMIN")];
 
 router.get("/dashboard", requireTeacherOrAdmin, getTeacherDashboardController);
 router.get("/assignments", requireTeacherOrAdmin, getTeacherTeachingAssignmentsController);

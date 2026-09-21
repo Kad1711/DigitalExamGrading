@@ -113,11 +113,11 @@ export async function checkPublicationReadiness({ examId, exam }) {
 
 /**
  * Requests publication approval for official exams.
- * Initiated by EXAM_BOARD or ADMIN.
+ * Initiated by EXAM_OFFICER or SUPER_ADMIN.
  */
 export async function requestPublication({ examId, user, note }) {
-  if (!["EXAM_BOARD", "ADMIN"].includes(user.role)) {
-    throw new AppError("Chỉ Ban khảo thí hoặc Quản trị viên mới có quyền gửi yêu cầu phê duyệt công bố.", 403, "FORBIDDEN");
+  if (!["EXAM_OFFICER", "SUPER_ADMIN"].includes(user.role)) {
+    throw new AppError("Chỉ Cán bộ khảo thí hoặc Quản trị viên mới có quyền gửi yêu cầu phê duyệt công bố.", 403, "FORBIDDEN");
   }
 
   const exam = await prisma.exam.findUnique({
@@ -142,7 +142,7 @@ export async function requestPublication({ examId, user, note }) {
     throw new AppError("Kết quả kỳ thi này đã được công bố rồi.", 409, "RESULTS_ALREADY_PUBLISHED");
   }
 
-  if (exam.publicationApprovalStatus === "PENDING_APPROVAL") {
+  if (["PENDING_VICE_PRINCIPAL", "PENDING_APPROVAL", "PENDING_PRINCIPAL", "PENDING_PRINCIPAL_APPROVAL"].includes(exam.publicationApprovalStatus)) {
     throw new AppError("Kỳ thi này đã được gửi yêu cầu phê duyệt trước đó và đang chờ xử lý.", 409, "ALREADY_PENDING_APPROVAL");
   }
 
@@ -161,9 +161,15 @@ export async function requestPublication({ examId, user, note }) {
     await tx.exam.update({
       where: { id: examId },
       data: {
-        publicationApprovalStatus: "PENDING_APPROVAL",
+        publicationApprovalStatus: "PENDING_VICE_PRINCIPAL",
         publicationRequestedAt: now,
         publicationRequestedByUserId: user.id,
+        academicReviewedAt: null,
+        academicReviewedByUserId: null,
+        principalApprovedAt: null,
+        principalApprovedByUserId: null,
+        publicationApprovedAt: null,
+        publicationApprovedByUserId: null,
         publicationRejectionReason: null,
       },
     });
@@ -182,12 +188,12 @@ export async function requestPublication({ examId, user, note }) {
 
 /**
  * Approves publication request for official exams.
- * Handled by ACADEMIC_BOARD or ADMIN.
- * Enforces self-approval restriction: creators/requesters cannot approve their own exams unless ADMIN.
+ * Handled by VICE_PRINCIPAL or SUPER_ADMIN.
+ * Enforces self-approval restriction: creators/requesters cannot approve their own exams unless SUPER_ADMIN.
  */
 export async function approvePublication({ examId, user, note }) {
-  if (!["ACADEMIC_BOARD", "ADMIN"].includes(user.role)) {
-    throw new AppError("Chỉ Ban giáo dục và đào tạo hoặc Quản trị viên mới có quyền phê duyệt công bố.", 403, "FORBIDDEN");
+  if (!["VICE_PRINCIPAL", "SUPER_ADMIN"].includes(user.role)) {
+    throw new AppError("Chỉ Hiệu phó chuyên môn hoặc Quản trị viên mới có quyền phê duyệt công bố.", 403, "FORBIDDEN");
   }
 
   const exam = await prisma.exam.findUnique({
@@ -196,6 +202,7 @@ export async function approvePublication({ examId, user, note }) {
       id: true,
       title: true,
       status: true,
+      examType: true,
       createdByUserId: true,
       resultsPublishedAt: true,
       publicationApprovalStatus: true,
@@ -204,8 +211,8 @@ export async function approvePublication({ examId, user, note }) {
   });
   if (!exam) throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
 
-  if (exam.publicationApprovalStatus !== "PENDING_APPROVAL") {
-    throw new AppError("Kỳ thi không ở trạng thái chờ phê duyệt công bố.", 400, "EXAM_NOT_PENDING_APPROVAL");
+  if (!["PENDING_VICE_PRINCIPAL", "PENDING_APPROVAL"].includes(exam.publicationApprovalStatus)) {
+    throw new AppError("Kỳ thi không ở trạng thái chờ Hiệu phó phê duyệt công bố.", 400, "EXAM_NOT_PENDING_APPROVAL");
   }
 
   if (exam.publicationRequestedByUserId && exam.publicationRequestedByUserId === user.id) {
@@ -216,7 +223,7 @@ export async function approvePublication({ examId, user, note }) {
     );
   }
 
-  if (user.role !== "ADMIN" && exam.createdByUserId === user.id) {
+  if (user.role !== "SUPER_ADMIN" && exam.createdByUserId === user.id) {
     throw new AppError(
       "Người tạo kỳ thi không được tự phê duyệt công bố kết quả.",
       403,
@@ -235,15 +242,15 @@ export async function approvePublication({ examId, user, note }) {
   }
 
   const now = new Date();
-  const isHighStakes = ["MIDTERM", "FINAL"].includes(exam.examType);
+  const isFinalExam = exam.examType === "FINAL";
 
   await prisma.$transaction(async (tx) => {
-    if (isHighStakes) {
-      // MIDTERM / FINAL requires subsequent Principal approval
+    if (isFinalExam) {
+      // Centralized FINAL: VP review -> PENDING_PRINCIPAL
       await tx.exam.update({
         where: { id: examId },
         data: {
-          publicationApprovalStatus: "PENDING_PRINCIPAL_APPROVAL",
+          publicationApprovalStatus: "PENDING_PRINCIPAL",
           academicReviewedAt: now,
           academicReviewedByUserId: user.id,
           publicationRejectionReason: null,
@@ -253,12 +260,12 @@ export async function approvePublication({ examId, user, note }) {
         data: {
           examId,
           actorUserId: user.id,
-          action: "ACADEMIC_APPROVED",
-          note: note ? String(note).trim() : "Ban Chuyên môn đã thẩm định dữ liệu đạt yêu cầu, chuyển hồ sơ trình Hiệu trưởng phê duyệt cuối.",
+          action: "VICE_PRINCIPAL_APPROVED",
+          note: note ? String(note).trim() : "Hiệu phó chuyên môn đã thẩm định kết quả, chuyển hồ sơ trình Hiệu trưởng phê duyệt cuối.",
         },
       });
     } else {
-      // Periodic official exams (MIN_45, MIN_60, MIN_90, OTHER) -> Principal approval NOT required
+      // Centralized MIDTERM (or other periodic official exams): VP approves -> APPROVED + AUTO-PUBLISH
       await tx.exam.update({
         where: { id: examId },
         data: {
@@ -267,6 +274,8 @@ export async function approvePublication({ examId, user, note }) {
           academicReviewedByUserId: user.id,
           publicationApprovedAt: now,
           publicationApprovedByUserId: user.id,
+          resultsPublishedAt: now,
+          resultsPublishedByUserId: user.id,
           publicationRejectionReason: null,
         },
       });
@@ -274,8 +283,16 @@ export async function approvePublication({ examId, user, note }) {
         data: {
           examId,
           actorUserId: user.id,
-          action: "ACADEMIC_APPROVED",
-          note: note ? String(note).trim() : "Ban Chuyên môn đã thẩm định và phê duyệt kết quả kỳ thi.",
+          action: "VICE_PRINCIPAL_APPROVED",
+          note: note ? String(note).trim() : "Hiệu phó chuyên môn đã thẩm định và phê duyệt kết quả kỳ thi.",
+        },
+      });
+      await tx.examResultPublicationLog.create({
+        data: {
+          examId,
+          actorUserId: user.id,
+          action: "PUBLISHED",
+          note: "Tự động công bố kết quả sau khi Hiệu phó chuyên môn phê duyệt.",
         },
       });
     }
@@ -285,11 +302,12 @@ export async function approvePublication({ examId, user, note }) {
 }
 
 /**
- * Phê duyệt cuối cùng từ Hiệu trưởng cho kỳ thi Giữa kỳ / Cuối kỳ (MIDTERM / FINAL).
- * Handled by PRINCIPAL or ADMIN.
+ * Phê duyệt cuối cùng từ Hiệu trưởng cho kỳ thi Cuối kỳ (FINAL).
+ * Handled by PRINCIPAL or SUPER_ADMIN.
+ * Sets resultsPublishedAt = now() in the same transaction (auto-published).
  */
 export async function principalApprovePublication({ examId, user, note }) {
-  if (!["PRINCIPAL", "ADMIN"].includes(user.role)) {
+  if (!["PRINCIPAL", "SUPER_ADMIN"].includes(user.role)) {
     throw new AppError("Chỉ Hiệu trưởng hoặc Quản trị viên mới có quyền phê duyệt cuối cùng.", 403, "FORBIDDEN");
   }
 
@@ -310,24 +328,16 @@ export async function principalApprovePublication({ examId, user, note }) {
   });
   if (!exam) throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
 
-  if (!["MIDTERM", "FINAL"].includes(exam.examType)) {
+  if (!["PENDING_PRINCIPAL", "PENDING_PRINCIPAL_APPROVAL"].includes(exam.publicationApprovalStatus)) {
     throw new AppError(
-      "Hiệu trưởng chỉ phê duyệt kết quả các kỳ thi trọng điểm (Giữa kỳ hoặc Cuối kỳ).",
-      400,
-      "PRINCIPAL_APPROVAL_NOT_REQUIRED"
-    );
-  }
-
-  if (exam.publicationApprovalStatus !== "PENDING_PRINCIPAL_APPROVAL" && !(exam.publicationApprovalStatus === "PENDING_APPROVAL" && exam.academicReviewedAt)) {
-    throw new AppError(
-      "Kỳ thi chưa qua bước thẩm định của Ban Chuyên môn hoặc không ở trạng thái chờ Hiệu trưởng phê duyệt.",
+      "Kỳ thi chưa qua bước thẩm định của Hiệu phó hoặc không ở trạng thái chờ Hiệu trưởng phê duyệt.",
       400,
       "ACADEMIC_REVIEW_REQUIRED"
     );
   }
 
-  // 4-Eyes governance: Requesters or creators cannot do Principal final approval unless ADMIN
-  if (user.role !== "ADMIN" && exam.publicationRequestedByUserId === user.id) {
+  // 4-Eyes governance: Requesters or creators cannot do Principal final approval unless SUPER_ADMIN
+  if (user.role !== "SUPER_ADMIN" && exam.publicationRequestedByUserId === user.id) {
     throw new AppError(
       "Người gửi yêu cầu phê duyệt không được tự phê duyệt công bố kết quả kỳ thi.",
       403,
@@ -335,7 +345,7 @@ export async function principalApprovePublication({ examId, user, note }) {
     );
   }
 
-  if (user.role !== "ADMIN" && exam.createdByUserId === user.id) {
+  if (user.role !== "SUPER_ADMIN" && exam.createdByUserId === user.id) {
     throw new AppError(
       "Người tạo kỳ thi không được tự phê duyệt công bố kết quả.",
       403,
@@ -343,7 +353,7 @@ export async function principalApprovePublication({ examId, user, note }) {
     );
   }
 
-  if (user.role !== "ADMIN" && exam.academicReviewedByUserId === user.id) {
+  if (user.role !== "SUPER_ADMIN" && exam.academicReviewedByUserId === user.id) {
     throw new AppError(
       "Người đã thẩm định học vụ không được kiêm nhiệm phê duyệt cuối của Hiệu trưởng.",
       403,
@@ -371,6 +381,8 @@ export async function principalApprovePublication({ examId, user, note }) {
         principalApprovedByUserId: user.id,
         publicationApprovedAt: now,
         publicationApprovedByUserId: user.id,
+        resultsPublishedAt: now,
+        resultsPublishedByUserId: user.id,
         publicationRejectionReason: null,
       },
     });
@@ -382,6 +394,14 @@ export async function principalApprovePublication({ examId, user, note }) {
         note: note ? String(note).trim() : "Hiệu trưởng đã phê duyệt kết quả kỳ thi.",
       },
     });
+    await tx.examResultPublicationLog.create({
+      data: {
+        examId,
+        actorUserId: user.id,
+        action: "PUBLISHED",
+        note: "Tự động công bố kết quả sau khi Hiệu trưởng phê duyệt.",
+      },
+    });
   });
 
   return getPublicationStatus({ examId, user });
@@ -389,11 +409,11 @@ export async function principalApprovePublication({ examId, user, note }) {
 
 /**
  * Rejects publication request with a mandatory reason.
- * Handled by ACADEMIC_BOARD or ADMIN.
+ * Handled by VICE_PRINCIPAL or SUPER_ADMIN.
  */
 export async function rejectPublication({ examId, user, reason }) {
-  if (!["ACADEMIC_BOARD", "ADMIN"].includes(user.role)) {
-    throw new AppError("Chỉ Ban Chuyên môn hoặc Quản trị viên mới có quyền từ chối phê duyệt thẩm định.", 403, "FORBIDDEN");
+  if (!["VICE_PRINCIPAL", "SUPER_ADMIN"].includes(user.role)) {
+    throw new AppError("Chỉ Hiệu phó chuyên môn hoặc Quản trị viên mới có quyền từ chối phê duyệt thẩm định.", 403, "FORBIDDEN");
   }
 
   if (!reason || typeof reason !== "string" || !reason.trim()) {
@@ -410,7 +430,7 @@ export async function rejectPublication({ examId, user, reason }) {
   });
   if (!exam) throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
 
-  if (exam.publicationApprovalStatus !== "PENDING_APPROVAL") {
+  if (!["PENDING_VICE_PRINCIPAL", "PENDING_APPROVAL"].includes(exam.publicationApprovalStatus)) {
     throw new AppError("Kỳ thi không ở trạng thái chờ phê duyệt công bố.", 400, "EXAM_NOT_PENDING_APPROVAL");
   }
 
@@ -422,6 +442,8 @@ export async function rejectPublication({ examId, user, reason }) {
         publicationApprovalStatus: "REJECTED",
         academicReviewedAt: null,
         academicReviewedByUserId: null,
+        resultsPublishedAt: null,
+        resultsPublishedByUserId: null,
         publicationRejectionReason: trimmedReason,
       },
     });
@@ -429,7 +451,7 @@ export async function rejectPublication({ examId, user, reason }) {
       data: {
         examId,
         actorUserId: user.id,
-        action: "ACADEMIC_REJECTED",
+        action: "VICE_PRINCIPAL_REJECTED",
         note: trimmedReason,
       },
     });
@@ -439,11 +461,11 @@ export async function rejectPublication({ examId, user, reason }) {
 }
 
 /**
- * Hiệu trưởng từ chối phê duyệt kết quả kỳ thi Giữa kỳ / Cuối kỳ.
- * Handled by PRINCIPAL or ADMIN.
+ * Hiệu trưởng từ chối phê duyệt kết quả kỳ thi Cuối kỳ.
+ * Handled by PRINCIPAL or SUPER_ADMIN.
  */
 export async function principalRejectPublication({ examId, user, reason }) {
-  if (!["PRINCIPAL", "ADMIN"].includes(user.role)) {
+  if (!["PRINCIPAL", "SUPER_ADMIN"].includes(user.role)) {
     throw new AppError("Chỉ Hiệu trưởng hoặc Quản trị viên mới có quyền từ chối phê duyệt.", 403, "FORBIDDEN");
   }
 
@@ -462,7 +484,7 @@ export async function principalRejectPublication({ examId, user, reason }) {
   });
   if (!exam) throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
 
-  if (exam.publicationApprovalStatus !== "PENDING_PRINCIPAL_APPROVAL") {
+  if (!["PENDING_PRINCIPAL", "PENDING_PRINCIPAL_APPROVAL"].includes(exam.publicationApprovalStatus)) {
     throw new AppError("Kỳ thi không ở trạng thái chờ Hiệu trưởng phê duyệt.", 400, "EXAM_NOT_PENDING_PRINCIPAL_APPROVAL");
   }
 
@@ -474,6 +496,10 @@ export async function principalRejectPublication({ examId, user, reason }) {
         publicationApprovalStatus: "REJECTED",
         principalApprovedAt: null,
         principalApprovedByUserId: null,
+        academicReviewedAt: null,
+        academicReviewedByUserId: null,
+        resultsPublishedAt: null,
+        resultsPublishedByUserId: null,
         publicationRejectionReason: trimmedReason,
       },
     });
@@ -494,7 +520,7 @@ export async function principalRejectPublication({ examId, user, reason }) {
  * Returns publication approval queue list for oversight / review.
  */
 export async function getPublicationApprovalQueue({ user, query = {} }) {
-  if (!["ACADEMIC_BOARD", "ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD"].includes(user.role)) {
+  if (!["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"].includes(user.role)) {
     throw new AppError("Bạn không có quyền truy cập hàng đợi phê duyệt công bố.", 403, "FORBIDDEN");
   }
 
@@ -510,14 +536,14 @@ export async function getPublicationApprovalQueue({ user, query = {} }) {
     if (status && status !== "ALL") {
       where.publicationApprovalStatus = status;
     } else if (!status) {
-      where.publicationApprovalStatus = "PENDING_PRINCIPAL_APPROVAL";
+      where.publicationApprovalStatus = { in: ["PENDING_PRINCIPAL", "PENDING_PRINCIPAL_APPROVAL"] };
     }
     where.examType = { in: ["MIDTERM", "FINAL"] };
-  } else if (target === "academic" || user.role === "ACADEMIC_BOARD") {
+  } else if (target === "vice_principal" || target === "academic" || user.role === "VICE_PRINCIPAL") {
     if (status && status !== "ALL") {
       where.publicationApprovalStatus = status;
     } else if (!status) {
-      where.publicationApprovalStatus = "PENDING_APPROVAL";
+      where.publicationApprovalStatus = { in: ["PENDING_VICE_PRINCIPAL", "PENDING_APPROVAL"] };
     }
   } else {
     if (status && status !== "ALL") {
@@ -560,8 +586,8 @@ export async function getPublicationApprovalQueue({ user, query = {} }) {
 
 /**
  * Publishes exam results.
- * For routine exams: teacher/admin can publish directly once ready.
- * For official exams: publication requires prior approval from ACADEMIC_BOARD.
+ * For routine exams: teacher/super_admin can publish directly once ready.
+ * For official exams: publication requires prior approval from VICE_PRINCIPAL.
  * For MIDTERM / FINAL: publication requires prior final approval from PRINCIPAL.
  */
 export async function publishExamResults({ examId, user, note }) {
@@ -584,8 +610,8 @@ export async function publishExamResults({ examId, user, note }) {
   const isOfficial = ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType);
 
   if (isOfficial) {
-    if (!["EXAM_BOARD", "ADMIN"].includes(user.role)) {
-      throw new AppError("Chỉ Ban khảo thí hoặc Quản trị viên mới có quyền công bố kết quả kỳ thi chính quy.", 403, "FORBIDDEN");
+    if (!["EXAM_OFFICER", "SUPER_ADMIN"].includes(user.role)) {
+      throw new AppError("Chỉ Cán bộ khảo thí hoặc Quản trị viên mới có quyền công bố kết quả kỳ thi chính quy.", 403, "FORBIDDEN");
     }
     if (exam.publicationApprovalStatus !== "APPROVED") {
       throw new AppError(
@@ -594,9 +620,9 @@ export async function publishExamResults({ examId, user, note }) {
         "PUBLICATION_APPROVAL_REQUIRED"
       );
     }
-    if (["MIDTERM", "FINAL"].includes(exam.examType) && !exam.principalApprovedAt) {
+    if (exam.examType === "FINAL" && !exam.principalApprovedAt) {
       throw new AppError(
-        "Kỳ thi Giữa kỳ / Cuối kỳ bắt buộc phải có phê duyệt cuối của Hiệu trưởng trước khi công bố kết quả.",
+        "Kỳ thi Cuối kỳ bắt buộc phải có phê duyệt cuối của Hiệu trưởng trước khi công bố kết quả.",
         403,
         "PRINCIPAL_APPROVAL_REQUIRED"
       );
@@ -608,7 +634,7 @@ export async function publishExamResults({ examId, user, note }) {
       if (exam.teacherId !== teacher.id && exam.createdByUserId !== user.id) {
         throw new AppError("Bạn không có quyền công bố kết quả kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
       }
-    } else if (user.role !== "ADMIN") {
+    } else if (user.role !== "SUPER_ADMIN") {
       throw new AppError("Chỉ giáo viên sở hữu kỳ thi hoặc Quản trị viên mới có quyền công bố kết quả.", 403, "FORBIDDEN");
     }
   }
@@ -679,8 +705,8 @@ export async function unpublishExamResults({ examId, user, note }) {
 
   const isOfficial = ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType);
   if (isOfficial) {
-    if (!["EXAM_BOARD", "ADMIN"].includes(user.role)) {
-      throw new AppError("Chỉ Ban khảo thí hoặc Quản trị viên mới có quyền gỡ công bố kết quả kỳ thi chính quy.", 403, "FORBIDDEN");
+    if (!["EXAM_OFFICER", "SUPER_ADMIN"].includes(user.role)) {
+      throw new AppError("Chỉ Cán bộ khảo thí hoặc Quản trị viên mới có quyền gỡ công bố kết quả kỳ thi chính quy.", 403, "FORBIDDEN");
     }
   } else {
     if (user.role === "TEACHER") {
@@ -688,7 +714,7 @@ export async function unpublishExamResults({ examId, user, note }) {
       if (exam.teacherId !== teacher.id && exam.createdByUserId !== user.id) {
         throw new AppError("Bạn không có quyền gỡ công bố kết quả kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
       }
-    } else if (user.role !== "ADMIN") {
+    } else if (user.role !== "SUPER_ADMIN") {
       throw new AppError("Chỉ giáo viên sở hữu kỳ thi hoặc Quản trị viên mới có quyền gỡ công bố kết quả.", 403, "FORBIDDEN");
     }
   }
@@ -726,7 +752,7 @@ export async function unpublishExamResults({ examId, user, note }) {
  * Returns comprehensive publication status for an exam.
  */
 export async function getPublicationStatus({ examId, user }) {
-  if (user.role === "ADMIN") {
+  if (user.role === "SUPER_ADMIN") {
     throw new AppError(
       "Quản trị viên không có quyền truy cập trạng thái công bố kết quả.",
       403,
@@ -771,14 +797,14 @@ export async function getPublicationStatus({ examId, user }) {
   const readiness = await checkPublicationReadiness({ examId, exam });
 
   const canApprove =
-    ["ACADEMIC_BOARD", "ADMIN"].includes(user.role) &&
-    (user.role === "ADMIN" ||
+    ["VICE_PRINCIPAL", "SUPER_ADMIN"].includes(user.role) &&
+    (user.role === "SUPER_ADMIN" ||
       (exam.createdByUserId !== user.id && exam.publicationRequestedByUserId !== user.id));
 
   const canPrincipalApprove =
     requiresPrincipalApproval &&
-    ["PRINCIPAL", "ADMIN"].includes(user.role) &&
-    (user.role === "ADMIN" ||
+    ["PRINCIPAL", "SUPER_ADMIN"].includes(user.role) &&
+    (user.role === "SUPER_ADMIN" ||
       (exam.createdByUserId !== user.id &&
         exam.publicationRequestedByUserId !== user.id &&
         exam.academicReviewedByUserId !== user.id));
@@ -792,15 +818,15 @@ export async function getPublicationStatus({ examId, user }) {
   } else if (exam.publicationApprovalStatus === "APPROVED") {
     approvalStage = "APPROVED";
     approvalStageLabel = "Đã được phê duyệt";
-  } else if (exam.publicationApprovalStatus === "PENDING_PRINCIPAL_APPROVAL") {
-    approvalStage = "PENDING_PRINCIPAL_APPROVAL";
+  } else if (["PENDING_PRINCIPAL", "PENDING_PRINCIPAL_APPROVAL"].includes(exam.publicationApprovalStatus)) {
+    approvalStage = "PENDING_PRINCIPAL";
     approvalStageLabel = "Chờ Hiệu trưởng phê duyệt";
-  } else if (exam.publicationApprovalStatus === "PENDING_APPROVAL") {
-    approvalStage = "PENDING_APPROVAL";
-    approvalStageLabel = "Chờ Ban Chuyên môn thẩm định";
+  } else if (["PENDING_VICE_PRINCIPAL", "PENDING_APPROVAL"].includes(exam.publicationApprovalStatus)) {
+    approvalStage = "PENDING_VICE_PRINCIPAL";
+    approvalStageLabel = "Chờ Hiệu phó chuyên môn phê duyệt";
   } else if (exam.publicationApprovalStatus === "REJECTED") {
     approvalStage = "REJECTED";
-    approvalStageLabel = exam.academicReviewedAt ? "Hiệu trưởng từ chối" : "Ban Chuyên môn từ chối";
+    approvalStageLabel = exam.academicReviewedAt ? "Hiệu trưởng từ chối" : "Hiệu phó chuyên môn từ chối";
   }
 
   return {

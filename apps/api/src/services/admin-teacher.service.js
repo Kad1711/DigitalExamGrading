@@ -69,6 +69,7 @@ export async function listTeachers({ search, status } = {}) {
     fullName: t.fullName,
     phone: t.phone,
     title: t.title || "Giáo viên",
+    isSubjectLeader: t.isSubjectLeader ?? false,
     primarySubjectId: t.primarySubjectId || null,
     primarySubject: t.primarySubject || null,
     assignments: t.assignments || [],
@@ -94,6 +95,7 @@ export async function createTeacher({
   initialPassword,
   phone,
   title,
+  isSubjectLeader,
   primarySubjectId,
 }) {
   const normalizedEmail = email.trim().toLowerCase();
@@ -159,6 +161,7 @@ export async function createTeacher({
         fullName: fullName.trim(),
         phone: phone ? phone.trim() : null,
         title: title?.trim() || "Giáo viên",
+        isSubjectLeader: Boolean(isSubjectLeader),
         primarySubjectId: validatedSubjectId,
       },
       include: {
@@ -175,6 +178,7 @@ export async function createTeacher({
       fullName: teacher.fullName,
       phone: teacher.phone,
       title: teacher.title,
+      isSubjectLeader: teacher.isSubjectLeader,
       primarySubjectId: teacher.primarySubjectId,
       primarySubject: teacher.primarySubject || null,
       email: user.email,
@@ -232,6 +236,7 @@ export async function getTeacherById(teacherId) {
     fullName: teacher.fullName,
     phone: teacher.phone,
     title: teacher.title || "Giáo viên",
+    isSubjectLeader: teacher.isSubjectLeader ?? false,
     primarySubjectId: teacher.primarySubjectId || null,
     primarySubject: teacher.primarySubject || null,
     email: teacher.user.email,
@@ -310,6 +315,10 @@ export async function updateTeacher(teacherId, data) {
     teacherUpdates.title = data.title ? data.title.trim() : "Giáo viên";
   }
 
+  if (data.isSubjectLeader !== undefined) {
+    teacherUpdates.isSubjectLeader = Boolean(data.isSubjectLeader);
+  }
+
   if (data.primarySubjectId !== undefined) {
     if (data.primarySubjectId) {
       const subjectExists = await prisma.subject.findUnique({
@@ -350,6 +359,7 @@ export async function updateTeacher(teacherId, data) {
       fullName: updatedTeacher.fullName,
       phone: updatedTeacher.phone,
       title: updatedTeacher.title,
+      isSubjectLeader: updatedTeacher.isSubjectLeader,
       primarySubjectId: updatedTeacher.primarySubjectId,
       primarySubject: updatedTeacher.primarySubject || null,
       email: updatedUser.email,

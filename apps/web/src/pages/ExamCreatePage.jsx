@@ -40,7 +40,7 @@ export default function ExamCreatePage() {
   const [createClassMode, setCreateClassMode] = useState("BATCH"); // "BATCH" or "SINGLE"
   const [newClassName, setNewClassName] = useState("");
   const [batchClassNamesInput, setBatchClassNamesInput] = useState("");
-  const [seriesPrefix, setSeriesPrefix] = useState("12A");
+  const [seriesPrefix, setSeriesPrefix] = useState("6A");
   const [seriesFrom, setSeriesFrom] = useState(1);
   const [seriesTo, setSeriesTo] = useState(12);
   const [seriesPadZeroes, setSeriesPadZeroes] = useState(true);
@@ -65,15 +65,14 @@ export default function ExamCreatePage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user?.role === "SUPER_ADMIN";
   const isTeacher = user?.role === "TEACHER";
-  const isExamBoard = user?.role === "EXAM_BOARD";
-  const isAcademicBoard = user?.role === "ACADEMIC_BOARD";
-  const isMultiClassAllowed = isAdmin || isExamBoard || isAcademicBoard;
-  const canCreateClass = isAdmin || isAcademicBoard;
+  const isExamOfficer = user?.role === "EXAM_OFFICER";
+  const isMultiClassAllowed = isAdmin || isExamOfficer;
+  const canCreateClass = isAdmin;
 
   const [examType, setExamType] = useState(() => {
-    if (user?.role === "EXAM_BOARD") return "MIDTERM";
+    if (user?.role === "EXAM_OFFICER") return "MIDTERM";
     return "REGULAR";
   });
 
@@ -93,7 +92,7 @@ export default function ExamCreatePage() {
 
   const availableExamTypes = isTeacher
     ? routineExamTypes
-    : isExamBoard
+    : isExamOfficer
     ? officialExamTypes
     : [...routineExamTypes, ...officialExamTypes];
 
@@ -179,7 +178,7 @@ export default function ExamCreatePage() {
         return;
       }
 
-      // EXAM_BOARD or ADMIN: can select any subject, multi-class
+      // EXAM_OFFICER or SUPER_ADMIN: can select any subject, multi-class
       const [subRes, clsRes, grRes] = await Promise.all([
         api.get("/subjects"),
         api.get("/classes"),
@@ -320,7 +319,7 @@ export default function ExamCreatePage() {
 
     if (createClassMode === "BATCH") {
       if (parsedBatchNames.length === 0) {
-        setCreateClassError("Vui lòng nhập danh sách tên lớp (ví dụ: 12A1, 12A2...).");
+        setCreateClassError("Vui lòng nhập danh sách tên lớp (ví dụ: 6A1, 6A2...).");
         return;
       }
 
@@ -351,7 +350,7 @@ export default function ExamCreatePage() {
       }
     } else {
       if (!newClassName.trim()) {
-        setCreateClassError("Vui lòng nhập tên lớp (ví dụ: 12A1).");
+        setCreateClassError("Vui lòng nhập tên lớp (ví dụ: 6A1).");
         return;
       }
 
@@ -628,7 +627,7 @@ export default function ExamCreatePage() {
                 </div>
               </div>
 
-              {/* Class Selection: Teacher Single-Class vs Admin/ExamBoard Multi-Class */}
+              {/* Class Selection: Teacher Single-Class vs SuperAdmin/ExamOfficer Multi-Class */}
               {!isMultiClassAllowed ? (
                 /* Teacher Single-Class Selection */
                 <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3">
@@ -694,7 +693,7 @@ export default function ExamCreatePage() {
                   </div>
                 </div>
               ) : (
-                /* Admin Multi-Class Assignment */
+                /* Super Admin / Exam Officer Multi-Class Assignment */
                 <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
@@ -823,13 +822,13 @@ export default function ExamCreatePage() {
                 </div>
               )}
 
-              {/* Cấu hình Thời gian & Số câu trắc nghiệm (Chuẩn THCS & THPT) */}
+              {/* Cấu hình Thời gian & Số câu trắc nghiệm (Chuẩn THCS) */}
               <div className="bg-slate-50/80 rounded-xl border border-slate-200 p-4 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-blue-600" />
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                      Cấu hình Thời gian & Số câu trắc nghiệm (Chuẩn THCS & THPT)
+                      Cấu hình Thời gian & Số câu trắc nghiệm (Chuẩn THCS)
                     </h3>
                   </div>
                   <span className="text-[11px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
@@ -1178,7 +1177,7 @@ export default function ExamCreatePage() {
                   </label>
                 </div>
 
-                {/* THCS & THPT Quick Preset Chips */}
+                {/* THCS Quick Preset Chips */}
                 <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-blue-200/60 text-[11px]">
                   <span className="text-slate-500 font-medium">Chọn nhanh khối:</span>
                   {[
@@ -1186,9 +1185,6 @@ export default function ExamCreatePage() {
                     { label: "7A", level: 7 },
                     { label: "8A", level: 8 },
                     { label: "9A", level: 9 },
-                    { label: "10A", level: 10 },
-                    { label: "11A", level: 11 },
-                    { label: "12A", level: 12 },
                   ].map((preset) => (
                     <button
                       key={preset.label}
@@ -1212,7 +1208,7 @@ export default function ExamCreatePage() {
                       type="text"
                       value={seriesPrefix}
                       onChange={(e) => setSeriesPrefix(e.target.value)}
-                      placeholder="12A"
+                      placeholder="9A"
                       className="w-16 px-2 py-1 text-xs font-semibold bg-white border border-blue-200 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
@@ -1274,7 +1270,7 @@ export default function ExamCreatePage() {
                   disabled={creatingClass}
                   value={batchClassNamesInput}
                   onChange={(e) => handleBatchInput(e.target.value)}
-                  placeholder="Ví dụ: 12A01, 12A02, 12A03, 12A04, 12A05... (hoặc dán từ Excel)"
+                  placeholder="Ví dụ: 6A01, 6A02, 6A03, 6A04, 6A05... (hoặc dán từ Excel)"
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 font-mono"
                 />
               </div>
@@ -1356,7 +1352,7 @@ export default function ExamCreatePage() {
                 disabled={creatingClass}
                 value={newClassName}
                 onChange={(e) => setNewClassName(e.target.value)}
-                placeholder="Ví dụ: 12A1, 10A3..."
+                placeholder="Ví dụ: 6A1, 9A2..."
                 className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600"
               />
             </div>

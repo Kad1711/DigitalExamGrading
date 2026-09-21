@@ -46,7 +46,7 @@ async function setupTestContext() {
 
   // Find Admin
   const adminUser = await prisma.user.findFirst({
-    where: { role: "ADMIN" },
+    where: { role: "SUPER_ADMIN" },
   });
   if (!adminUser) {
     throw new Error("Cannot find Admin user");

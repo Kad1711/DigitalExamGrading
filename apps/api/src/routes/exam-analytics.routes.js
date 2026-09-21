@@ -6,7 +6,7 @@ import { getExamAnalyticsController } from "../controllers/exam-analytics.contro
 const router = Router({ mergeParams: true });
 const allStaffRoles = [
   authenticate,
-  authorizeRoles("ADMIN", "TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"),
+  authorizeRoles("SUPER_ADMIN", "TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"),
 ];
 
 router.get("/:examId/analytics", allStaffRoles, getExamAnalyticsController);

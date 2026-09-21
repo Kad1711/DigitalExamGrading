@@ -26,6 +26,7 @@ export {
  */
 export async function listGrades() {
   return prisma.grade.findMany({
+    where: { level: { in: [6, 7, 8, 9] } },
     orderBy: { level: "asc" },
   });
 }
@@ -87,6 +88,9 @@ export async function createClass({ name, gradeId, teacherUserId }) {
   });
   if (!grade) {
     throw new AppError("Khối học không tồn tại.", 404, "GRADE_NOT_FOUND");
+  }
+  if (![6, 7, 8, 9].includes(grade.level)) {
+    throw new AppError("Hệ thống chỉ hỗ trợ các khối lớp THCS (Khối 6, 7, 8, 9).", 400, "INVALID_GRADE_LEVEL");
   }
 
   let academicYear = await prisma.academicYear.findFirst({
@@ -169,6 +173,9 @@ export async function createBatchClasses({ names, gradeId, teacherUserId }) {
   });
   if (!grade) {
     throw new AppError("Khối học không tồn tại.", 404, "GRADE_NOT_FOUND");
+  }
+  if (![6, 7, 8, 9].includes(grade.level)) {
+    throw new AppError("Hệ thống chỉ hỗ trợ các khối lớp THCS (Khối 6, 7, 8, 9).", 400, "INVALID_GRADE_LEVEL");
   }
 
   let academicYear = await prisma.academicYear.findFirst({
@@ -356,6 +363,9 @@ export async function updateClass(classId, { name, gradeId }) {
     const grade = await prisma.grade.findUnique({ where: { id: gradeId } });
     if (!grade) {
       throw new AppError("Khối học không tồn tại.", 404, "GRADE_NOT_FOUND");
+    }
+    if (![6, 7, 8, 9].includes(grade.level)) {
+      throw new AppError("Hệ thống chỉ hỗ trợ các khối lớp THCS (Khối 6, 7, 8, 9).", 400, "INVALID_GRADE_LEVEL");
     }
     updateData.gradeId = grade.id;
   }

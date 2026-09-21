@@ -117,7 +117,7 @@ export default function TeacherClassesPage() {
   const [createClassMode, setCreateClassMode] = useState("BATCH"); // "BATCH" or "SINGLE"
   const [newClassName, setNewClassName] = useState("");
   const [batchClassNamesInput, setBatchClassNamesInput] = useState("");
-  const [seriesPrefix, setSeriesPrefix] = useState("12A");
+  const [seriesPrefix, setSeriesPrefix] = useState("6A");
   const [seriesFrom, setSeriesFrom] = useState(1);
   const [seriesTo, setSeriesTo] = useState(12);
   const [seriesPadZeroes, setSeriesPadZeroes] = useState(true); // default pad '01', '02'...
@@ -852,7 +852,7 @@ export default function TeacherClassesPage() {
 
     if (createClassMode === "BATCH") {
       if (parsedBatchNames.length === 0) {
-        setCreateClassError("Vui lòng nhập danh sách tên lớp học (ví dụ: 12A1, 12A2...).");
+        setCreateClassError("Vui lòng nhập danh sách tên lớp học (ví dụ: 6A1, 6A2...).");
         return;
       }
 
@@ -1174,7 +1174,7 @@ export default function TeacherClassesPage() {
         <div className="space-y-2">
           <Breadcrumbs
             items={[
-              { label: "Trang chủ", href: user?.role === "ADMIN" ? "/admin/dashboard" : "/exams" },
+              { label: "Trang chủ", href: user?.role === "SUPER_ADMIN" ? "/admin/dashboard" : "/exams" },
               { label: "Lớp học" },
             ]}
           />
@@ -1291,7 +1291,7 @@ export default function TeacherClassesPage() {
                         type="text"
                         value={classSearch}
                         onChange={(e) => setClassSearch(e.target.value)}
-                        placeholder="Tìm theo tên lớp (12A01, 9C06...)"
+                        placeholder="Tìm theo tên lớp (6A01, 9C06...)"
                         className="w-full pl-8 pr-7 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 focus:bg-white transition-all"
                       />
                       {classSearch && (
@@ -1950,7 +1950,7 @@ export default function TeacherClassesPage() {
                     <span>Thêm số 0 ở đầu (01, 02...)</span>
                   </label>
                 </div>
-                {/* THCS & THPT Quick Preset Chips */}
+                {/* THCS Quick Preset Chips */}
                 <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-blue-200/60 text-[11px]">
                   <span className="text-slate-500 font-medium">Chọn nhanh khối:</span>
                   {[
@@ -1958,9 +1958,6 @@ export default function TeacherClassesPage() {
                     { label: "7A", level: 7 },
                     { label: "8A", level: 8 },
                     { label: "9A", level: 9 },
-                    { label: "10A", level: 10 },
-                    { label: "11A", level: 11 },
-                    { label: "12A", level: 12 },
                   ].map((preset) => (
                     <button
                       key={preset.label}
@@ -1984,7 +1981,7 @@ export default function TeacherClassesPage() {
                       type="text"
                       value={seriesPrefix}
                       onChange={(e) => setSeriesPrefix(e.target.value)}
-                      placeholder="12A"
+                      placeholder="6A"
                       className="w-16 px-2 py-1 text-xs font-semibold bg-white border border-blue-200 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
@@ -2111,7 +2108,7 @@ export default function TeacherClassesPage() {
                 disabled={creatingClass}
                 value={newClassName}
                 onChange={(e) => handleSingleNameInput(e.target.value)}
-                placeholder="Ví dụ: 6A1, 9A2, 12A1..."
+                placeholder="Ví dụ: 6A1, 7A2, 8A1, 9A2..."
                 className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600"
               />
             </div>
@@ -2188,7 +2185,7 @@ export default function TeacherClassesPage() {
               disabled={updatingClass}
               value={editClassName}
               onChange={(e) => setEditClassName(e.target.value)}
-              placeholder="Ví dụ: 12A01"
+              placeholder="Ví dụ: 6A01"
               className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600"
             />
           </div>
@@ -2517,8 +2514,8 @@ export default function TeacherClassesPage() {
               <span>Quy tắc chuẩn hóa Số Báo Danh 6 chữ số (KKLLSS):</span>
             </div>
             <div className="space-y-1 text-slate-700 text-[11px] leading-relaxed">
-              <div>&bull; <strong className="font-mono text-blue-700">KK</strong> (2 số đầu): Khối học (ví dụ: khối 9 là <strong>09</strong>, khối 12 là <strong>12</strong>).</div>
-              <div>&bull; <strong className="font-mono text-blue-700">LL</strong> (2 số tiếp): Mã lớp (ví dụ: 9C06 là <strong>06</strong>, 12A01 là <strong>01</strong>).</div>
+              <div>&bull; <strong className="font-mono text-blue-700">KK</strong> (2 số đầu): Khối học (ví dụ: khối 6 là <strong>06</strong>, khối 9 là <strong>09</strong>).</div>
+              <div>&bull; <strong className="font-mono text-blue-700">LL</strong> (2 số tiếp): Mã lớp (ví dụ: 9C06 là <strong>06</strong>, 6A01 là <strong>01</strong>).</div>
               <div>&bull; <strong className="font-mono text-blue-700">SS</strong> (2 số cuối): Thứ tự học sinh theo danh sách A-B-C (ví dụ: <strong>01</strong>, <strong>02</strong>, ...).</div>
             </div>
           </div>

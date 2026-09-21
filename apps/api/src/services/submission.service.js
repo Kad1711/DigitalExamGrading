@@ -46,17 +46,17 @@ export async function assertSubmissionAccess(submissionId, reqUser) {
     throw new AppError("Không tìm thấy bài nộp trong hệ thống.", 404, "SUBMISSION_NOT_FOUND");
   }
 
-  if (reqUser.role === "ADMIN") {
+  if (reqUser.role === "SUPER_ADMIN") {
     throw new AppError("Quản trị viên không có quyền truy cập bài nộp.", 403, "FORBIDDEN");
   }
 
   // School leadership oversight (read-only)
-  if (["PRINCIPAL", "VICE_PRINCIPAL", "ACADEMIC_BOARD"].includes(reqUser.role)) {
+  if (["PRINCIPAL", "VICE_PRINCIPAL"].includes(reqUser.role)) {
     return submission;
   }
 
-  // Exam Board can view submissions for official exams or exams created by them
-  if (reqUser.role === "EXAM_BOARD") {
+  // Exam Officer can view submissions for official exams or exams created by them
+  if (reqUser.role === "EXAM_OFFICER") {
     if (
       submission.exam.createdByUserId === reqUser.id ||
       ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(submission.exam.examType)
@@ -218,11 +218,11 @@ export async function createSubmission({
   const t0 = performance.now();
 
   // 1. Verify exam access & status
-  if (user.role === "ADMIN") {
+  if (user.role === "SUPER_ADMIN") {
     throw new AppError("Quản trị viên không có quyền nộp bài thi.", 403, "FORBIDDEN");
   }
-  if (!["TEACHER", "EXAM_BOARD"].includes(user.role)) {
-    throw new AppError("Chỉ giáo viên phụ trách hoặc Ban khảo thí mới có quyền chấm bài.", 403, "FORBIDDEN");
+  if (!["TEACHER", "EXAM_OFFICER"].includes(user.role)) {
+    throw new AppError("Chỉ giáo viên phụ trách hoặc Cán bộ khảo thí mới có quyền chấm bài.", 403, "FORBIDDEN");
   }
   const exam = await assertExamAccess(examId, user);
   await assertExamManageAccess(exam, user);

@@ -3,6 +3,11 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcrypt";
 
+// STRICT SAFETY GUARD: Never run in production
+if (process.env.NODE_ENV === "production") {
+  throw new Error("CRITICAL SAFETY ERROR: Demo seed script cannot run in production environment.");
+}
+
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,
 });
@@ -10,52 +15,47 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 const SALT_ROUNDS = 12;
+const DEMO_PASSWORD = "Admin@123";
 
 async function main() {
-  console.log("Starting database seed...");
+  console.log("Starting THCS V2 database seed...");
 
   // =====================================================
-  // GRADES
+  // 1. GRADES (Khối 6, 7, 8, 9 strictly)
   // =====================================================
-
   const grades = [
     { level: 6, name: "Khối 6" },
     { level: 7, name: "Khối 7" },
     { level: 8, name: "Khối 8" },
     { level: 9, name: "Khối 9" },
-    { level: 10, name: "Khối 10" },
-    { level: 11, name: "Khối 11" },
-    { level: 12, name: "Khối 12" },
   ];
 
+  const gradeMap = {};
   for (const grade of grades) {
-    await prisma.grade.upsert({
+    const record = await prisma.grade.upsert({
       where: { level: grade.level },
       update: { name: grade.name },
       create: grade,
     });
+    gradeMap[grade.level] = record;
   }
+  console.log("Grades 6, 7, 8, 9 seeded.");
 
-  console.log("Grades seeded.");
+  // Remove any legacy THPT grades (10, 11, 12) if present
+  await prisma.grade.deleteMany({
+    where: { level: { notIn: [6, 7, 8, 9] } },
+  });
 
   // =====================================================
-  // ACADEMIC YEAR
+  // 2. ACADEMIC YEAR & SEMESTERS
   // =====================================================
-
   const academicYear = await prisma.academicYear.upsert({
     where: { name: "2026-2027" },
     update: {},
     create: { name: "2026-2027" },
   });
 
-  console.log("Academic year seeded.");
-
-  // =====================================================
-  // SEMESTERS
-  // =====================================================
-
   const semesters = ["Học kỳ 1", "Học kỳ 2"];
-
   for (const semesterName of semesters) {
     await prisma.semester.upsert({
       where: {
@@ -71,306 +71,322 @@ async function main() {
       },
     });
   }
-
-  console.log("Semesters seeded.");
+  console.log("Academic year 2026-2027 & Semesters seeded.");
 
   // =====================================================
-  // SUBJECTS
+  // 3. SUBJECTS (THCS curriculum)
   // =====================================================
-
-  const subjects = [
+  const subjectsData = [
     { code: "TOAN", name: "Toán" },
     { code: "NGUVAN", name: "Ngữ văn" },
     { code: "TIENGANH", name: "Tiếng Anh" },
-    { code: "VATLY", name: "Vật lý" },
-    { code: "HOAHOC", name: "Hóa học" },
-    { code: "SINHHOC", name: "Sinh học" },
-    { code: "LICHSU", name: "Lịch sử" },
-    { code: "DIALY", name: "Địa lý" },
-    { code: "GDKTPL", name: "Giáo dục Kinh tế và Pháp luật" },
+    { code: "KHTN", name: "Khoa học tự nhiên" },
+    { code: "LSDLS", name: "Lịch sử và Địa lý" },
+    { code: "GDCD", name: "Giáo dục công dân" },
     { code: "TINHOC", name: "Tin học" },
     { code: "CONGNGHE", name: "Công nghệ" },
   ];
 
-  for (const subject of subjects) {
-    await prisma.subject.upsert({
-      where: { code: subject.code },
-      update: { name: subject.name },
-      create: subject,
+  const subjectMap = {};
+  for (const sub of subjectsData) {
+    const record = await prisma.subject.upsert({
+      where: { code: sub.code },
+      update: { name: sub.name },
+      create: sub,
     });
+    subjectMap[sub.code] = record;
   }
-
-  console.log("Subjects seeded.");
+  console.log("THCS Subjects seeded.");
 
   // =====================================================
-  // DEVELOPMENT ONLY SEED SECTION
+  // 4. CLASSES (6A1, 7A1, 8A1, 9A1)
   // =====================================================
-  if (process.env.NODE_ENV !== "production") {
-    console.log("Seeding development data (NODE_ENV !== production)...");
+  const classesData = [
+    { name: "6A1", level: 6 },
+    { name: "7A1", level: 7 },
+    { name: "8A1", level: 8 },
+    { name: "9A1", level: 9 },
+  ];
 
-    // Class 11A1 (cho test Exam)
-    const grade11 = await prisma.grade.findUnique({ where: { level: 11 } });
-
-    await prisma.class.upsert({
+  const classMap = {};
+  for (const cls of classesData) {
+    const grade = gradeMap[cls.level];
+    const record = await prisma.class.upsert({
       where: {
         name_academicYearId: {
-          name: "11A1",
+          name: cls.name,
+          academicYearId: academicYear.id,
+        },
+      },
+      update: { gradeId: grade.id },
+      create: {
+        name: cls.name,
+        gradeId: grade.id,
+        academicYearId: academicYear.id,
+      },
+    });
+    classMap[cls.name] = record;
+  }
+  console.log("Classes 6A1, 7A1, 8A1, 9A1 seeded.");
+
+  // Password hash for all demo accounts
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, SALT_ROUNDS);
+
+  // =====================================================
+  // 5. DEMO ACCOUNTS (Exactly 6 roles)
+  // =====================================================
+
+  // 1. SUPER_ADMIN
+  const superAdmin = await prisma.user.upsert({
+    where: { email: "admin@digitalexam.local" },
+    update: {
+      role: "SUPER_ADMIN",
+      status: "ACTIVE",
+      fullName: "Quản trị viên Hệ thống",
+      passwordHash,
+    },
+    create: {
+      email: "admin@digitalexam.local",
+      role: "SUPER_ADMIN",
+      status: "ACTIVE",
+      fullName: "Quản trị viên Hệ thống",
+      passwordHash,
+    },
+  });
+
+  // 2. PRINCIPAL (Hiệu trưởng)
+  const principal = await prisma.user.upsert({
+    where: { email: "hieutruong@digitalexam.local" },
+    update: {
+      role: "PRINCIPAL",
+      status: "ACTIVE",
+      fullName: "Trần Văn Hiệu Trưởng",
+      passwordHash,
+    },
+    create: {
+      email: "hieutruong@digitalexam.local",
+      role: "PRINCIPAL",
+      status: "ACTIVE",
+      fullName: "Trần Văn Hiệu Trưởng",
+      passwordHash,
+    },
+  });
+
+  // 3. VICE_PRINCIPAL (Hiệu phó chuyên môn)
+  const vicePrincipal = await prisma.user.upsert({
+    where: { email: "hieupho@digitalexam.local" },
+    update: {
+      role: "VICE_PRINCIPAL",
+      status: "ACTIVE",
+      fullName: "Lê Thị Hiệu Phó",
+      passwordHash,
+    },
+    create: {
+      email: "hieupho@digitalexam.local",
+      role: "VICE_PRINCIPAL",
+      status: "ACTIVE",
+      fullName: "Lê Thị Hiệu Phó",
+      passwordHash,
+    },
+  });
+
+  // 4. EXAM_OFFICER (Cán bộ khảo thí)
+  const examOfficer = await prisma.user.upsert({
+    where: { email: "khaothi@digitalexam.local" },
+    update: {
+      role: "EXAM_OFFICER",
+      status: "ACTIVE",
+      fullName: "Phạm Văn Khảo Thí",
+      passwordHash,
+    },
+    create: {
+      email: "khaothi@digitalexam.local",
+      role: "EXAM_OFFICER",
+      status: "ACTIVE",
+      fullName: "Phạm Văn Khảo Thí",
+      passwordHash,
+    },
+  });
+
+  // 5. TEACHER (Tổ trưởng Toán - Subject Leader)
+  const teacherUser = await prisma.user.upsert({
+    where: { email: "teacher@digitalexam.local" },
+    update: {
+      role: "TEACHER",
+      status: "ACTIVE",
+      fullName: "Nguyễn Văn Toán",
+      passwordHash,
+    },
+    create: {
+      email: "teacher@digitalexam.local",
+      role: "TEACHER",
+      status: "ACTIVE",
+      fullName: "Nguyễn Văn Toán",
+      passwordHash,
+    },
+  });
+
+  const teacherProfile = await prisma.teacher.upsert({
+    where: { userId: teacherUser.id },
+    update: {
+      fullName: "Nguyễn Văn Toán",
+      teacherCode: "GV001",
+      title: "Tổ trưởng chuyên môn",
+      isSubjectLeader: true,
+      primarySubjectId: subjectMap["TOAN"].id,
+    },
+    create: {
+      userId: teacherUser.id,
+      fullName: "Nguyễn Văn Toán",
+      teacherCode: "GV001",
+      title: "Tổ trưởng chuyên môn",
+      isSubjectLeader: true,
+      primarySubjectId: subjectMap["TOAN"].id,
+    },
+  });
+
+  // Assign Teacher 1 to 6A1 and 7A1 for TOAN
+  for (const clsName of ["6A1", "7A1"]) {
+    await prisma.teachingAssignment.upsert({
+      where: {
+        teacherId_classId_subjectId_academicYearId: {
+          teacherId: teacherProfile.id,
+          classId: classMap[clsName].id,
+          subjectId: subjectMap["TOAN"].id,
           academicYearId: academicYear.id,
         },
       },
       update: {},
       create: {
-        name: "11A1",
-        gradeId: grade11.id,
+        teacherId: teacherProfile.id,
+        classId: classMap[clsName].id,
+        subjectId: subjectMap["TOAN"].id,
         academicYearId: academicYear.id,
       },
     });
-
-    console.log("Class 11A1 seeded.");
-
-    // Admin Development Account
-    const adminEmail = "admin@digitalexam.local";
-    const adminPassword = "Admin@123456";
-
-    const existingAdmin = await prisma.user.findUnique({
-      where: { email: adminEmail },
-    });
-
-    if (!existingAdmin) {
-      const passwordHash = await bcrypt.hash(adminPassword, SALT_ROUNDS);
-
-      await prisma.user.create({
-        data: {
-          email: adminEmail,
-          passwordHash,
-          role: "ADMIN",
-          status: "ACTIVE",
-        },
-      });
-
-      console.log("Admin account created: " + adminEmail);
-    } else {
-      console.log("Admin account already exists: " + adminEmail);
-    }
-
-    // Teacher A Development Account
-    const teacherEmail = "teacher@digitalexam.local";
-    const teacherPassword = "Teacher@123456";
-
-    let teacherUser = await prisma.user.findUnique({
-      where: { email: teacherEmail },
-    });
-
-    if (!teacherUser) {
-      const passwordHash = await bcrypt.hash(teacherPassword, SALT_ROUNDS);
-
-      teacherUser = await prisma.user.create({
-        data: {
-          email: teacherEmail,
-          passwordHash,
-          role: "TEACHER",
-          status: "ACTIVE",
-        },
-      });
-
-      console.log("Teacher user created: " + teacherEmail);
-    } else {
-      console.log("Teacher user already exists: " + teacherEmail);
-    }
-
-    const subjectToan = await prisma.subject.findUnique({ where: { code: "TOAN" } });
-    const subjectAnh = await prisma.subject.findUnique({ where: { code: "TIENGANH" } });
-
-    const existingTeacherProfile = await prisma.teacher.findUnique({
-      where: { userId: teacherUser.id },
-    });
-
-    let teacherProfile;
-    if (!existingTeacherProfile) {
-      teacherProfile = await prisma.teacher.create({
-        data: {
-          userId: teacherUser.id,
-          teacherCode: "TCH001",
-          fullName: "Nguyễn Văn An",
-          title: "Tổ trưởng chuyên môn",
-          primarySubjectId: subjectToan?.id || null,
-        },
-      });
-      console.log("Teacher profile created: TCH001 (Tổ trưởng chuyên môn - Môn Toán)");
-    } else {
-      teacherProfile = await prisma.teacher.update({
-        where: { id: existingTeacherProfile.id },
-        data: {
-          fullName: "Nguyễn Văn An",
-          title: "Tổ trưởng chuyên môn",
-          primarySubjectId: subjectToan?.id || null,
-        },
-      });
-      console.log("Teacher profile updated: TCH001 - Nguyễn Văn An (Tổ trưởng chuyên môn - Môn Toán)");
-    }
-
-    const class11A1 = await prisma.class.findFirst({ where: { name: "11A1" } });
-    if (class11A1 && subjectToan) {
-      await prisma.teachingAssignment.upsert({
-        where: {
-          teacherId_classId_subjectId_academicYearId: {
-            teacherId: teacherProfile.id,
-            classId: class11A1.id,
-            subjectId: subjectToan.id,
-            academicYearId: academicYear.id,
-          },
-        },
-        update: {},
-        create: {
-          teacherId: teacherProfile.id,
-          classId: class11A1.id,
-          subjectId: subjectToan.id,
-          academicYearId: academicYear.id,
-        },
-      });
-      console.log("Teaching assignment created for TCH001: 11A1 - Toán.");
-    }
-
-    // Teacher B Development Account (de test ownership)
-    const teacherBEmail = "teacher2@digitalexam.local";
-
-    let teacherBUser = await prisma.user.findUnique({
-      where: { email: teacherBEmail },
-    });
-
-    if (!teacherBUser) {
-      const passwordHash = await bcrypt.hash("Teacher@123456", SALT_ROUNDS);
-
-      teacherBUser = await prisma.user.create({
-        data: {
-          email: teacherBEmail,
-          passwordHash,
-          role: "TEACHER",
-          status: "ACTIVE",
-        },
-      });
-
-      console.log("Teacher B user created: " + teacherBEmail);
-    } else {
-      console.log("Teacher B user already exists: " + teacherBEmail);
-    }
-
-    const existingTeacherBProfile = await prisma.teacher.findUnique({
-      where: { userId: teacherBUser.id },
-    });
-
-    if (!existingTeacherBProfile) {
-      await prisma.teacher.create({
-        data: {
-          userId: teacherBUser.id,
-          teacherCode: "TCH002",
-          fullName: "Trần Thị Minh",
-          title: "Giáo viên bộ môn",
-          primarySubjectId: subjectAnh?.id || null,
-        },
-      });
-      console.log("Teacher B profile created: TCH002 (Giáo viên bộ môn - Tiếng Anh)");
-    } else {
-      await prisma.teacher.update({
-        where: { id: existingTeacherBProfile.id },
-        data: {
-          fullName: "Trần Thị Minh",
-          title: "Giáo viên bộ môn",
-          primarySubjectId: subjectAnh?.id || null,
-        },
-      });
-      console.log("Teacher B profile updated: TCH002 - Trần Thị Minh (Giáo viên bộ môn - Tiếng Anh)");
-    }
-
-    // Student Development Account
-    const studentEmail = "student@digitalexam.local";
-    const studentPassword = "Student@123456";
-
-    let studentUser = await prisma.user.findUnique({
-      where: { email: studentEmail },
-    });
-
-    if (!studentUser) {
-      const passwordHash = await bcrypt.hash(studentPassword, SALT_ROUNDS);
-
-      studentUser = await prisma.user.create({
-        data: {
-          email: studentEmail,
-          passwordHash,
-          role: "STUDENT",
-          status: "ACTIVE",
-        },
-      });
-
-      console.log("Student user created: " + studentEmail);
-    } else {
-      console.log("Student user already exists: " + studentEmail);
-    }
-
-    let studentProfile = await prisma.student.findUnique({
-      where: { userId: studentUser.id },
-    });
-
-    if (!studentProfile) {
-      studentProfile = await prisma.student.create({
-        data: {
-          userId: studentUser.id,
-          studentCode: "HS0001",
-          fullName: "Nguyễn Hoàng Nam",
-        },
-      });
-      console.log("Student profile created: HS0001 - Nguyễn Hoàng Nam");
-    } else {
-      console.log("Student profile already exists: HS0001");
-    }
-
-    const studentClass11A1 = await prisma.class.findUnique({
-      where: {
-        name_academicYearId: {
-          name: "11A1",
-          academicYearId: academicYear.id,
-        },
-      },
-    });
-
-    if (class11A1) {
-      await prisma.studentEnrollment.upsert({
-        where: {
-          studentId_academicYearId: {
-            studentId: studentProfile.id,
-            academicYearId: academicYear.id,
-          },
-        },
-        update: {
-          classId: class11A1.id,
-        },
-        create: {
-          studentId: studentProfile.id,
-          classId: class11A1.id,
-          academicYearId: academicYear.id,
-        },
-      });
-      console.log("Student enrolled in class 11A1.");
-    }
-
-    console.log("Database seed completed successfully.");
-    console.log("");
-    console.log("=== Development Accounts ===");
-    console.log("Admin:     admin@digitalexam.local    / Admin@123456");
-    console.log("Teacher A: teacher@digitalexam.local  / Teacher@123456");
-    console.log("Teacher B: teacher2@digitalexam.local / Teacher@123456");
-    console.log("Student:   student@digitalexam.local  / Student@123456");
-    console.log("============================");
-  } else {
-    console.log("Production environment detected. Skipping development accounts & test class seed.");
-    console.log("Database core seed completed successfully.");
   }
+
+  // Teacher 2 (Giáo viên Văn - bộ môn)
+  const teacher2User = await prisma.user.upsert({
+    where: { email: "teacher2@digitalexam.local" },
+    update: {
+      role: "TEACHER",
+      status: "ACTIVE",
+      fullName: "Trần Thị Văn",
+      passwordHash,
+    },
+    create: {
+      email: "teacher2@digitalexam.local",
+      role: "TEACHER",
+      status: "ACTIVE",
+      fullName: "Trần Thị Văn",
+      passwordHash,
+    },
+  });
+
+  const teacher2Profile = await prisma.teacher.upsert({
+    where: { userId: teacher2User.id },
+    update: {
+      fullName: "Trần Thị Văn",
+      teacherCode: "GV002",
+      title: "Giáo viên bộ môn",
+      isSubjectLeader: false,
+      primarySubjectId: subjectMap["NGUVAN"].id,
+    },
+    create: {
+      userId: teacher2User.id,
+      fullName: "Trần Thị Văn",
+      teacherCode: "GV002",
+      title: "Giáo viên bộ môn",
+      isSubjectLeader: false,
+      primarySubjectId: subjectMap["NGUVAN"].id,
+    },
+  });
+
+  // Assign Teacher 2 to 6A1 for NGUVAN
+  await prisma.teachingAssignment.upsert({
+    where: {
+      teacherId_classId_subjectId_academicYearId: {
+        teacherId: teacher2Profile.id,
+        classId: classMap["6A1"].id,
+        subjectId: subjectMap["NGUVAN"].id,
+        academicYearId: academicYear.id,
+      },
+    },
+    update: {},
+    create: {
+      teacherId: teacher2Profile.id,
+      classId: classMap["6A1"].id,
+      subjectId: subjectMap["NGUVAN"].id,
+      academicYearId: academicYear.id,
+    },
+  });
+
+  // 6. STUDENT (Học sinh lớp 6A1)
+  const studentUser = await prisma.user.upsert({
+    where: { email: "student@digitalexam.local" },
+    update: {
+      role: "STUDENT",
+      status: "ACTIVE",
+      fullName: "Nguyễn Hoàng Nam",
+      passwordHash,
+    },
+    create: {
+      email: "student@digitalexam.local",
+      role: "STUDENT",
+      status: "ACTIVE",
+      fullName: "Nguyễn Hoàng Nam",
+      passwordHash,
+    },
+  });
+
+  const studentProfile = await prisma.student.upsert({
+    where: { userId: studentUser.id },
+    update: {
+      fullName: "Nguyễn Hoàng Nam",
+      studentCode: "HS0001",
+    },
+    create: {
+      userId: studentUser.id,
+      fullName: "Nguyễn Hoàng Nam",
+      studentCode: "HS0001",
+    },
+  });
+
+  await prisma.studentEnrollment.upsert({
+    where: {
+      studentId_academicYearId: {
+        studentId: studentProfile.id,
+        academicYearId: academicYear.id,
+      },
+    },
+    update: {
+      classId: classMap["6A1"].id,
+    },
+    create: {
+      studentId: studentProfile.id,
+      classId: classMap["6A1"].id,
+      academicYearId: academicYear.id,
+    },
+  });
+
+  console.log("\n=======================================================");
+  console.log("THCS V2 DEMO ACCOUNTS SEEDED SUCCESSFULLY");
+  console.log("Default Password for all: Admin@123");
+  console.log("-------------------------------------------------------");
+  console.log("1. SUPER_ADMIN:    admin@digitalexam.local");
+  console.log("2. PRINCIPAL:      hieutruong@digitalexam.local");
+  console.log("3. VICE_PRINCIPAL: hieupho@digitalexam.local");
+  console.log("4. EXAM_OFFICER:   khaothi@digitalexam.local");
+  console.log("5. TEACHER (Lead): teacher@digitalexam.local (Toán, Tổ trưởng)");
+  console.log("6. TEACHER:        teacher2@digitalexam.local (Ngữ văn)");
+  console.log("7. STUDENT:        student@digitalexam.local (Lớp 6A1)");
+  console.log("=======================================================\n");
 }
 
 main()
   .catch((error) => {
-    console.error("Seed failed:");
-    console.error(error);
+    console.error("Seed failed:", error);
     process.exitCode = 1;
   })
   .finally(async () => {

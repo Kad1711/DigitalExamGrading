@@ -41,6 +41,10 @@ export const createTeacherSchema = z
       .max(100, "Chức danh không được vượt quá 100 ký tự.")
       .optional()
       .nullable(),
+    isSubjectLeader: z
+      .boolean()
+      .optional()
+      .nullable(),
     primarySubjectId: z
       .string()
       .trim()
@@ -80,6 +84,10 @@ export const updateTeacherSchema = z
       .string()
       .trim()
       .max(100, "Chức danh không được vượt quá 100 ký tự.")
+      .optional()
+      .nullable(),
+    isSubjectLeader: z
+      .boolean()
       .optional()
       .nullable(),
     primarySubjectId: z

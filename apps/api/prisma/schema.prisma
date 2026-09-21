@@ -11,13 +11,12 @@ datasource db {
 // =====================================================
 
 enum UserRole {
-  ADMIN
-  TEACHER
-  STUDENT
+  SUPER_ADMIN
   PRINCIPAL
   VICE_PRINCIPAL
-  EXAM_BOARD
-  ACADEMIC_BOARD
+  EXAM_OFFICER
+  TEACHER
+  STUDENT
 }
 
 enum UserStatus {
@@ -43,9 +42,9 @@ enum ExamType {
 }
 
 enum PublicationApprovalStatus {
-  NOT_REQUESTED
-  PENDING_APPROVAL
-  PENDING_PRINCIPAL_APPROVAL
+  NOT_REQUIRED
+  PENDING_VICE_PRINCIPAL
+  PENDING_PRINCIPAL
   APPROVED
   REJECTED
 }
@@ -111,6 +110,8 @@ enum ResultPublicationAction {
   REJECTED
   ACADEMIC_APPROVED
   ACADEMIC_REJECTED
+  VICE_PRINCIPAL_APPROVED
+  VICE_PRINCIPAL_REJECTED
   PRINCIPAL_APPROVED
   PRINCIPAL_REJECTED
   PUBLISHED
@@ -176,12 +177,14 @@ model Teacher {
   fullName         String
   phone            String?
   title            String? @default("Giáo viên")
+  isSubjectLeader  Boolean @default(false)
   primarySubjectId String?
 
-  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  primarySubject Subject?             @relation("TeacherPrimarySubject", fields: [primarySubjectId], references: [id], onDelete: SetNull)
-  assignments    TeachingAssignment[]
-  exams          Exam[]
+  user                   User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primarySubject         Subject?             @relation("TeacherPrimarySubject", fields: [primarySubjectId], references: [id], onDelete: SetNull)
+  assignments            TeachingAssignment[]
+  exams                  Exam[]
+  examsAnswerKeyApproved Exam[]               @relation("ExamAnswerKeyApprover")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -358,7 +361,7 @@ model Exam {
   resultsPublishedByUserId   String?
 
   // Publication Approval Workflow
-  publicationApprovalStatus    PublicationApprovalStatus @default(NOT_REQUESTED)
+  publicationApprovalStatus    PublicationApprovalStatus @default(NOT_REQUIRED)
   publicationRequestedAt       DateTime?
   publicationRequestedByUserId String?
   publicationApprovedAt        DateTime?
@@ -371,6 +374,10 @@ model Exam {
   principalApprovedAt          DateTime?
   principalApprovedByUserId    String?
 
+  // Master Answer Key Approval (Subject Leader)
+  answerKeyApprovedAt          DateTime?
+  answerKeyApprovedByTeacherId String?
+
   teacher                    Teacher?                  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
   createdByUser              User?                     @relation("ExamsCreated", fields: [createdByUserId], references: [id], onDelete: SetNull)
   subject                    Subject                   @relation(fields: [subjectId], references: [id], onDelete: Restrict)
@@ -382,6 +389,7 @@ model Exam {
   publicationApprovedByUser  User?                     @relation("ExamPublicationApprover", fields: [publicationApprovedByUserId], references: [id], onDelete: SetNull)
   academicReviewedByUser     User?                     @relation("ExamAcademicReviewer", fields: [academicReviewedByUserId], references: [id], onDelete: SetNull)
   principalApprovedByUser    User?                     @relation("ExamPrincipalApprover", fields: [principalApprovedByUserId], references: [id], onDelete: SetNull)
+  answerKeyApprovedByTeacher Teacher?                  @relation("ExamAnswerKeyApprover", fields: [answerKeyApprovedByTeacherId], references: [id], onDelete: SetNull)
   examCodes                  ExamCode[]
   answerSheetTemplates       AnswerSheetTemplate[]
   submissions                ExamSubmission[]
@@ -401,6 +409,7 @@ model Exam {
   @@index([publicationApprovalStatus])
   @@index([academicReviewedByUserId])
   @@index([principalApprovedByUserId])
+  @@index([answerKeyApprovedByTeacherId])
 }
 
 model ExamClass {

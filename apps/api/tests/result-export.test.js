@@ -34,7 +34,7 @@ async function setupExportContext() {
     });
   }
 
-  const adminUser = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+  const adminUser = await prisma.user.findFirst({ where: { role: "SUPER_ADMIN" } });
   const subject = await prisma.subject.findFirst();
   const cls = await prisma.class.findFirst();
 
@@ -121,7 +121,7 @@ async function setupExportContext() {
   return {
     teacherA: { id: teacherUserA.id, role: "TEACHER" },
     teacherB: { id: teacherUserB.id, role: "TEACHER" },
-    admin: { id: adminUser.id, role: "ADMIN" },
+    admin: { id: adminUser.id, role: "SUPER_ADMIN" },
     exam,
     unpubExam,
     examCode,

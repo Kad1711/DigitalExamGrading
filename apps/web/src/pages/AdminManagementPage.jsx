@@ -44,18 +44,11 @@ function getRoleBadge(role) {
           Hiệu phó chuyên môn
         </span>
       );
-    case "EXAM_BOARD":
+    case "EXAM_OFFICER":
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
           <FileCheck2 className="w-3.5 h-3.5 text-amber-600" />
-          Ban Khảo thí
-        </span>
-      );
-    case "ACADEMIC_BOARD":
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          Ban Chuyên môn
+          Cán bộ khảo thí
         </span>
       );
     default:
@@ -194,7 +187,7 @@ export default function AdminManagementPage() {
     if (activeGroupTab === "LEADERSHIP") {
       matchGroup = acc.role === "PRINCIPAL" || acc.role === "VICE_PRINCIPAL";
     } else if (activeGroupTab === "PROFESSIONAL_BOARDS") {
-      matchGroup = acc.role === "ACADEMIC_BOARD" || acc.role === "EXAM_BOARD";
+      matchGroup = acc.role === "EXAM_OFFICER";
     }
 
     const matchRole = roleFilter === "ALL" || acc.role === roleFilter;
@@ -204,8 +197,7 @@ export default function AdminManagementPage() {
 
   const countPrincipal = accounts.filter((a) => a.role === "PRINCIPAL").length;
   const countVicePrincipal = accounts.filter((a) => a.role === "VICE_PRINCIPAL").length;
-  const countExamBoard = accounts.filter((a) => a.role === "EXAM_BOARD").length;
-  const countAcademicBoard = accounts.filter((a) => a.role === "ACADEMIC_BOARD").length;
+  const countExamOfficer = accounts.filter((a) => a.role === "EXAM_OFFICER").length;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:pl-64">
@@ -272,7 +264,7 @@ export default function AdminManagementPage() {
         </div>
 
         {/* Overview Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-purple-700">Hiệu trưởng</span>
@@ -297,24 +289,13 @@ export default function AdminManagementPage() {
 
           <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-amber-700">Ban Khảo thí</span>
+              <span className="text-xs font-semibold text-amber-700">Cán bộ khảo thí</span>
               <span className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
                 <FileCheck2 className="w-4 h-4" />
               </span>
             </div>
-            <div className="mt-2 text-2xl font-bold text-slate-900">{countExamBoard}</div>
+            <div className="mt-2 text-2xl font-bold text-slate-900">{countExamOfficer}</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Tổ chức thi & chấm OMR</div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-emerald-700">Ban Chuyên môn</span>
-              <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
-                <ShieldCheck className="w-4 h-4" />
-              </span>
-            </div>
-            <div className="mt-2 text-2xl font-bold text-slate-900">{countAcademicBoard}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Quản lý lớp, học vụ & thẩm định</div>
           </div>
         </div>
 
@@ -379,8 +360,7 @@ export default function AdminManagementPage() {
               <option value="ALL">Tất cả chức vụ</option>
               <option value="PRINCIPAL">Hiệu trưởng</option>
               <option value="VICE_PRINCIPAL">Hiệu phó chuyên môn</option>
-              <option value="EXAM_BOARD">Ban Khảo thí</option>
-              <option value="ACADEMIC_BOARD">Ban Chuyên môn</option>
+              <option value="EXAM_OFFICER">Cán bộ khảo thí</option>
             </select>
 
             <select

@@ -17,6 +17,7 @@ import {
   deleteExamCodeController,
   putAnswerKeyController,
   getAnswerKeyController,
+  approveAnswerKeyController,
 } from "../controllers/exam.controller.js";
 import answerKeyImportRoutes from "./answer-key-import.routes.js";
 import answerSheetRoutes from "./answer-sheet.routes.js";
@@ -31,15 +32,14 @@ const router = Router();
 router.use(authenticate);
 
 const allStaffRoles = authorizeRoles(
-  "ADMIN",
+  "SUPER_ADMIN",
   "TEACHER",
   "PRINCIPAL",
   "VICE_PRINCIPAL",
-  "EXAM_BOARD",
-  "ACADEMIC_BOARD"
+  "EXAM_OFFICER"
 );
-const examCreators = authorizeRoles("ADMIN", "TEACHER", "EXAM_BOARD");
-const adminOnly = authorizeRoles("ADMIN");
+const examCreators = authorizeRoles("SUPER_ADMIN", "TEACHER", "EXAM_OFFICER");
+const adminOnly = authorizeRoles("SUPER_ADMIN");
 
 // Exam CRUD
 router.post("/", examCreators, createExamController);
@@ -63,6 +63,8 @@ router.delete("/:examId/codes/:codeId", examCreators, deleteExamCodeController);
 // AnswerKey
 router.put("/:examId/codes/:codeId/answer-key", examCreators, putAnswerKeyController);
 router.get("/:examId/codes/:codeId/answer-key", allStaffRoles, getAnswerKeyController);
+router.post("/:examId/answer-key/approve", approveAnswerKeyController);
+router.post("/:examId/answer-keys/approve", approveAnswerKeyController);
 
 // Sub-modules: Answer Key Import, OMR Answer Sheet Template, & Grading
 router.use("/", answerKeyImportRoutes);

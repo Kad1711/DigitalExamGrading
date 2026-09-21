@@ -235,15 +235,15 @@ export default function TeacherProfilePage() {
   };
 
   const currentRole = profile?.role || user?.role;
-  const isAdmin = currentRole === "ADMIN";
+  const isAdmin = currentRole === "SUPER_ADMIN";
   const isStudent = currentRole === "STUDENT";
   const isTeacher = currentRole === "TEACHER";
 
   const getRolePermissionInfo = (role) => {
     switch (role) {
-      case "ADMIN":
+      case "SUPER_ADMIN":
         return {
-          title: "Hồ sơ Quản trị viên",
+          title: "Hồ sơ Quản trị viên cấp cao",
           subtitle: "Quản lý thông tin tài khoản kỹ thuật và bảo mật quản trị hệ thống.",
           permissionLabel: "Toàn quyền quản trị hệ thống",
           badgeColor: "text-amber-700 bg-amber-50 border-amber-200",
@@ -265,21 +265,13 @@ export default function TeacherProfilePage() {
           badgeColor: "text-blue-700 bg-blue-50 border-blue-200",
           emailLabel: "Email Phó Hiệu trưởng",
         };
-      case "EXAM_BOARD":
+      case "EXAM_OFFICER":
         return {
-          title: "Hồ sơ Ban Khảo thí",
+          title: "Hồ sơ Cán bộ khảo thí",
           subtitle: "Quản lý thông tin tài khoản Bộ phận Khảo thí & Khảo sát chất lượng.",
           permissionLabel: "Tổ chức kỳ thi chính quy & Chấm thi OMR",
           badgeColor: "text-indigo-700 bg-indigo-50 border-indigo-200",
-          emailLabel: "Email Ban Khảo thí",
-        };
-      case "ACADEMIC_BOARD":
-        return {
-          title: "Hồ sơ Ban Giáo dục và Đào tạo",
-          subtitle: "Quản lý thông tin tài khoản Bộ phận Quản lý Học vụ & Chuyên môn trường.",
-          permissionLabel: "Vận hành dữ liệu học vụ & Thẩm định kết quả",
-          badgeColor: "text-emerald-700 bg-emerald-50 border-emerald-200",
-          emailLabel: "Email Ban Giáo dục & Đào tạo",
+          emailLabel: "Email Cán bộ khảo thí",
         };
       case "TEACHER":
         return {

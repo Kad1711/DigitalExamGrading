@@ -271,6 +271,15 @@ export async function applyImport(examId, fileBuffer, mimeType, originalName, re
   await assertExamManageAccess(exam, reqUser);
   assertExamDraft(exam);
 
+  const submissionCount = await prisma.examSubmission.count({ where: { examId } });
+  if (submissionCount > 0) {
+    throw new AppError(
+      "Không thể nhập đè đáp án gốc khi kỳ thi đã có bài làm được chấm.",
+      409,
+      "ANSWER_KEY_IMMUTABLE_ONCE_SUBMISSIONS_EXIST"
+    );
+  }
+
   const format = detectFormat(originalName, mimeType);
   const rows = await parseRows(fileBuffer, format);
 
@@ -317,6 +326,16 @@ export async function applyImport(examId, fileBuffer, mimeType, originalName, re
       importedCodes.push({ code, count: dataToInsert.length });
       totalAnswers += dataToInsert.length;
     }
+
+    // Invalidate stale approvals
+    await tx.exam.update({
+      where: { id: examId },
+      data: {
+        answerKeyApprovedAt: null,
+        answerKeyApprovedByTeacherId: null,
+        publicationApprovalStatus: "NOT_REQUIRED",
+      },
+    });
   });
 
   return {

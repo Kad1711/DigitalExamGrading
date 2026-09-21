@@ -27,15 +27,14 @@ const router = Router();
 router.use(authenticate);
 
 const canReadClasses = authorizeRoles(
-  "ADMIN",
-  "ACADEMIC_BOARD",
+  "SUPER_ADMIN",
   "PRINCIPAL",
   "VICE_PRINCIPAL",
-  "EXAM_BOARD",
+  "EXAM_OFFICER",
   "TEACHER"
 );
 
-const canManageClasses = authorizeRoles("ACADEMIC_BOARD", "ADMIN");
+const canManageClasses = authorizeRoles("VICE_PRINCIPAL", "SUPER_ADMIN");
 
 // Grades
 router.get("/grades", canReadClasses, getGrades);
@@ -43,7 +42,7 @@ router.get("/grades", canReadClasses, getGrades);
 // Classes Read
 router.get("/", canReadClasses, getClasses);
 
-// Classes Mutations (ACADEMIC_BOARD primary owner, ADMIN fallback)
+// Classes Mutations (VICE_PRINCIPAL primary owner, SUPER_ADMIN fallback)
 router.post("/", canManageClasses, createClass);
 router.post("/batch", canManageClasses, createBatchClasses);
 router.post("/bulk-delete", canManageClasses, bulkDeleteClasses);
@@ -53,7 +52,7 @@ router.delete("/:classId", canManageClasses, deleteClass);
 // Class Students Read
 router.get("/:classId/students", canReadClasses, getClassStudents);
 
-// Class Students Mutations (ACADEMIC_BOARD primary owner, ADMIN fallback)
+// Class Students Mutations (VICE_PRINCIPAL primary owner, SUPER_ADMIN fallback)
 router.post("/:classId/students", canManageClasses, addStudent);
 router.delete("/:classId/students", canManageClasses, clearClassStudents);
 router.post("/:classId/students/bulk-delete", canManageClasses, bulkRemoveStudents);

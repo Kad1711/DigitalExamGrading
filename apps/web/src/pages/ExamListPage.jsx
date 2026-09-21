@@ -39,14 +39,13 @@ import { useAuth } from "../context/AuthContext";
 
 export default function ExamListPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user?.role === "SUPER_ADMIN";
   const isTeacher = user?.role === "TEACHER";
-  const isExamBoard = user?.role === "EXAM_BOARD";
-  const isAcademicBoard = user?.role === "ACADEMIC_BOARD";
+  const isExamOfficer = user?.role === "EXAM_OFFICER";
   const isPrincipal = user?.role === "PRINCIPAL";
   const isVicePrincipal = user?.role === "VICE_PRINCIPAL";
-  const canCreateExam = isAdmin || isTeacher || isExamBoard;
-  const canApprove = isAdmin || isAcademicBoard || isPrincipal;
+  const canCreateExam = isAdmin || isTeacher || isExamOfficer;
+  const canApprove = isAdmin || isVicePrincipal || isPrincipal;
 
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -352,7 +351,7 @@ export default function ExamListPage() {
                 onClick={() => navigate("/exams/new")}
                 className="w-full sm:w-auto"
               >
-                {isExamBoard ? "Tạo kỳ thi chính quy" : isAdmin ? "Tạo kỳ thi mới" : "Tạo bài kiểm tra"}
+                {isExamOfficer ? "Tạo kỳ thi chính quy" : isAdmin ? "Tạo kỳ thi mới" : "Tạo bài kiểm tra"}
               </Button>
             </div>
           )}
@@ -491,17 +490,21 @@ export default function ExamListPage() {
                           exam.examClasses && exam.examClasses.length > 0
                             ? exam.examClasses.map((ec) => ec.class?.name).filter(Boolean).join(", ")
                             : exam.class?.name || (exam.grade ? `Khối ${exam.grade.name}` : "—");
-                        const isPendingAcademic = exam.publicationApprovalStatus === "PENDING_APPROVAL";
-                        const isPendingPrincipal = exam.publicationApprovalStatus === "PENDING_PRINCIPAL_APPROVAL";
+                        const isPendingAcademic =
+                          exam.publicationApprovalStatus === "PENDING_APPROVAL" ||
+                          exam.publicationApprovalStatus === "PENDING_VICE_PRINCIPAL";
+                        const isPendingPrincipal =
+                          exam.publicationApprovalStatus === "PENDING_PRINCIPAL_APPROVAL" ||
+                          exam.publicationApprovalStatus === "PENDING_PRINCIPAL";
                         const isSelfRequest =
                           exam.createdByUserId === user?.id ||
                           exam.publicationRequestedByUserId === user?.id;
                         const cannotSelfApprove = isSelfRequest && !isAdmin;
 
                         // Determine which action buttons to show
-                        const showAcademicApprove = isPendingAcademic && (isAcademicBoard || isAdmin) && !cannotSelfApprove;
+                        const showAcademicApprove = isPendingAcademic && (isVicePrincipal || isAdmin) && !cannotSelfApprove;
                         const showPrincipalApprove = isPendingPrincipal && (isPrincipal || isAdmin);
-                        const showRejectAcademic = isPendingAcademic && (isAcademicBoard || isAdmin);
+                        const showRejectAcademic = isPendingAcademic && (isVicePrincipal || isAdmin);
                         const showRejectPrincipal = isPendingPrincipal && (isPrincipal || isAdmin);
 
                         return (
@@ -543,7 +546,7 @@ export default function ExamListPage() {
                             <td className="py-4 px-4 text-center whitespace-nowrap">
                               {isPendingAcademic && (
                                 <Badge variant="amber" size="sm">
-                                  Chờ Ban Học Vụ
+                                  Chờ Hiệu phó duyệt
                                 </Badge>
                               )}
                               {isPendingPrincipal && (
@@ -573,7 +576,7 @@ export default function ExamListPage() {
                             </td>
                             <td className="py-4 px-4 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-2">
-                                {/* ACADEMIC_BOARD approves PENDING_APPROVAL */}
+                                {/* VICE_PRINCIPAL approves PENDING_VICE_PRINCIPAL */}
                                 {showAcademicApprove && (
                                   <Button
                                     variant="primary"
@@ -1073,7 +1076,7 @@ export default function ExamListPage() {
                                   >
                                     Chi tiết
                                   </Button>
-                                  {(isExamBoard || isAdmin) &&
+                                  {(isExamOfficer || isAdmin) &&
                                     exam.examType !== "REGULAR" &&
                                     exam.examType !== "MIN_15" &&
                                     (exam.publicationApprovalStatus === "NOT_REQUESTED" ||

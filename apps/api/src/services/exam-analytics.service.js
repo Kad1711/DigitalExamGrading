@@ -20,8 +20,8 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
 
   let teacherAssignedClassIds = null;
   const isOversight =
-    ["ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "ACADEMIC_BOARD"].includes(userRole) ||
-    (userRole === "EXAM_BOARD" &&
+    ["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"].includes(userRole) ||
+    (userRole === "EXAM_OFFICER" &&
       (exam.createdByUserId === teacherUserId ||
         ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType)));
 

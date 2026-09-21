@@ -32,13 +32,12 @@ export const OMR_STATUS_LABELS = {
 };
 
 export const USER_ROLE_LABELS = {
-  ADMIN: "Quản trị viên",
+  SUPER_ADMIN: "Quản trị viên cấp cao",
+  PRINCIPAL: "Hiệu trưởng",
+  VICE_PRINCIPAL: "Hiệu phó chuyên môn",
+  EXAM_OFFICER: "Cán bộ khảo thí",
   TEACHER: "Giáo viên",
   STUDENT: "Học sinh",
-  PRINCIPAL: "Hiệu trưởng",
-  VICE_PRINCIPAL: "Hiệu phó",
-  EXAM_BOARD: "Ban khảo thí",
-  ACADEMIC_BOARD: "Ban giáo dục và đào tạo",
 };
 
 export const USER_STATUS_LABELS = {
@@ -54,15 +53,18 @@ export const EXAM_TYPE_LABELS = {
   MIN_45: "Kiểm tra 45 phút",
   MIN_60: "Kiểm tra 60 phút",
   MIN_90: "Kiểm tra 90 phút",
-  MIDTERM: "Kiểm tra giữa kỳ",
-  FINAL: "Kiểm tra cuối kỳ",
+  MIDTERM: "Kiểm tra giữa kỳ (Tập trung)",
+  FINAL: "Kiểm tra cuối kỳ (Tập trung)",
   OTHER: "Kỳ thi khác",
 };
 
 export const PUBLICATION_APPROVAL_STATUS_LABELS = {
+  NOT_REQUIRED: "Không yêu cầu duyệt",
   NOT_REQUESTED: "Không yêu cầu duyệt",
-  PENDING_APPROVAL: "Đang chờ Ban Học Vụ",
-  PENDING_PRINCIPAL_APPROVAL: "Chờ Hiệu trưởng phê duyệt",
+  PENDING_VICE_PRINCIPAL: "Chờ Hiệu phó duyệt",
+  PENDING_PRINCIPAL: "Chờ Hiệu trưởng duyệt",
+  PENDING_APPROVAL: "Chờ phê duyệt",
+  PENDING_PRINCIPAL_APPROVAL: "Chờ Hiệu trưởng duyệt",
   APPROVED: "Đã phê duyệt",
   REJECTED: "Đã từ chối",
 };
@@ -105,7 +107,7 @@ export function formatOmrStatus(status) {
 
 /**
  * Format UserRole enum to Vietnamese string
- * @param {string} role - ADMIN | TEACHER | STUDENT | PRINCIPAL | VICE_PRINCIPAL | EXAM_BOARD | ACADEMIC_BOARD
+ * @param {string} role - SUPER_ADMIN | TEACHER | STUDENT | PRINCIPAL | VICE_PRINCIPAL | EXAM_OFFICER
  * @returns {string} Localized label
  */
 export function formatUserRole(role) {

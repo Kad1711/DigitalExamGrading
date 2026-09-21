@@ -37,7 +37,7 @@ const TEACHER_TITLES = [
 export default function VicePrincipalTeacherManagementPage() {
   const { user } = useAuth();
   const isVicePrincipal = user?.role === "VICE_PRINCIPAL";
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user?.role === "SUPER_ADMIN";
 
   const [teachers, setTeachers] = useState([]);
   const [subjects, setSubjects] = useState([]);

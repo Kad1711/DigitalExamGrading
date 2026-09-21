@@ -12,11 +12,11 @@ import {
 const router = Router({ mergeParams: true });
 const viewCandidatesRoles = [
   authenticate,
-  authorizeRoles("ADMIN", "TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"),
+  authorizeRoles("SUPER_ADMIN", "TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"),
 ];
 const mutateCandidatesRoles = [
   authenticate,
-  authorizeRoles("ADMIN", "TEACHER", "EXAM_BOARD"),
+  authorizeRoles("SUPER_ADMIN", "TEACHER", "EXAM_OFFICER"),
 ];
 
 router.get("/:examId/candidates", viewCandidatesRoles, listCandidates);
