@@ -46,6 +46,12 @@ export async function listTeachers({ search, status } = {}) {
           code: true,
         },
       },
+      assignments: {
+        include: {
+          class: { select: { id: true, name: true, gradeId: true } },
+          subject: { select: { id: true, name: true, code: true } },
+        },
+      },
       _count: {
         select: {
           exams: true,
@@ -65,6 +71,7 @@ export async function listTeachers({ search, status } = {}) {
     title: t.title || "Giáo viên",
     primarySubjectId: t.primarySubjectId || null,
     primarySubject: t.primarySubject || null,
+    assignments: t.assignments || [],
     email: t.user.email,
     role: t.user.role,
     status: t.user.status,
@@ -602,5 +609,122 @@ export async function rejectTeacher(teacherId, { reason } = {}) {
     email: teacher.user.email,
     message: `Đã từ chối yêu cầu đăng ký của "${teacher.fullName}".`,
   };
+}
+
+/**
+ * Lay danh sach phan cong giang day cua giao vien
+ */
+export async function getTeacherAssignments(teacherId) {
+  const teacher = await prisma.teacher.findUnique({
+    where: { id: teacherId },
+    include: {
+      primarySubject: { select: { id: true, name: true, code: true } },
+    },
+  });
+  if (!teacher) throw new AppError("Không tìm thấy giáo viên.", 404, "TEACHER_NOT_FOUND");
+
+  const assignments = await prisma.teachingAssignment.findMany({
+    where: { teacherId },
+    include: {
+      class: {
+        select: {
+          id: true,
+          name: true,
+          gradeId: true,
+          grade: { select: { id: true, level: true, name: true } },
+        },
+      },
+      subject: { select: { id: true, name: true, code: true } },
+      academicYear: { select: { id: true, name: true } },
+    },
+    orderBy: [
+      { class: { grade: { level: "asc" } } },
+      { class: { name: "asc" } },
+    ],
+  });
+
+  return {
+    teacherId: teacher.id,
+    fullName: teacher.fullName,
+    title: teacher.title || "Giáo viên",
+    primarySubject: teacher.primarySubject,
+    assignments,
+  };
+}
+
+/**
+ * Cap nhat phan cong giang day cho giao vien (VICE_PRINCIPAL hoac ADMIN)
+ */
+export async function updateTeacherAssignments(teacherId, { classIds = [], subjectId }) {
+  const teacher = await prisma.teacher.findUnique({
+    where: { id: teacherId },
+    include: { primarySubject: true },
+  });
+  if (!teacher) throw new AppError("Không tìm thấy giáo viên.", 404, "TEACHER_NOT_FOUND");
+
+  // Xac dinh mon hoc phan cong (uu tien primarySubjectId)
+  const targetSubjectId = subjectId || teacher.primarySubjectId;
+  if (!targetSubjectId) {
+    throw new AppError(
+      "Giáo viên chưa có môn chuyên môn chính. Vui lòng cập nhật môn chuyên môn trước khi phân công lớp.",
+      400,
+      "PRIMARY_SUBJECT_REQUIRED"
+    );
+  }
+
+  // Lay nam hoc hien tai
+  let academicYear = await prisma.academicYear.findFirst({
+    orderBy: { createdAt: "desc" },
+  });
+  if (!academicYear) {
+    academicYear = await prisma.academicYear.create({
+      data: { name: "2025-2026" },
+    });
+  }
+
+  // Kiem tra cac lop hop le
+  const validClasses = await prisma.class.findMany({
+    where: { id: { in: classIds } },
+    select: { id: true },
+  });
+  const validClassIds = validClasses.map((c) => c.id);
+
+  // Danh sach phan cong hien tai cua giao vien nay cho mon hoc nay
+  const currentAssignments = await prisma.teachingAssignment.findMany({
+    where: {
+      teacherId,
+      subjectId: targetSubjectId,
+      academicYearId: academicYear.id,
+    },
+    select: { id: true, classId: true },
+  });
+  const currentClassIds = currentAssignments.map((a) => a.classId);
+
+  // Tinh toan them va bo phan cong an toan
+  const toAdd = validClassIds.filter((cid) => !currentClassIds.includes(cid));
+  const toRemove = currentAssignments.filter((a) => !validClassIds.includes(a.classId));
+
+  await prisma.$transaction(async (tx) => {
+    if (toRemove.length > 0) {
+      await tx.teachingAssignment.deleteMany({
+        where: {
+          id: { in: toRemove.map((r) => r.id) },
+        },
+      });
+    }
+
+    for (const cid of toAdd) {
+      await tx.teachingAssignment.create({
+        data: {
+          teacherId,
+          classId: cid,
+          subjectId: targetSubjectId,
+          academicYearId: academicYear.id,
+        },
+      });
+    }
+  });
+
+  return getTeacherAssignments(teacherId);
 }
 

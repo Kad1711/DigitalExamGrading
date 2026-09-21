@@ -68,7 +68,9 @@ export default function ExamCreatePage() {
   const isAdmin = user?.role === "ADMIN";
   const isTeacher = user?.role === "TEACHER";
   const isExamBoard = user?.role === "EXAM_BOARD";
-  const isMultiClassAllowed = isAdmin || isExamBoard;
+  const isAcademicBoard = user?.role === "ACADEMIC_BOARD";
+  const isMultiClassAllowed = isAdmin || isExamBoard || isAcademicBoard;
+  const canCreateClass = isAdmin || isAcademicBoard;
 
   const [examType, setExamType] = useState(() => {
     if (user?.role === "EXAM_BOARD") return "MIDTERM";
@@ -730,21 +732,41 @@ export default function ExamCreatePage() {
                           Chọn toàn khối
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCreateClassError("");
-                          setShowCreateClassModal(true);
-                        }}
-                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Tạo lớp mới
-                      </button>
+                      {canCreateClass && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCreateClassError("");
+                            setShowCreateClassModal(true);
+                          }}
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Tạo lớp mới
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
+                  {/* Warning if any selected class has no assigned teacher for the selected subject */}
+                  {subjectId && selectedClassIds.length > 0 && (() => {
+                    const unassignedSelected = classes.filter(
+                      (c) => selectedClassIds.includes(c.id) && !c.assignments?.some((a) => a.subjectId === subjectId)
+                    );
+                    const selectedSubjectObj = subjects.find((s) => s.id === subjectId);
+                    if (unassignedSelected.length === 0) return null;
+                    return (
+                      <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-semibold">Lưu ý phân công: </span>
+                          Lớp <strong className="font-bold">{unassignedSelected.map((c) => c.name).join(", ")}</strong> chưa có giáo viên môn <strong className="font-bold">{selectedSubjectObj?.name || "này"}</strong> được phân công giảng dạy. Ban Khảo thí vẫn có thể tiếp tục tổ chức thi.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto p-1">
                     {classes
                       .filter((cls) => {
                         if (!selectedGradeId) return true;
@@ -752,6 +774,10 @@ export default function ExamCreatePage() {
                       })
                       .map((cls) => {
                         const isSelected = selectedClassIds.includes(cls.id);
+                        const assignment = cls.assignments?.find((a) => a.subjectId === subjectId);
+                        const teacherName = assignment?.teacher?.fullName;
+                        const teacherTitle = assignment?.teacher?.title || "Giáo viên";
+
                         return (
                           <button
                             key={cls.id}
@@ -764,18 +790,25 @@ export default function ExamCreatePage() {
                                   : [...prev, cls.id]
                               );
                             }}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                            className={`inline-flex flex-col items-start gap-0.5 px-3 py-2 rounded-xl text-xs border transition-all cursor-pointer ${
                               isSelected
                                 ? "bg-blue-600 text-white border-blue-600 shadow-xs"
                                 : "bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
                             }`}
                           >
-                            {isSelected ? (
-                              <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                            ) : (
-                              <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 inline-block" />
+                            <div className="flex items-center gap-1.5 font-bold">
+                              {isSelected ? (
+                                <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                              ) : (
+                                <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 inline-block" />
+                              )}
+                              <span>{cls.name}</span>
+                            </div>
+                            {subjectId && (
+                              <span className={`text-[10px] pl-5 ${isSelected ? "text-blue-100" : teacherName ? "text-slate-500" : "text-amber-600 font-medium"}`}>
+                                {teacherName ? `${teacherName} (${teacherTitle})` : "Chưa phân công GV"}
+                              </span>
                             )}
-                            {cls.name}
                           </button>
                         );
                       })}
@@ -1058,7 +1091,7 @@ export default function ExamCreatePage() {
 
       {/* Quick Create Class Modal */}
       <Modal
-        isOpen={showCreateClassModal}
+        isOpen={canCreateClass && showCreateClassModal}
         onClose={() => !creatingClass && setShowCreateClassModal(false)}
         title="Tạo Lớp Học Mới"
         description="Thêm một hoặc nhiều lớp học cùng lúc vào hệ thống để tổ chức thi."

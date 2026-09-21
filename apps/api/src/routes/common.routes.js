@@ -6,13 +6,20 @@ import { authorizeRoles } from "../middlewares/role.middleware.js";
 const router = Router();
 
 router.use(authenticate);
-const denyStudent = authorizeRoles("ADMIN", "TEACHER");
+const canReadAcademicData = authorizeRoles(
+  "ADMIN",
+  "PRINCIPAL",
+  "VICE_PRINCIPAL",
+  "EXAM_BOARD",
+  "ACADEMIC_BOARD",
+  "TEACHER"
+);
 
 /**
  * GET /api/subjects
  * Minimal read-only endpoint returning subjects for exam setup dropdowns.
  */
-router.get("/subjects", denyStudent, async (req, res, next) => {
+router.get("/subjects", canReadAcademicData, async (req, res, next) => {
   try {
     const subjects = await prisma.subject.findMany({
       select: { id: true, code: true, name: true, description: true },
@@ -28,14 +35,24 @@ router.get("/subjects", denyStudent, async (req, res, next) => {
  * GET /api/classes
  * Minimal read-only endpoint returning classes for exam setup dropdowns.
  */
-router.get("/classes", denyStudent, async (req, res, next) => {
+router.get("/classes", canReadAcademicData, async (req, res, next) => {
   try {
     const classes = await prisma.class.findMany({
       select: {
         id: true,
         name: true,
-        grade: { select: { level: true, name: true } },
-        academicYear: { select: { name: true } },
+        gradeId: true,
+        grade: { select: { id: true, level: true, name: true } },
+        academicYear: { select: { id: true, name: true } },
+        assignments: {
+          select: {
+            id: true,
+            subjectId: true,
+            teacherId: true,
+            subject: { select: { id: true, name: true, code: true } },
+            teacher: { select: { id: true, fullName: true, title: true, teacherCode: true } },
+          },
+        },
       },
       orderBy: [{ grade: { level: "asc" } }, { name: "asc" }],
     });
@@ -49,7 +66,7 @@ router.get("/classes", denyStudent, async (req, res, next) => {
  * GET /api/grades
  * Minimal read-only endpoint returning grades for class setup dropdowns.
  */
-router.get("/grades", denyStudent, async (req, res, next) => {
+router.get("/grades", canReadAcademicData, async (req, res, next) => {
   try {
     const grades = await prisma.grade.findMany({
       select: { id: true, level: true, name: true },

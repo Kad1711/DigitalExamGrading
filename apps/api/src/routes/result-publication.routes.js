@@ -11,6 +11,8 @@ import {
   requestPublicationController,
   approvePublicationController,
   rejectPublicationController,
+  principalApprovePublicationController,
+  principalRejectPublicationController,
   getPublicationApprovalQueueController,
 } from "../controllers/result-publication.controller.js";
 
@@ -28,6 +30,7 @@ const oversightRoles = authorizeRoles(
 );
 const examBoardOrAdmin = authorizeRoles("EXAM_BOARD", "ADMIN");
 const academicBoardOrAdmin = authorizeRoles("ACADEMIC_BOARD", "ADMIN");
+const principalOrAdmin = authorizeRoles("PRINCIPAL", "ADMIN");
 const canPublishOrUnpublish = authorizeRoles("TEACHER", "EXAM_BOARD", "ADMIN");
 
 // Approval queue for Academic Board & School Management
@@ -51,6 +54,14 @@ router.post("/:examId/results/publication/approve", academicBoardOrAdmin, approv
 // Reject publication (Academic Board or Admin)
 router.post("/:examId/publication/reject", academicBoardOrAdmin, rejectPublicationController);
 router.post("/:examId/results/publication/reject", academicBoardOrAdmin, rejectPublicationController);
+
+// Principal Final Approval for MIDTERM / FINAL (Principal or Admin)
+router.post("/:examId/publication/principal-approve", principalOrAdmin, principalApprovePublicationController);
+router.post("/:examId/results/publication/principal-approve", principalOrAdmin, principalApprovePublicationController);
+
+// Principal Rejection for MIDTERM / FINAL (Principal or Admin)
+router.post("/:examId/publication/principal-reject", principalOrAdmin, principalRejectPublicationController);
+router.post("/:examId/results/publication/principal-reject", principalOrAdmin, principalRejectPublicationController);
 
 // Publish & Unpublish actions
 router.post("/:examId/results/publish", canPublishOrUnpublish, publishResultsController);

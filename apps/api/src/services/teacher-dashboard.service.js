@@ -146,6 +146,9 @@ export async function getTeacherTeachingAssignments(teacherUserId, userRole = "T
 
   const teacher = await prisma.teacher.findUnique({
     where: { userId: teacherUserId },
+    include: {
+      primarySubject: { select: { id: true, name: true, code: true } },
+    },
   });
 
   if (!teacher) {
@@ -173,6 +176,10 @@ export async function getTeacherTeachingAssignments(teacherUserId, userRole = "T
     return {
       isAdmin: false,
       hasAssignments: true,
+      teacherCode: teacher.teacherCode,
+      fullName: teacher.fullName,
+      title: teacher.title || "Giáo viên",
+      primarySubject: teacher.primarySubject || null,
       classes: Array.from(uniqueClassesMap.values()),
       subjects: Array.from(uniqueSubjectsMap.values()),
       assignments: rawAssignments.map((a) => ({

@@ -3,6 +3,7 @@ import { authenticate } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/role.middleware.js";
 import * as adminTeacherController from "../controllers/admin-teacher.controller.js";
 import * as adminDashboardController from "../controllers/admin-dashboard.controller.js";
+import * as adminManagementController from "../controllers/admin-management.controller.js";
 
 const router = Router();
 
@@ -11,6 +12,8 @@ router.use(authenticate);
 
 const adminOnly = authorizeRoles("ADMIN");
 const canViewOversight = authorizeRoles("ADMIN", "PRINCIPAL", "VICE_PRINCIPAL");
+const canManageTeacherProfessional = authorizeRoles("ADMIN", "VICE_PRINCIPAL");
+const canViewTeachers = authorizeRoles("ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "ACADEMIC_BOARD");
 
 /**
  * GET /api/admin/test
@@ -31,13 +34,15 @@ router.get("/test", adminOnly, (req, res) => {
 router.get("/dashboard", canViewOversight, adminDashboardController.getAdminDashboardController);
 
 /**
- * Quan ly tai khoan giao vien
+ * Quan ly tai khoan giao vien & Chuyen mon giao vien
  */
-router.get("/teachers", canViewOversight, adminTeacherController.listTeachersController);
+router.get("/teachers", canViewTeachers, adminTeacherController.listTeachersController);
 router.get("/teachers/next-code", adminOnly, adminTeacherController.nextTeacherCodeController);
 router.post("/teachers", adminOnly, adminTeacherController.createTeacherController);
-router.get("/teachers/:teacherId", canViewOversight, adminTeacherController.getTeacherDetailController);
-router.patch("/teachers/:teacherId", adminOnly, adminTeacherController.updateTeacherController);
+router.get("/teachers/:teacherId", canViewTeachers, adminTeacherController.getTeacherDetailController);
+router.patch("/teachers/:teacherId", canManageTeacherProfessional, adminTeacherController.updateTeacherController);
+router.get("/teachers/:teacherId/assignments", canViewTeachers, adminTeacherController.getTeacherAssignmentsController);
+router.put("/teachers/:teacherId/assignments", canManageTeacherProfessional, adminTeacherController.updateTeacherAssignmentsController);
 router.post("/teachers/:teacherId/lock", adminOnly, adminTeacherController.lockTeacherController);
 router.post("/teachers/:teacherId/unlock", adminOnly, adminTeacherController.unlockTeacherController);
 router.post(
@@ -49,5 +54,25 @@ router.post("/teachers/:teacherId/approve", adminOnly, adminTeacherController.ap
 router.post("/teachers/:teacherId/reject", adminOnly, adminTeacherController.rejectTeacherController);
 router.delete("/teachers/:teacherId", adminOnly, adminTeacherController.deleteTeacherController);
 router.post("/teachers/bulk-delete-locked", adminOnly, adminTeacherController.bulkDeleteLockedTeachersController);
+
+/**
+ * Quan ly tai khoan Ban Giam Hieu & Ban Chuyen Mon / Khao Thi (Chi ADMIN)
+ */
+router.get("/management-accounts", adminOnly, adminManagementController.listManagementAccountsController);
+router.post(
+  "/management-accounts/:userId/reset-password",
+  adminOnly,
+  adminManagementController.resetManagementPasswordController
+);
+router.post(
+  "/management-accounts/:userId/toggle-status",
+  adminOnly,
+  adminManagementController.toggleManagementStatusController
+);
+router.patch(
+  "/management-accounts/:userId",
+  adminOnly,
+  adminManagementController.updateManagementAccountController
+);
 
 export default router;

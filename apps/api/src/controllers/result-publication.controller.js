@@ -6,6 +6,8 @@ import {
   requestPublication,
   approvePublication,
   rejectPublication,
+  principalApprovePublication,
+  principalRejectPublication,
   getPublicationApprovalQueue,
 } from "../services/result-publication.service.js";
 import {
@@ -62,6 +64,28 @@ export async function rejectPublicationController(req, res, next) {
     const { examId } = req.params;
     const { reason } = req.body || {};
     const data = await rejectPublication({ examId, user: req.user, reason });
+    res.status(200).json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function principalApprovePublicationController(req, res, next) {
+  try {
+    const { examId } = req.params;
+    const { note } = req.body || {};
+    const data = await principalApprovePublication({ examId, user: req.user, note });
+    res.status(200).json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function principalRejectPublicationController(req, res, next) {
+  try {
+    const { examId } = req.params;
+    const { reason } = req.body || {};
+    const data = await principalRejectPublication({ examId, user: req.user, reason });
     res.status(200).json(data);
   } catch (err) {
     next(err);

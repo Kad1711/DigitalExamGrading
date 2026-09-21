@@ -822,6 +822,82 @@ export default function TeacherProfilePage() {
                 </form>
               </div>
             </div>
+
+            {/* ===================================================== */}
+            {/* TEACHER PROFESSIONAL INFO CARD (read-only)             */}
+            {/* ===================================================== */}
+            {isTeacher && profile && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs">
+                <div className="flex items-center gap-2.5 mb-5 pb-4 border-b border-slate-100">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <Shield className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Thông tin chuyên môn
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Thông tin chức danh, môn chuyên môn và phân công lớp do Phó Hiệu trưởng quản lý.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                  {/* Title */}
+                  <div className="bg-indigo-50/60 rounded-xl border border-indigo-100 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 mb-1.5">
+                      Chức danh
+                    </p>
+                    <p className="text-sm font-bold text-indigo-800">
+                      {profile.title || "Giáo viên"}
+                    </p>
+                  </div>
+
+                  {/* Primary Subject */}
+                  <div className="bg-emerald-50/60 rounded-xl border border-emerald-100 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 mb-1.5">
+                      Môn chuyên môn chính
+                    </p>
+                    <p className="text-sm font-bold text-emerald-800">
+                      {profile.primarySubject?.name || (
+                        <span className="text-slate-400 italic font-normal">Chưa đặt</span>
+                      )}
+                    </p>
+                    {profile.primarySubject?.code && (
+                      <p className="text-[11px] text-emerald-600 mt-0.5">
+                        {profile.primarySubject.code}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Assigned classes */}
+                  <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                      Lớp được phân công ({(profile.assignments || []).length})
+                    </p>
+                    {(profile.assignments || []).length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">Chưa phân công lớp nào</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {(profile.assignments || []).map((a, i) => (
+                          <span
+                            key={i}
+                            className="text-[11px] bg-white border border-slate-200 text-slate-700 font-semibold rounded-full px-2.5 py-0.5"
+                          >
+                            {a.className || a.class?.name} {a.subjectName ? `· ${a.subjectName}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-400 mt-4 flex items-center gap-1">
+                  <Info className="w-3 h-3" />
+                  Để thay đổi thông tin chuyên môn, liên hệ Phó Hiệu trưởng phụ trách chuyên môn.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </main>

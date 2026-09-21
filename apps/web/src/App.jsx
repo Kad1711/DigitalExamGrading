@@ -18,6 +18,8 @@ const StudentResultsPage = lazy(() => import("./pages/StudentResultsPage"));
 const StudentResultDetailPage = lazy(() => import("./pages/StudentResultDetailPage"));
 const ExamAnalyticsPage = lazy(() => import("./pages/ExamAnalyticsPage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
+const AdminManagementPage = lazy(() => import("./pages/AdminManagementPage"));
+const VicePrincipalTeacherManagementPage = lazy(() => import("./pages/VicePrincipalTeacherManagementPage"));
 
 // Role groups for route protection
 const ALL_STAFF_ROLES = ["ADMIN", "TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"];
@@ -61,6 +63,22 @@ export default function App() {
             element={
               <RequireRole roles={["ADMIN"]}>
                 <AdminDashboardPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/admin/management"
+            element={
+              <RequireRole roles={["ADMIN"]}>
+                <AdminManagementPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/vice-principal/teachers"
+            element={
+              <RequireRole roles={["ADMIN", "VICE_PRINCIPAL"]}>
+                <VicePrincipalTeacherManagementPage />
               </RequireRole>
             }
           />

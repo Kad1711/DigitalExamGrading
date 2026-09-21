@@ -10,7 +10,14 @@ function getExamClassIds(exam) {
 }
 
 export async function verifyExamOwnership(examId, teacherUserId, userRole = "TEACHER") {
-  return assertExamAccess(examId, { id: teacherUserId, role: userRole });
+  try {
+    return await assertExamAccess(examId, { id: teacherUserId, role: userRole });
+  } catch (err) {
+    if (err.code === "TEACHER_PROFILE_NOT_FOUND") {
+      throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
+    }
+    throw err;
+  }
 }
 
 export async function listExamCandidates(teacherUserId, examId, userRole = "TEACHER") {

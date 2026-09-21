@@ -199,3 +199,34 @@ export async function rejectTeacherController(req, res, next) {
   }
 }
 
+export async function getTeacherAssignmentsController(req, res, next) {
+  try {
+    const { teacherId } = req.params;
+    const result = await adminTeacherService.getTeacherAssignments(teacherId);
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateTeacherAssignmentsController(req, res, next) {
+  try {
+    const { teacherId } = req.params;
+    const { classIds, subjectId } = req.body || {};
+    const result = await adminTeacherService.updateTeacherAssignments(teacherId, {
+      classIds,
+      subjectId,
+    });
+    return res.status(200).json({
+      success: true,
+      message: "Cập nhật phân công giảng dạy thành công.",
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+

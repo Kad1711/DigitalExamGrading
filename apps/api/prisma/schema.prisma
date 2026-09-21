@@ -45,6 +45,7 @@ enum ExamType {
 enum PublicationApprovalStatus {
   NOT_REQUESTED
   PENDING_APPROVAL
+  PENDING_PRINCIPAL_APPROVAL
   APPROVED
   REJECTED
 }
@@ -108,6 +109,10 @@ enum ResultPublicationAction {
   APPROVAL_REQUESTED
   APPROVED
   REJECTED
+  ACADEMIC_APPROVED
+  ACADEMIC_REJECTED
+  PRINCIPAL_APPROVED
+  PRINCIPAL_REJECTED
   PUBLISHED
   UNPUBLISHED
 }
@@ -138,6 +143,8 @@ model User {
   examsCreated                Exam[]                   @relation("ExamsCreated")
   examsPublicationRequested   Exam[]                   @relation("ExamPublicationRequester")
   examsPublicationApproved    Exam[]                   @relation("ExamPublicationApprover")
+  examsAcademicReviewed       Exam[]                   @relation("ExamAcademicReviewer")
+  examsPrincipalApproved      Exam[]                   @relation("ExamPrincipalApprover")
   resultPublicationLogs       ExamResultPublicationLog[] @relation("PublicationLogActor")
 
   createdAt DateTime @default(now())
@@ -358,6 +365,12 @@ model Exam {
   publicationApprovedByUserId  String?
   publicationRejectionReason   String?
 
+  // Multi-Level Publication Approval (Phase 10)
+  academicReviewedAt           DateTime?
+  academicReviewedByUserId     String?
+  principalApprovedAt          DateTime?
+  principalApprovedByUserId    String?
+
   teacher                    Teacher?                  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
   createdByUser              User?                     @relation("ExamsCreated", fields: [createdByUserId], references: [id], onDelete: SetNull)
   subject                    Subject                   @relation(fields: [subjectId], references: [id], onDelete: Restrict)
@@ -367,6 +380,8 @@ model Exam {
   resultsPublishedByUser     User?                     @relation("ExamResultPublisher", fields: [resultsPublishedByUserId], references: [id], onDelete: SetNull)
   publicationRequestedByUser User?                     @relation("ExamPublicationRequester", fields: [publicationRequestedByUserId], references: [id], onDelete: SetNull)
   publicationApprovedByUser  User?                     @relation("ExamPublicationApprover", fields: [publicationApprovedByUserId], references: [id], onDelete: SetNull)
+  academicReviewedByUser     User?                     @relation("ExamAcademicReviewer", fields: [academicReviewedByUserId], references: [id], onDelete: SetNull)
+  principalApprovedByUser    User?                     @relation("ExamPrincipalApprover", fields: [principalApprovedByUserId], references: [id], onDelete: SetNull)
   examCodes                  ExamCode[]
   answerSheetTemplates       AnswerSheetTemplate[]
   submissions                ExamSubmission[]
@@ -384,6 +399,8 @@ model Exam {
   @@index([status])
   @@index([examType])
   @@index([publicationApprovalStatus])
+  @@index([academicReviewedByUserId])
+  @@index([principalApprovedByUserId])
 }
 
 model ExamClass {

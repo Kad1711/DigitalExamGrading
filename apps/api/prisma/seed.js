@@ -178,25 +178,57 @@ async function main() {
       console.log("Teacher user already exists: " + teacherEmail);
     }
 
+    const subjectToan = await prisma.subject.findUnique({ where: { code: "TOAN" } });
+    const subjectAnh = await prisma.subject.findUnique({ where: { code: "TIENGANH" } });
+
     const existingTeacherProfile = await prisma.teacher.findUnique({
       where: { userId: teacherUser.id },
     });
 
+    let teacherProfile;
     if (!existingTeacherProfile) {
-      await prisma.teacher.create({
+      teacherProfile = await prisma.teacher.create({
         data: {
           userId: teacherUser.id,
           teacherCode: "TCH001",
           fullName: "Nguyễn Văn An",
+          title: "Tổ trưởng chuyên môn",
+          primarySubjectId: subjectToan?.id || null,
         },
       });
-      console.log("Teacher profile created: TCH001");
+      console.log("Teacher profile created: TCH001 (Tổ trưởng chuyên môn - Môn Toán)");
     } else {
-      await prisma.teacher.update({
+      teacherProfile = await prisma.teacher.update({
         where: { id: existingTeacherProfile.id },
-        data: { fullName: "Nguyễn Văn An" },
+        data: {
+          fullName: "Nguyễn Văn An",
+          title: "Tổ trưởng chuyên môn",
+          primarySubjectId: subjectToan?.id || null,
+        },
       });
-      console.log("Teacher profile updated: TCH001 - Nguyễn Văn An");
+      console.log("Teacher profile updated: TCH001 - Nguyễn Văn An (Tổ trưởng chuyên môn - Môn Toán)");
+    }
+
+    const class11A1 = await prisma.class.findFirst({ where: { name: "11A1" } });
+    if (class11A1 && subjectToan) {
+      await prisma.teachingAssignment.upsert({
+        where: {
+          teacherId_classId_subjectId_academicYearId: {
+            teacherId: teacherProfile.id,
+            classId: class11A1.id,
+            subjectId: subjectToan.id,
+            academicYearId: academicYear.id,
+          },
+        },
+        update: {},
+        create: {
+          teacherId: teacherProfile.id,
+          classId: class11A1.id,
+          subjectId: subjectToan.id,
+          academicYearId: academicYear.id,
+        },
+      });
+      console.log("Teaching assignment created for TCH001: 11A1 - Toán.");
     }
 
     // Teacher B Development Account (de test ownership)
@@ -233,15 +265,21 @@ async function main() {
           userId: teacherBUser.id,
           teacherCode: "TCH002",
           fullName: "Trần Thị Minh",
+          title: "Giáo viên bộ môn",
+          primarySubjectId: subjectAnh?.id || null,
         },
       });
-      console.log("Teacher B profile created: TCH002");
+      console.log("Teacher B profile created: TCH002 (Giáo viên bộ môn - Tiếng Anh)");
     } else {
       await prisma.teacher.update({
         where: { id: existingTeacherBProfile.id },
-        data: { fullName: "Trần Thị Minh" },
+        data: {
+          fullName: "Trần Thị Minh",
+          title: "Giáo viên bộ môn",
+          primarySubjectId: subjectAnh?.id || null,
+        },
       });
-      console.log("Teacher B profile updated: TCH002 - Trần Thị Minh");
+      console.log("Teacher B profile updated: TCH002 - Trần Thị Minh (Giáo viên bộ môn - Tiếng Anh)");
     }
 
     // Student Development Account
@@ -286,7 +324,7 @@ async function main() {
       console.log("Student profile already exists: HS0001");
     }
 
-    const class11A1 = await prisma.class.findUnique({
+    const studentClass11A1 = await prisma.class.findUnique({
       where: {
         name_academicYearId: {
           name: "11A1",

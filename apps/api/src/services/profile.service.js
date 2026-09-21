@@ -72,6 +72,17 @@ export async function getProfile(userId) {
   if (user.role === "TEACHER") {
     const teacher = await prisma.teacher.findUnique({
       where: { userId },
+      include: {
+        primarySubject: {
+          select: { id: true, name: true, code: true },
+        },
+        assignments: {
+          include: {
+            class: { select: { id: true, name: true } },
+            subject: { select: { id: true, name: true, code: true } },
+          },
+        },
+      },
     });
 
     if (!teacher) {
@@ -88,6 +99,16 @@ export async function getProfile(userId) {
       teacherCode: teacher.teacherCode,
       fullName: teacher.fullName || user.fullName,
       phone: teacher.phone || user.phone || null,
+      title: teacher.title || "Giáo viên",
+      primarySubjectId: teacher.primarySubjectId,
+      primarySubject: teacher.primarySubject || null,
+      assignments: (teacher.assignments || []).map((a) => ({
+        id: a.id,
+        classId: a.classId,
+        className: a.class?.name || "—",
+        subjectId: a.subjectId,
+        subjectName: a.subject?.name || "—",
+      })),
       avatarUrl: user.avatarUrl || null,
       email: user.email,
       role: user.role,

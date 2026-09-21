@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ShieldCheck,
   LayoutDashboard,
+  Landmark,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { formatUserRole, getInitials, getAvatarUrl } from "../utils/enum-map";
@@ -42,12 +43,14 @@ export default function AppHeader() {
   const isClassesActive = location.pathname.startsWith("/classes");
   const isGradeActive = location.pathname.startsWith("/grade");
   const isAdminDashboardActive = location.pathname === "/admin/dashboard" || location.pathname === "/admin";
+  const isAdminManagementActive = location.pathname.startsWith("/admin/management");
   const isAdminTeachersActive = location.pathname.startsWith("/admin/teachers");
   const isProfileActive = location.pathname.startsWith("/profile");
   const isStudentExamsActive = location.pathname.startsWith("/student/exams");
   const isStudentResultsActive = location.pathname.startsWith("/student/results");
   const isApprovalQueueActive = location.pathname.startsWith("/exams/approval-queue") ||
     location.pathname.startsWith("/publication/approval-queue");
+  const isVicePrincipalTeachersActive = location.pathname.startsWith("/vice-principal/teachers");
 
   const displayName =
     user?.fullName ||
@@ -113,6 +116,12 @@ export default function AppHeader() {
       active: isAdminDashboardActive,
     },
     {
+      label: "Ban giám hiệu & Chuyên môn",
+      href: "/admin/management",
+      icon: Landmark,
+      active: isAdminManagementActive,
+    },
+    {
       label: "Quản lý giáo viên",
       href: "/admin/teachers",
       icon: UserCheck,
@@ -138,13 +147,53 @@ export default function AppHeader() {
     },
   ];
 
-  // Nav for PRINCIPAL / VICE_PRINCIPAL — oversight only
+  // Nav for PRINCIPAL — oversight + approval queue for MIDTERM/FINAL
   const principalNavItems = [
     {
       label: "Kỳ thi & Đề thi",
       href: "/exams",
       icon: FileText,
       active: isExamsActive,
+    },
+    {
+      label: "Chờ phê duyệt",
+      href: "/exams?tab=approval-queue",
+      icon: ShieldCheck,
+      active: isApprovalQueueActive,
+    },
+    {
+      label: "Lớp học & Học sinh",
+      href: "/classes",
+      icon: Users,
+      active: isClassesActive,
+    },
+    {
+      label: "Giáo viên",
+      href: "/admin/teachers",
+      icon: UserCheck,
+      active: isAdminTeachersActive,
+    },
+    {
+      label: "Hồ sơ",
+      href: "/profile",
+      icon: UserCheck,
+      active: isProfileActive,
+    },
+  ];
+
+  // Nav for VICE_PRINCIPAL — teacher professional management
+  const vicePrincipalNavItems = [
+    {
+      label: "Kỳ thi & Đề thi",
+      href: "/exams",
+      icon: FileText,
+      active: isExamsActive,
+    },
+    {
+      label: "Chuyên môn GV",
+      href: "/vice-principal/teachers",
+      icon: GraduationCap,
+      active: isVicePrincipalTeachersActive,
     },
     {
       label: "Lớp học & Học sinh",
@@ -228,8 +277,10 @@ export default function AppHeader() {
     ? studentNavItems
     : isAdmin
     ? adminNavItems
-    : isPrincipal || isVicePrincipal
+    : isPrincipal
     ? principalNavItems
+    : isVicePrincipal
+    ? vicePrincipalNavItems
     : isExamBoard
     ? examBoardNavItems
     : isAcademicBoard

@@ -61,7 +61,8 @@ export const EXAM_TYPE_LABELS = {
 
 export const PUBLICATION_APPROVAL_STATUS_LABELS = {
   NOT_REQUESTED: "Không yêu cầu duyệt",
-  PENDING_APPROVAL: "Đang chờ phê duyệt",
+  PENDING_APPROVAL: "Đang chờ Ban Học Vụ",
+  PENDING_PRINCIPAL_APPROVAL: "Chờ Hiệu trưởng phê duyệt",
   APPROVED: "Đã phê duyệt",
   REJECTED: "Đã từ chối",
 };

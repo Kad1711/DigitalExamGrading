@@ -46,7 +46,7 @@ export default function ExamListPage() {
   const isPrincipal = user?.role === "PRINCIPAL";
   const isVicePrincipal = user?.role === "VICE_PRINCIPAL";
   const canCreateExam = isAdmin || isTeacher || isExamBoard;
-  const canApprove = isAdmin || isAcademicBoard;
+  const canApprove = isAdmin || isAcademicBoard || isPrincipal;
 
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -62,7 +62,9 @@ export default function ExamListPage() {
   // Approval Queue State
   const [approvalQueue, setApprovalQueue] = useState([]);
   const [loadingQueue, setLoadingQueue] = useState(false);
-  const [queueStatusFilter, setQueueStatusFilter] = useState("PENDING_APPROVAL");
+  const [queueStatusFilter, setQueueStatusFilter] = useState(
+    user?.role === "PRINCIPAL" ? "PENDING_PRINCIPAL_APPROVAL" : "PENDING_APPROVAL"
+  );
   const [rejectModalExam, setRejectModalExam] = useState(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [processingAction, setProcessingAction] = useState(false);
@@ -125,13 +127,30 @@ export default function ExamListPage() {
       setProcessingAction(true);
       setErrorMsg("");
       await api.post(`/exams/${exam.id}/publication/approve`);
-      setSuccessMsg(`Đã phê duyệt và công bố điểm kỳ thi "${exam.title}" thành công.`);
+      setSuccessMsg(`Đã phê duyệt học vụ kỳ thi "${exam.title}". Kỳ thi chờ Hiệu trưởng phê duyệt cuối (MIDTERM/FINAL) hoặc sẵn sàng công bố.`);
       fetchApprovalQueue();
       fetchExams();
     } catch (err) {
       const code = err.response?.data?.error?.code;
       const raw = err.response?.data?.error?.message;
       setErrorMsg(getErrorMessage(code, raw || "Không thể phê duyệt công bố điểm."));
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handlePrincipalApprove = async (exam) => {
+    try {
+      setProcessingAction(true);
+      setErrorMsg("");
+      await api.post(`/exams/${exam.id}/publication/principal-approve`);
+      setSuccessMsg(`Hiệu trưởng đã phê duyệt kỳ thi "${exam.title}". Ban Khảo thí có thể công bố kết quả.`);
+      fetchApprovalQueue();
+      fetchExams();
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      const raw = err.response?.data?.error?.message;
+      setErrorMsg(getErrorMessage(code, raw || "Không thể phê duyệt (Hiệu trưởng)."));
     } finally {
       setProcessingAction(false);
     }
@@ -147,9 +166,13 @@ export default function ExamListPage() {
     try {
       setProcessingAction(true);
       setErrorMsg("");
-      await api.post(`/exams/${rejectModalExam.id}/publication/reject`, {
-        reason: rejectionReason.trim(),
-      });
+      // Determine endpoint based on current status
+      const isPrincipalQueue =
+        rejectModalExam.publicationApprovalStatus === "PENDING_PRINCIPAL_APPROVAL";
+      const endpoint = isPrincipalQueue
+        ? `/exams/${rejectModalExam.id}/publication/principal-reject`
+        : `/exams/${rejectModalExam.id}/publication/reject`;
+      await api.post(endpoint, { reason: rejectionReason.trim() });
       setSuccessMsg(`Đã từ chối yêu cầu công bố điểm kỳ thi "${rejectModalExam.title}".`);
       setRejectModalExam(null);
       setRejectionReason("");
@@ -359,10 +382,18 @@ export default function ExamListPage() {
               }`}
             >
               <ShieldCheck className="w-4 h-4" />
-              <span>Hàng đợi phê duyệt công bố điểm</span>
-              {approvalQueue.filter((e) => e.publicationApprovalStatus === "PENDING_APPROVAL").length > 0 && (
+              <span>{isPrincipal ? "Chờ phê duyệt (HT)" : "Hàng đợi phê duyệt công bố điểm"}</span>
+              {approvalQueue.filter(
+                (e) =>
+                  e.publicationApprovalStatus === "PENDING_APPROVAL" ||
+                  e.publicationApprovalStatus === "PENDING_PRINCIPAL_APPROVAL"
+              ).length > 0 && (
                 <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
-                  {approvalQueue.filter((e) => e.publicationApprovalStatus === "PENDING_APPROVAL").length}
+                  {approvalQueue.filter(
+                    (e) =>
+                      e.publicationApprovalStatus === "PENDING_APPROVAL" ||
+                      e.publicationApprovalStatus === "PENDING_PRINCIPAL_APPROVAL"
+                  ).length}
                 </span>
               )}
             </button>
@@ -371,23 +402,45 @@ export default function ExamListPage() {
 
         {currentTab === "approval-queue" ? (
           /* =================================================== */
-          /* APPROVAL QUEUE VIEW (Ban Giáo Dục & Quản trị viên)  */
+          /* APPROVAL QUEUE VIEW                                  */
           /* =================================================== */
           <div className="space-y-6">
+            {/* Role context banner */}
+            {isPrincipal && (
+              <div className="flex items-start gap-3 bg-purple-50 border border-purple-200 rounded-xl p-4 text-sm text-purple-800">
+                <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0 text-purple-500" />
+                <div>
+                  <p className="font-semibold">Phê duyệt cuối — Hiệu trưởng</p>
+                  <p className="text-xs mt-0.5 text-purple-700">
+                    Bạn thấy các kỳ thi <strong>MIDTERM/FINAL</strong> đã được Ban Học Vụ thẩm định, đang chờ phê duyệt cuối cùng của Hiệu trưởng trước khi công bố.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Filter Tabs */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 overflow-x-auto">
-                {[
-                  { id: "PENDING_APPROVAL", label: "Chờ phê duyệt" },
-                  { id: "APPROVED", label: "Đã phê duyệt" },
-                  { id: "REJECTED", label: "Đã từ chối" },
-                  { id: "ALL", label: "Tất cả" },
-                ].map((qf) => (
+                {(isPrincipal
+                  ? [
+                      { id: "PENDING_PRINCIPAL_APPROVAL", label: "Chờ Hiệu trưởng duyệt" },
+                      { id: "APPROVED", label: "Đã phê duyệt" },
+                      { id: "REJECTED", label: "Đã từ chối" },
+                      { id: "ALL", label: "Tất cả" },
+                    ]
+                  : [
+                      { id: "PENDING_APPROVAL", label: "Chờ Ban Học Vụ duyệt" },
+                      { id: "PENDING_PRINCIPAL_APPROVAL", label: "Chờ Hiệu trưởng duyệt" },
+                      { id: "APPROVED", label: "Đã phê duyệt" },
+                      { id: "REJECTED", label: "Đã từ chối" },
+                      { id: "ALL", label: "Tất cả" },
+                    ]
+                ).map((qf) => (
                   <button
                     key={qf.id}
                     type="button"
                     onClick={() => setQueueStatusFilter(qf.id)}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                       queueStatusFilter === qf.id
                         ? "bg-blue-600 text-white shadow-xs"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -438,11 +491,18 @@ export default function ExamListPage() {
                           exam.examClasses && exam.examClasses.length > 0
                             ? exam.examClasses.map((ec) => ec.class?.name).filter(Boolean).join(", ")
                             : exam.class?.name || (exam.grade ? `Khối ${exam.grade.name}` : "—");
-                        const isPending = exam.publicationApprovalStatus === "PENDING_APPROVAL";
+                        const isPendingAcademic = exam.publicationApprovalStatus === "PENDING_APPROVAL";
+                        const isPendingPrincipal = exam.publicationApprovalStatus === "PENDING_PRINCIPAL_APPROVAL";
                         const isSelfRequest =
                           exam.createdByUserId === user?.id ||
                           exam.publicationRequestedByUserId === user?.id;
                         const cannotSelfApprove = isSelfRequest && !isAdmin;
+
+                        // Determine which action buttons to show
+                        const showAcademicApprove = isPendingAcademic && (isAcademicBoard || isAdmin) && !cannotSelfApprove;
+                        const showPrincipalApprove = isPendingPrincipal && (isPrincipal || isAdmin);
+                        const showRejectAcademic = isPendingAcademic && (isAcademicBoard || isAdmin);
+                        const showRejectPrincipal = isPendingPrincipal && (isPrincipal || isAdmin);
 
                         return (
                           <tr key={exam.id} className="hover:bg-slate-50/70 transition-colors">
@@ -481,9 +541,14 @@ export default function ExamListPage() {
                               </div>
                             </td>
                             <td className="py-4 px-4 text-center whitespace-nowrap">
-                              {exam.publicationApprovalStatus === "PENDING_APPROVAL" && (
+                              {isPendingAcademic && (
                                 <Badge variant="amber" size="sm">
-                                  Chờ BGD duyệt
+                                  Chờ Ban Học Vụ
+                                </Badge>
+                              )}
+                              {isPendingPrincipal && (
+                                <Badge variant="purple" size="sm">
+                                  Chờ Hiệu trưởng
                                 </Badge>
                               )}
                               {exam.publicationApprovalStatus === "APPROVED" && (
@@ -508,37 +573,63 @@ export default function ExamListPage() {
                             </td>
                             <td className="py-4 px-4 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-2">
-                                {isPending && (
-                                  <>
-                                    <Button
-                                      variant="primary"
-                                      size="xs"
-                                      icon={Check}
-                                      disabled={processingAction || cannotSelfApprove}
-                                      onClick={() => handleApprovePublication(exam)}
-                                      title={
-                                        cannotSelfApprove
-                                          ? "Không thể tự phê duyệt đề thi do chính bạn tạo hoặc yêu cầu"
-                                          : "Phê duyệt công bố điểm"
-                                      }
-                                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                                    >
-                                      Phê duyệt
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="xs"
-                                      icon={X}
-                                      disabled={processingAction}
-                                      onClick={() => {
-                                        setRejectModalExam(exam);
-                                        setRejectionReason("");
-                                      }}
-                                      className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
-                                    >
-                                      Từ chối
-                                    </Button>
-                                  </>
+                                {/* ACADEMIC_BOARD approves PENDING_APPROVAL */}
+                                {showAcademicApprove && (
+                                  <Button
+                                    variant="primary"
+                                    size="xs"
+                                    icon={Check}
+                                    disabled={processingAction}
+                                    onClick={() => handleApprovePublication(exam)}
+                                    title="Phê duyệt học vụ"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  >
+                                    Duyệt HV
+                                  </Button>
+                                )}
+                                {showRejectAcademic && (
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    icon={X}
+                                    disabled={processingAction}
+                                    onClick={() => {
+                                      setRejectModalExam(exam);
+                                      setRejectionReason("");
+                                    }}
+                                    className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                                  >
+                                    Từ chối
+                                  </Button>
+                                )}
+                                {/* PRINCIPAL approves PENDING_PRINCIPAL_APPROVAL */}
+                                {showPrincipalApprove && (
+                                  <Button
+                                    variant="primary"
+                                    size="xs"
+                                    icon={Check}
+                                    disabled={processingAction}
+                                    onClick={() => handlePrincipalApprove(exam)}
+                                    title="Phê duyệt cuối (Hiệu trưởng)"
+                                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                                  >
+                                    Phê duyệt
+                                  </Button>
+                                )}
+                                {showRejectPrincipal && (
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    icon={X}
+                                    disabled={processingAction}
+                                    onClick={() => {
+                                      setRejectModalExam(exam);
+                                      setRejectionReason("");
+                                    }}
+                                    className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                                  >
+                                    Từ chối
+                                  </Button>
                                 )}
                                 <Button
                                   variant="outline"
