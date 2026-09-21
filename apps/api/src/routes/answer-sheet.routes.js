@@ -12,9 +12,10 @@ const router = Router({ mergeParams: true });
 
 router.use(authenticate);
 const denyStudent = authorizeRoles("ADMIN", "TEACHER");
+const adminOnly = authorizeRoles("ADMIN");
 
 // Create / regenerate template (DRAFT only)
-router.post("/:examId/answer-sheet-template", denyStudent, createTemplateController);
+router.post("/:examId/answer-sheet-template", adminOnly, createTemplateController);
 
 // Get latest template metadata
 router.get("/:examId/answer-sheet-template", denyStudent, getLatestTemplateController);

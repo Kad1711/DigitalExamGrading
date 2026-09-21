@@ -31,8 +31,11 @@ import Badge from "../components/ui/Badge";
 import Alert from "../components/ui/Alert";
 import EmptyState from "../components/ui/EmptyState";
 import Modal from "../components/ui/Modal";
+import { useAuth } from "../context/AuthContext";
 
 export default function ExamListPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
   const navigate = useNavigate();
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -210,15 +213,17 @@ export default function ExamListPage() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            <Button
-              variant="primary"
-              size="md"
-              icon={Plus}
-              onClick={() => navigate("/exams/new")}
-              className="w-full sm:w-auto"
-            >
-              Tạo kỳ thi mới
-            </Button>
+            {isAdmin && (
+              <Button
+                variant="primary"
+                size="md"
+                icon={Plus}
+                onClick={() => navigate("/exams/new")}
+                className="w-full sm:w-auto"
+              >
+                Tạo kỳ thi mới
+              </Button>
+            )}
           </div>
         </div>
 
@@ -408,11 +413,13 @@ export default function ExamListPage() {
             title="Không tìm thấy kỳ thi nào"
             description={
               searchTerm || statusFilter !== "ALL"
-                ? "Không có kỳ thi nào phù hợp với bộ lọc hiện tại. Thử thay đổi từ khóa hoặc bộ lọc."
-                : "Bạn chưa tạo kỳ thi nào trong hệ thống. Nhấp vào nút 'Tạo kỳ thi mới' để bắt đầu."
+                ? "Thử thay đổi bộ lọc trạng thái hoặc từ khóa tìm kiếm."
+                : isAdmin
+                ? "Bắt đầu khởi tạo kỳ thi mới để thiết lập mã đề và đáp án."
+                : "Hiện chưa có kỳ thi nào được phân công cho lớp của bạn. Đề thi sẽ do Ban Giám Hiệu khởi tạo và chuyển giao cho giáo viên chấm bài."
             }
             action={
-              statusFilter !== "ALL" || searchTerm ? (
+              searchTerm || statusFilter !== "ALL" ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -423,7 +430,7 @@ export default function ExamListPage() {
                 >
                   Xóa bộ lọc
                 </Button>
-              ) : (
+              ) : isAdmin ? (
                 <Button
                   variant="primary"
                   size="md"
@@ -432,7 +439,7 @@ export default function ExamListPage() {
                 >
                   Tạo kỳ thi ngay
                 </Button>
-              )
+              ) : null
             }
           />
         ) : (
@@ -444,7 +451,7 @@ export default function ExamListPage() {
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                       <th className="py-3.5 px-3 w-10 text-center">
-                        {draftExams.length > 0 && (
+                        {isAdmin && draftExams.length > 0 && (
                           <input
                             type="checkbox"
                             checked={draftExams.length > 0 && draftExams.every((e) => selectedDraftExamIds.includes(e.id))}
@@ -476,7 +483,7 @@ export default function ExamListPage() {
                           className="hover:bg-slate-50/70 transition-colors group"
                         >
                           <td className="py-4 px-3 text-center">
-                            {exam.status === "DRAFT" ? (
+                            {isAdmin && exam.status === "DRAFT" ? (
                               <input
                                 type="checkbox"
                                 checked={selectedDraftExamIds.includes(exam.id)}
@@ -549,27 +556,33 @@ export default function ExamListPage() {
                           <td className="py-4 px-4 whitespace-nowrap text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               {exam.status === "DRAFT" ? (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    icon={Settings}
-                                    onClick={() => navigate(examDetailPath(exam))}
-                                    title="Thiết lập cấu hình kỳ thi"
-                                  >
-                                    Thiết lập
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    icon={Trash2}
-                                    onClick={() => setExamToDelete(exam)}
-                                    className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
-                                    title="Xóa kỳ thi nháp"
-                                  >
-                                    Xóa
-                                  </Button>
-                                </>
+                                isAdmin ? (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      icon={Settings}
+                                      onClick={() => navigate(examDetailPath(exam))}
+                                      title="Thiết lập cấu hình kỳ thi"
+                                    >
+                                      Thiết lập
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      icon={Trash2}
+                                      onClick={() => setExamToDelete(exam)}
+                                      className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                                      title="Xóa kỳ thi nháp"
+                                    >
+                                      Xóa
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Badge variant="amber" size="sm">
+                                    BGH đang chuẩn bị
+                                  </Badge>
+                                )
                               ) : exam.status === "PUBLISHED" ? (
                                 <>
                                   <Button
@@ -608,14 +621,16 @@ export default function ExamListPage() {
                                     >
                                       <BarChart3 className="w-4 h-4" />
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setExamToClone(exam)}
-                                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
-                                      title="Nhân bản kỳ thi để sửa cấu hình"
-                                    >
-                                      <Copy className="w-4 h-4" />
-                                    </button>
+                                    {isAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setExamToClone(exam)}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
+                                        title="Nhân bản kỳ thi để sửa cấu hình"
+                                      >
+                                        <Copy className="w-4 h-4" />
+                                      </button>
+                                    )}
                                   </div>
                                 </>
                               ) : (
@@ -646,14 +661,16 @@ export default function ExamListPage() {
                                     >
                                       <BarChart3 className="w-4 h-4" />
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setExamToClone(exam)}
-                                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
-                                      title="Nhân bản kỳ thi"
-                                    >
-                                      <Copy className="w-4 h-4" />
-                                    </button>
+                                    {isAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setExamToClone(exam)}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
+                                        title="Nhân bản kỳ thi"
+                                      >
+                                        <Copy className="w-4 h-4" />
+                                      </button>
+                                    )}
                                   </div>
                                 </>
                               )}
@@ -676,7 +693,7 @@ export default function ExamListPage() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-2.5 min-w-0">
-                      {exam.status === "DRAFT" && (
+                      {isAdmin && exam.status === "DRAFT" && (
                         <input
                           type="checkbox"
                           checked={selectedDraftExamIds.includes(exam.id)}

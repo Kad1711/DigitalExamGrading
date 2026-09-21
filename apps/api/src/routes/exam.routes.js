@@ -30,28 +30,29 @@ const router = Router();
 
 router.use(authenticate);
 const denyStudent = authorizeRoles("ADMIN", "TEACHER");
+const adminOnly = authorizeRoles("ADMIN");
 
 // Exam CRUD
-router.post("/", denyStudent, createExamController);
+router.post("/", adminOnly, createExamController);
 router.get("/", denyStudent, listExamsController);
-router.post("/bulk-delete", denyStudent, bulkDeleteExamsController);
+router.post("/bulk-delete", adminOnly, bulkDeleteExamsController);
 router.get("/:examId", denyStudent, getExamController);
-router.patch("/:examId", denyStudent, updateExamController);
-router.delete("/:examId", denyStudent, deleteExamController);
-router.post("/:examId/clone", denyStudent, cloneExamController);
+router.patch("/:examId", adminOnly, updateExamController);
+router.delete("/:examId", adminOnly, deleteExamController);
+router.post("/:examId/clone", adminOnly, cloneExamController);
 
 // Exam lifecycle
-router.post("/:examId/publish", denyStudent, publishExamController);
-router.post("/:examId/close", denyStudent, closeExamController);
-router.post("/:examId/archive", denyStudent, archiveExamController);
+router.post("/:examId/publish", adminOnly, publishExamController);
+router.post("/:examId/close", adminOnly, closeExamController);
+router.post("/:examId/archive", adminOnly, archiveExamController);
 
 // ExamCode
-router.post("/:examId/codes", denyStudent, createExamCodeController);
+router.post("/:examId/codes", adminOnly, createExamCodeController);
 router.get("/:examId/codes", denyStudent, listExamCodesController);
-router.delete("/:examId/codes/:codeId", denyStudent, deleteExamCodeController);
+router.delete("/:examId/codes/:codeId", adminOnly, deleteExamCodeController);
 
 // AnswerKey
-router.put("/:examId/codes/:codeId/answer-key", denyStudent, putAnswerKeyController);
+router.put("/:examId/codes/:codeId/answer-key", adminOnly, putAnswerKeyController);
 router.get("/:examId/codes/:codeId/answer-key", denyStudent, getAnswerKeyController);
 
 // Sub-modules: Answer Key Import, OMR Answer Sheet Template, & Grading

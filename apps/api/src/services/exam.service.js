@@ -85,19 +85,22 @@ export function assertExamDraft(exam) {
 // =====================================================
 
 export async function createExam(data, reqUser) {
+  if (reqUser.role !== "ADMIN") {
+    throw new AppError(
+      "Chỉ Ban Giám Hiệu (Quản trị viên) mới có quyền khởi tạo đề thi.",
+      403,
+      "FORBIDDEN"
+    );
+  }
+
   let teacherId = null;
-  if (reqUser.role === "TEACHER") {
-    const teacher = await getTeacherProfile(reqUser.id);
-    teacherId = teacher.id;
+  if (data.teacherId) {
+    teacherId = data.teacherId;
   } else {
-    if (data.teacherId) {
-      teacherId = data.teacherId;
-    } else {
-      const adminTeacher = await prisma.teacher.findUnique({
-        where: { userId: reqUser.id },
-      });
-      teacherId = adminTeacher ? adminTeacher.id : null;
-    }
+    const adminTeacher = await prisma.teacher.findUnique({
+      where: { userId: reqUser.id },
+    });
+    teacherId = adminTeacher ? adminTeacher.id : null;
   }
 
   const subject = await prisma.subject.findUnique({ where: { id: data.subjectId } });

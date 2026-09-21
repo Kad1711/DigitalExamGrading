@@ -12,6 +12,7 @@ const router = Router({ mergeParams: true });
 
 router.use(authenticate);
 const denyStudent = authorizeRoles("ADMIN", "TEACHER");
+const adminOnly = authorizeRoles("ADMIN");
 
 // Template download (xlsx or csv)
 router.get("/:examId/answer-key/import-template", denyStudent, getImportTemplateController);
@@ -19,7 +20,7 @@ router.get("/:examId/answer-key/import-template", denyStudent, getImportTemplate
 // Preview import (validate without writing to DB)
 router.post(
   "/:examId/answer-key/import/preview",
-  denyStudent,
+  adminOnly,
   handleFileUpload,
   previewImportController
 );
@@ -27,7 +28,7 @@ router.post(
 // Apply import (atomic replace in DB)
 router.post(
   "/:examId/answer-key/import",
-  denyStudent,
+  adminOnly,
   handleFileUpload,
   applyImportController
 );

@@ -16,13 +16,16 @@ import {
   Plus,
   Layers,
   Sparkles,
+  Clock,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Alert from "../components/ui/Alert";
 import Modal from "../components/ui/Modal";
 import Breadcrumbs from "../components/ui/Breadcrumbs";
+import { useAuth } from "../context/AuthContext";
 
 export default function ExamCreatePage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [loadingData, setLoadingData] = useState(true);
@@ -60,81 +63,13 @@ export default function ExamCreatePage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const PRESET_OPTIONS = [
-    {
-      id: "PRESET_15MIN_30Q",
-      label: "15 phút - 30 câu",
-      subLabel: "Kiểm tra 15 phút (2 cột x 15 dòng)",
-      duration: 15,
-      questions: 30,
-      badge: "15 phút",
-    },
-    {
-      id: "PRESET_15MIN_20Q",
-      label: "15 phút - 20 câu",
-      subLabel: "Kiểm tra nhanh (2 cột x 10 dòng)",
-      duration: 15,
-      questions: 20,
-      badge: "15 phút",
-    },
-    {
-      id: "PRESET_45MIN_40Q",
-      label: "45 phút - 40 câu",
-      subLabel: "Kiểm tra 1 tiết (2 cột x 20 dòng)",
-      duration: 45,
-      questions: 40,
-      badge: "45 phút",
-    },
-    {
-      id: "PRESET_TERM_50Q",
-      label: "Học kỳ - 50 câu",
-      subLabel: "Khảo sát chung / Chuẩn (2 cột x 25 dòng)",
-      duration: 60,
-      questions: 50,
-      badge: "60 phút",
-    },
-    {
-      id: "PRESET_45MIN_60Q",
-      label: "45 phút - 60 câu",
-      subLabel: "Đề tốc độ 60 câu (3 cột x 20 dòng)",
-      duration: 45,
-      questions: 60,
-      badge: "45 phút",
-    },
-    {
-      id: "PRESET_90MIN_60Q",
-      label: "90 phút - 60 câu",
-      subLabel: "Thi học kỳ 90 phút (3 cột x 20 dòng)",
-      duration: 90,
-      questions: 60,
-      badge: "90 phút",
-    },
-    {
-      id: "PRESET_CUSTOM",
-      label: "Tùy chỉnh số câu / thời gian",
-      subLabel: "Tự do nhập số câu và thời gian thi",
-      duration: null,
-      questions: null,
-      badge: "Tự chọn",
-    },
-  ];
-
-  const handleSelectPreset = (p) => {
-    setSheetPreset(p.id);
-    if (p.id !== "PRESET_CUSTOM") {
-      setDurationMinutes(p.duration);
-      setQuestionCount(p.questions);
-      setCustomDuration(false);
-      setCustomQuestionCount(false);
-    } else {
-      setCustomDuration(true);
-      setCustomQuestionCount(true);
-    }
-  };
-
   useEffect(() => {
+    if (user && user.role !== "ADMIN") {
+      navigate("/exams", { replace: true });
+      return;
+    }
     loadOptions();
-  }, []);
+  }, [user]);
 
   const loadOptions = async () => {
     try {
@@ -629,169 +564,152 @@ export default function ExamCreatePage() {
                 </div>
               </div>
 
-              {/* Presets & Answer Sheet Templates */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    Mẫu Phiếu Trắc nghiệm Chuẩn THCS (Presets)
-                  </label>
-                  <span className="text-xs text-blue-600 font-medium">
-                    Tự động cấu hình số câu & phiếu OMR
+              {/* Cấu hình Thời gian & Số câu trắc nghiệm (Chuẩn THCS & THPT) */}
+              <div className="bg-slate-50/80 rounded-xl border border-slate-200 p-4 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                      Cấu hình Thời gian & Số câu trắc nghiệm (Chuẩn THCS & THPT)
+                    </h3>
+                  </div>
+                  <span className="text-[11px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    Tự động đồng bộ mẫu phiếu OMR
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {PRESET_OPTIONS.map((p) => {
-                    const isSelected = sheetPreset === p.id;
-                    return (
-                      <div
-                        key={p.id}
-                        onClick={() => handleSelectPreset(p)}
-                        className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
-                          isSelected
-                            ? "bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/20 shadow-xs"
-                            : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Cột 1: THỜI GIAN LÀM BÀI */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      1. Thời gian làm bài (Phút) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[15, 30, 45, 60, 90].map((dur) => (
+                        <button
+                          key={dur}
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => {
+                            setDurationMinutes(dur);
+                            setCustomDuration(false);
+                          }}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                            Number(durationMinutes) === dur && !customDuration
+                              ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                              : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                          }`}
+                        >
+                          {dur} phút
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={submitting}
+                        onClick={() => setCustomDuration(true)}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                          customDuration
+                            ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                         }`}
                       >
-                        <div>
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <span className="text-xs font-bold text-slate-900 line-clamp-1">
-                              {p.label}
-                            </span>
-                            <span
-                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                                isSelected
-                                  ? "bg-blue-600 text-white"
-                                  : "bg-slate-100 text-slate-600"
-                              }`}
-                            >
-                              {p.badge}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 leading-snug">
-                            {p.subLabel}
-                          </p>
-                        </div>
+                        Khác...
+                      </button>
+                    </div>
+
+                    {customDuration && (
+                      <div className="flex items-center gap-2 pt-1 animate-in fade-in duration-150">
+                        <input
+                          type="number"
+                          min={1}
+                          max={300}
+                          disabled={submitting}
+                          value={durationMinutes}
+                          onChange={(e) => setDurationMinutes(e.target.value)}
+                          placeholder="Số phút"
+                          className="w-32 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600"
+                        />
+                        <span className="text-xs text-slate-500 font-medium">phút (nhập tự do)</span>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Quick Pills for Duration and Question Count */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                {/* Duration */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                    Thời gian làm bài
-                  </label>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {[15, 45, 60, 90].map((dur) => (
-                      <button
-                        key={dur}
-                        type="button"
-                        onClick={() => {
-                          setDurationMinutes(dur);
-                          setCustomDuration(false);
-                        }}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                          durationMinutes === dur && !customDuration
-                            ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        {dur} phút
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setCustomDuration(true)}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                        customDuration
-                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
-                      }`}
-                    >
-                      Khác...
-                    </button>
-                  </div>
-                  {customDuration && (
-                    <div className="flex items-center gap-2 animate-in fade-in duration-150">
-                      <input
-                        type="number"
-                        min={1}
-                        max={300}
-                        value={durationMinutes}
-                        onChange={(e) => setDurationMinutes(e.target.value)}
-                        placeholder="Nhập số phút"
-                        className="w-28 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600"
-                      />
-                      <span className="text-xs text-slate-500 font-medium">phút</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Question Count */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                    Số câu hỏi trắc nghiệm <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {[20, 30, 40, 50, 60].map((count) => (
-                      <button
-                        key={count}
-                        type="button"
-                        onClick={() => {
-                          setQuestionCount(count);
-                          setCustomQuestionCount(false);
-                          if (count === 30) setSheetPreset("PRESET_15MIN_30Q");
-                          else if (count === 20) setSheetPreset("PRESET_15MIN_20Q");
-                          else if (count === 40) setSheetPreset("PRESET_45MIN_40Q");
-                          else if (count === 50) setSheetPreset("PRESET_TERM_50Q");
-                          else if (count === 60) setSheetPreset("PRESET_45MIN_60Q");
-                        }}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                          Number(questionCount) === count && !customQuestionCount
-                            ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        {count} câu
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCustomQuestionCount(true);
-                        setSheetPreset("PRESET_CUSTOM");
-                      }}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                        customQuestionCount
-                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
-                      }`}
-                    >
-                      Khác...
-                    </button>
-                  </div>
-                  {customQuestionCount ? (
-                    <div className="flex items-center gap-2 animate-in fade-in duration-150">
-                      <input
-                        type="number"
-                        min={1}
-                        max={100}
-                        value={questionCount}
-                        onChange={(e) => setQuestionCount(e.target.value)}
-                        placeholder="Nhập số câu"
-                        className="w-28 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600"
-                      />
-                      <span className="text-xs text-slate-500 font-medium">câu (1 - 100)</span>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-500">
-                      Khóa chặt đúng <strong>{questionCount}</strong> câu theo mẫu phiếu trả lời OMR.
+                    )}
+                    <p className="text-[11px] text-slate-500">
+                      Thời gian thi đã chọn: <strong className="text-slate-800">{durationMinutes || 45} phút</strong>
                     </p>
-                  )}
+                  </div>
+
+                  {/* Cột 2: SỐ CÂU HỎI TRẮC NGHIỆM */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      2. Số câu hỏi trắc nghiệm <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[20, 30, 40, 50, 60].map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => {
+                            setQuestionCount(count);
+                            setCustomQuestionCount(false);
+                            if (count === 30) setSheetPreset("PRESET_15MIN_30Q");
+                            else if (count === 20) setSheetPreset("PRESET_15MIN_20Q");
+                            else if (count === 40) setSheetPreset("PRESET_45MIN_40Q");
+                            else if (count === 50) setSheetPreset("PRESET_TERM_50Q");
+                            else if (count === 60) setSheetPreset(Number(durationMinutes) === 90 ? "PRESET_90MIN_60Q" : "PRESET_45MIN_60Q");
+                          }}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                            Number(questionCount) === count && !customQuestionCount
+                              ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                              : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                          }`}
+                        >
+                          {count} câu
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={submitting}
+                        onClick={() => {
+                          setCustomQuestionCount(true);
+                          setSheetPreset("PRESET_CUSTOM");
+                        }}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                          customQuestionCount
+                            ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        Khác...
+                      </button>
+                    </div>
+
+                    {customQuestionCount && (
+                      <div className="flex items-center gap-2 pt-1 animate-in fade-in duration-150">
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          disabled={submitting}
+                          value={questionCount}
+                          onChange={(e) => {
+                            setQuestionCount(e.target.value);
+                            setSheetPreset("PRESET_CUSTOM");
+                          }}
+                          placeholder="Số câu"
+                          className="w-32 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600"
+                        />
+                        <span className="text-xs text-slate-500 font-medium">câu (1 - 100 câu)</span>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-slate-500">
+                      Mẫu phiếu OMR:{" "}
+                      <strong className="text-blue-700">
+                        {Number(questionCount) > 50
+                          ? "Bố cục 3 cột x 20 dòng (60 câu A4)"
+                          : `Bố cục 2 cột x ${Math.ceil(Number(questionCount || 40) / 2)} dòng (A4)`}
+                      </strong>
+                    </p>
+                  </div>
                 </div>
               </div>
 
