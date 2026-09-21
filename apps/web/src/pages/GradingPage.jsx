@@ -44,6 +44,7 @@ export default function GradingPage() {
   const { submissionId: routeSubmissionId } = useParams();
   const fileInputRef = useRef(null);
   const batchInputRef = useRef(null);
+  const batchPollIntervalRef = useRef(null);
 
   const [exams, setExams] = useState([]);
   const [loadingExams, setLoadingExams] = useState(false);
@@ -55,6 +56,7 @@ export default function GradingPage() {
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, percentage: 0 });
   const [batchResults, setBatchResults] = useState([]);
   const [isBatchRunning, setIsBatchRunning] = useState(false);
+  const [batchFallbackWarning, setBatchFallbackWarning] = useState("");
 
   // Template readiness state: 'loading' | 'ready' | 'missing' | 'multipage' | 'error'
   const [templateStatus, setTemplateStatus] = useState("loading");
@@ -115,11 +117,14 @@ export default function GradingPage() {
     }
   };
 
-  // Clean up preview object URL on unmount
+  // Clean up preview object URL and batch polling on unmount
   useEffect(() => {
     return () => {
       if (previewUrl) {
         window.URL.revokeObjectURL(previewUrl);
+      }
+      if (batchPollIntervalRef.current) {
+        clearInterval(batchPollIntervalRef.current);
       }
     };
   }, [previewUrl]);
@@ -476,8 +481,96 @@ export default function GradingPage() {
     if (batchFiles.length === 0 || !selectedExamId) return;
     setIsBatchRunning(true);
     setBatchResults([]);
-    const results = [];
+    setBatchProgress({ current: 0, total: batchFiles.length, percentage: 0 });
+    setBatchFallbackWarning("");
 
+    try {
+      // 1. Enqueue batch via BullMQ queue endpoint
+      const formData = new FormData();
+      batchFiles.forEach((file) => {
+        formData.append("images", file);
+      });
+
+      const batchRes = await api.post(
+        `/exams/${selectedExamId}/submissions/batch`,
+        formData
+      );
+
+      const batchData = batchRes.data?.data;
+      if (batchData?.batchId) {
+        const batchId = batchData.batchId;
+        const total = batchData.total || batchFiles.length;
+
+        // Poll GET /api/exams/:examId/batches/:batchId every 1500ms
+        await new Promise((resolve) => {
+          batchPollIntervalRef.current = setInterval(async () => {
+            try {
+              const statusRes = await api.get(`/exams/${selectedExamId}/batches/${batchId}`);
+              const record = statusRes.data?.data;
+              if (!record) return;
+
+              const completed = record.completed || 0;
+              const failed = record.failed || 0;
+              const current = completed + failed;
+              const percent = record.progressPercent !== undefined
+                ? record.progressPercent
+                : Math.min(100, Math.round((current / total) * 100));
+
+              setBatchProgress({
+                current,
+                total,
+                percentage: percent,
+              });
+
+              if (Array.isArray(record.results) && record.results.length > 0) {
+                const mapped = record.results.map((r, idx) => ({
+                  fileName: r.filename || `Bài ${idx + 1}`,
+                  status: r.status === "success" ? "SUCCESS" : "ERROR",
+                  submissionId: r.submissionId || null,
+                  sbd: r.studentCode || "Chưa rõ",
+                  examCode: "—",
+                  finalScore: r.score !== undefined && r.score !== null ? Number(r.score) : null,
+                  maxScore: selectedExam?.maxScore ? Number(selectedExam.maxScore) : 10,
+                  needsReview: false,
+                  message: r.status === "success" ? "Hoàn tất" : (r.error || "Lỗi xử lý"),
+                }));
+                setBatchResults(mapped);
+              }
+
+              // Check completion
+              if (
+                percent >= 100 ||
+                record.status === "completed" ||
+                record.status === "completed_with_errors" ||
+                record.status === "failed" ||
+                current >= total
+              ) {
+                clearInterval(batchPollIntervalRef.current);
+                batchPollIntervalRef.current = null;
+                resolve();
+              }
+            } catch (pollErr) {
+              console.warn("Lỗi kiểm tra tiến trình chấm bài hàng loạt:", pollErr);
+            }
+          }, 1500);
+        });
+
+        setIsBatchRunning(false);
+        fetchExamStats(selectedExamId);
+        return;
+      }
+    } catch (batchErr) {
+      console.warn(
+        "Chấm hàng loạt qua hàng đợi BullMQ không phản hồi, tự động chuyển sang chế độ chấm liên tiếp:",
+        batchErr
+      );
+      setBatchFallbackWarning(
+        "Hàng đợi xử lý (Redis/BullMQ) hiện không khả dụng. Hệ thống đang chuyển sang xử lý tuần tự."
+      );
+    }
+
+    // Fallback: sequential direct uploads
+    const results = [];
     for (let i = 0; i < batchFiles.length; i++) {
       const file = batchFiles[i];
       setBatchProgress({
@@ -489,9 +582,7 @@ export default function GradingPage() {
       try {
         const formData = new FormData();
         formData.append("image", file);
-        const res = await api.post(`/exams/${selectedExamId}/submissions`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        const res = await api.post(`/exams/${selectedExamId}/submissions`, formData);
         const sub = res.data.data;
         const item = {
           fileName: file.name,
@@ -1161,6 +1252,12 @@ export default function GradingPage() {
                           </span>
                         )}
                       </div>
+
+                      {batchFallbackWarning && (
+                        <Alert variant="warning" className="text-xs">
+                          {batchFallbackWarning}
+                        </Alert>
+                      )}
 
                       {/* Progress Bar */}
                       <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">

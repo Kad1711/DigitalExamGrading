@@ -3,6 +3,8 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import api from "../api/client";
 import AppHeader from "../components/AppHeader";
 import { getErrorMessage } from "../utils/error-map";
+import { PUBLICATION_APPROVAL_STATUS_LABELS } from "../utils/enum-map";
+import { useAuth } from "../context/AuthContext";
 import {
   FileCheck,
   Search,
@@ -20,6 +22,7 @@ import {
   Globe,
   Loader2,
   ShieldOff,
+  ShieldCheck,
   History,
   FileSpreadsheet,
   Users,
@@ -28,6 +31,9 @@ import {
   Zap,
   Edit,
   UserCheck,
+  Send,
+  XCircle,
+  CheckCircle,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -38,19 +44,19 @@ import Breadcrumbs from "../components/ui/Breadcrumbs";
 function SummaryCard({ label, value, color = "slate", icon: Icon }) {
   const colorMap = {
     slate: "text-slate-700 bg-slate-50 border-slate-200",
-    blue: "text-blue-700 bg-blue-50 border-blue-200",
     green: "text-green-700 bg-green-50 border-green-200",
     amber: "text-amber-700 bg-amber-50 border-amber-200",
-    rose: "text-rose-700 bg-rose-50 border-rose-200",
-    purple: "text-purple-700 bg-purple-50 border-purple-200",
+    red: "text-rose-700 bg-rose-50 border-rose-200",
+    blue: "text-blue-700 bg-blue-50 border-blue-200",
   };
+
   return (
-    <div className={`rounded-lg border p-3 ${colorMap[color]}`}>
-      <div className="flex items-center gap-2 mb-1">
-        {Icon && <Icon className="w-4 h-4 opacity-70" />}
-        <span className="text-xs font-medium opacity-80">{label}</span>
+    <div className={`p-4 rounded-xl border flex items-center gap-3 ${colorMap[color] || colorMap.slate}`}>
+      {Icon && <Icon className="w-8 h-8 opacity-80 shrink-0" />}
+      <div>
+        <div className="text-2xl font-bold leading-none">{value}</div>
+        <div className="text-xs font-medium opacity-70 mt-1">{label}</div>
       </div>
-      <div className="text-xl font-bold">{value ?? "—"}</div>
     </div>
   );
 }
@@ -73,6 +79,7 @@ function StatusBadge({ status }) {
 }
 
 export default function ExamSubmissionsPage() {
+  const { user } = useAuth();
   const { examId } = useParams();
   const navigate = useNavigate();
 
@@ -103,6 +110,12 @@ export default function ExamSubmissionsPage() {
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [unpublishModalOpen, setUnpublishModalOpen] = useState(false);
   const [unpublishReason, setUnpublishReason] = useState("");
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [requestNote, setRequestNote] = useState("");
+  const [approveModalOpen, setApproveModalOpen] = useState(false);
+  const [approveNote, setApproveNote] = useState("");
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   // Filters
   const [filterStatus, setFilterStatus] = useState("");
@@ -391,6 +404,70 @@ export default function ExamSubmissionsPage() {
     }
   };
 
+  const handleRequestPublicationConfirm = async () => {
+    try {
+      setPubActionLoading(true);
+      setPubError("");
+      setPubSuccess("");
+      await api.post(`/exams/${examId}/publication/request`, {
+        note: requestNote.trim() || undefined,
+      });
+      setPubSuccess("Đã gửi yêu cầu phê duyệt công bố điểm thành công.");
+      setRequestModalOpen(false);
+      setRequestNote("");
+      await Promise.all([loadPublicationStatus(), loadPublicationLogs()]);
+    } catch (err) {
+      const errData = err.response?.data?.error;
+      setPubError(getErrorMessage(errData?.code, errData?.message || "Không thể gửi yêu cầu phê duyệt."));
+    } finally {
+      setPubActionLoading(false);
+    }
+  };
+
+  const handleApprovePublicationConfirm = async () => {
+    try {
+      setPubActionLoading(true);
+      setPubError("");
+      setPubSuccess("");
+      await api.post(`/exams/${examId}/publication/approve`, {
+        note: approveNote.trim() || undefined,
+      });
+      setPubSuccess("Đã phê duyệt công bố điểm kỳ thi thành công.");
+      setApproveModalOpen(false);
+      setApproveNote("");
+      await Promise.all([loadPublicationStatus(), loadPublicationLogs()]);
+    } catch (err) {
+      const errData = err.response?.data?.error;
+      setPubError(getErrorMessage(errData?.code, errData?.message || "Không thể phê duyệt công bố."));
+    } finally {
+      setPubActionLoading(false);
+    }
+  };
+
+  const handleRejectPublicationConfirm = async () => {
+    if (!rejectReason.trim()) {
+      setPubError("Vui lòng nhập lý do từ chối phê duyệt.");
+      return;
+    }
+    try {
+      setPubActionLoading(true);
+      setPubError("");
+      setPubSuccess("");
+      await api.post(`/exams/${examId}/publication/reject`, {
+        reason: rejectReason.trim(),
+      });
+      setPubSuccess("Đã từ chối yêu cầu phê duyệt công bố điểm.");
+      setRejectModalOpen(false);
+      setRejectReason("");
+      await Promise.all([loadPublicationStatus(), loadPublicationLogs()]);
+    } catch (err) {
+      const errData = err.response?.data?.error;
+      setPubError(getErrorMessage(errData?.code, errData?.message || "Không thể từ chối phê duyệt."));
+    } finally {
+      setPubActionLoading(false);
+    }
+  };
+
   // Section 28: Authenticated Axios blob download
   const handleExportXlsx = async () => {
     try {
@@ -447,6 +524,16 @@ export default function ExamSubmissionsPage() {
 
   const examTitle = exam?.title || "Kỳ thi";
 
+  const isStaffManager = ["ADMIN", "EXAM_BOARD", "TEACHER"].includes(user?.role);
+  const isExamBoardOrAdmin = ["EXAM_BOARD", "ADMIN"].includes(user?.role);
+  const isAcademicBoardOrAdmin = ["ACADEMIC_BOARD", "ADMIN"].includes(user?.role);
+  const isOfficial =
+    publication?.isOfficialExam ||
+    ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam?.examType);
+  const canApprove =
+    publication?.canApprove ||
+    (isAcademicBoardOrAdmin && publication?.publicationApprovalStatus === "PENDING_APPROVAL");
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <AppHeader />
@@ -473,16 +560,18 @@ export default function ExamSubmissionsPage() {
                 Thống kê chi tiết
               </Button>
             </Link>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={Zap}
-              loading={candidateLoading}
-              onClick={handleAutoAssignCandidates}
-              title="Tự động đối soát và liên kết số báo danh với tài khoản học sinh"
-            >
-              Tự động gán SBD
-            </Button>
+            {isStaffManager && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Zap}
+                loading={candidateLoading}
+                onClick={handleAutoAssignCandidates}
+                title="Tự động đối soát và liên kết số báo danh với tài khoản học sinh"
+              >
+                Tự động gán SBD
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -639,25 +728,99 @@ export default function ExamSubmissionsPage() {
                   >
                     Xuất CSV
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setUnpublishModalOpen(true)}
-                    className="text-amber-700 border-amber-200 hover:bg-amber-50"
-                  >
-                    Thu hồi công bố
-                  </Button>
+                  {((isOfficial && isExamBoardOrAdmin) || (!isOfficial && isStaffManager)) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setUnpublishModalOpen(true)}
+                      className="text-amber-700 border-amber-200 hover:bg-amber-50"
+                    >
+                      Thu hồi công bố
+                    </Button>
+                  )}
+                </>
+              ) : isOfficial ? (
+                <>
+                  {publication?.publicationApprovalStatus === "APPROVED" && (
+                    ["EXAM_BOARD", "ACADEMIC_BOARD", "ADMIN"].includes(user?.role) ? (
+                      <Button
+                        variant="success"
+                        size="sm"
+                        icon={Globe}
+                        disabled={!publication?.readiness?.ready}
+                        onClick={() => setPublishModalOpen(true)}
+                      >
+                        Công bố kết quả
+                      </Button>
+                    ) : (
+                      <Badge variant="green" size="sm">
+                        <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                        Đã được duyệt công bố
+                      </Badge>
+                    )
+                  )}
+
+                  {publication?.publicationApprovalStatus === "PENDING_APPROVAL" && (
+                    canApprove ? (
+                      <>
+                        <Button
+                          variant="success"
+                          size="sm"
+                          icon={ShieldCheck}
+                          onClick={() => setApproveModalOpen(true)}
+                        >
+                          Phê duyệt công bố
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={XCircle}
+                          onClick={() => setRejectModalOpen(true)}
+                          className="text-rose-700 border-rose-200 hover:bg-rose-50"
+                        >
+                          Từ chối
+                        </Button>
+                      </>
+                    ) : (
+                      <Badge variant="amber" size="sm">
+                        <Clock className="w-3.5 h-3.5 mr-1" />
+                        Chờ Ban giáo dục duyệt
+                      </Badge>
+                    )
+                  )}
+
+                  {(publication?.publicationApprovalStatus === "NOT_REQUESTED" ||
+                    publication?.publicationApprovalStatus === "REJECTED" ||
+                    !publication?.publicationApprovalStatus) && (
+                    isExamBoardOrAdmin ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={Send}
+                        disabled={!publication?.readiness?.ready}
+                        onClick={() => setRequestModalOpen(true)}
+                      >
+                        Gửi yêu cầu phê duyệt công bố
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-slate-500 italic">
+                        Kỳ thi chính quy: Chờ Ban khảo thí gửi duyệt công bố.
+                      </span>
+                    )
+                  )}
                 </>
               ) : (
-                <Button
-                  variant="success"
-                  size="sm"
-                  icon={Globe}
-                  disabled={!publication?.readiness?.ready}
-                  onClick={() => setPublishModalOpen(true)}
-                >
-                  Công bố kết quả
-                </Button>
+                ["TEACHER", "ADMIN"].includes(user?.role) && (
+                  <Button
+                    variant="success"
+                    size="sm"
+                    icon={Globe}
+                    disabled={!publication?.readiness?.ready}
+                    onClick={() => setPublishModalOpen(true)}
+                  >
+                    Công bố kết quả
+                  </Button>
+                )
               )}
               <Button
                 variant="outline"
@@ -686,21 +849,50 @@ export default function ExamSubmissionsPage() {
           )}
 
           {/* Current Publication State */}
-          <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">Trạng thái kết quả:</span>
-              {publication?.isPublished ? (
-                <Badge variant="green" size="sm">
-                  <Globe className="w-3 h-3 mr-1" />
-                  Đã công bố
-                </Badge>
-              ) : (
-                <Badge variant="gray" size="sm">Chưa công bố</Badge>
-              )}
-              {publication?.publishedAt && (
-                <span className="text-xs text-slate-400">
-                  (Vào lúc {new Date(publication.publishedAt).toLocaleString("vi-VN")})
-                </span>
+          <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Trạng thái kết quả:</span>
+                {publication?.isPublished ? (
+                  <Badge variant="green" size="sm">
+                    <Globe className="w-3 h-3 mr-1" />
+                    Đã công bố
+                  </Badge>
+                ) : (
+                  <Badge variant="gray" size="sm">Chưa công bố</Badge>
+                )}
+                {publication?.publishedAt && (
+                  <span className="text-xs text-slate-400">
+                    (Vào lúc {new Date(publication.publishedAt).toLocaleString("vi-VN")})
+                  </span>
+                )}
+              </div>
+
+              {isOfficial && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">Quy trình duyệt:</span>
+                  {publication?.publicationApprovalStatus === "APPROVED" && (
+                    <Badge variant="green" size="sm">
+                      <ShieldCheck className="w-3 h-3 mr-1" />
+                      Đã duyệt bởi {publication?.publicationApprovedBy?.fullName || "Ban giáo dục"}
+                    </Badge>
+                  )}
+                  {publication?.publicationApprovalStatus === "PENDING_APPROVAL" && (
+                    <Badge variant="amber" size="sm">
+                      <Clock className="w-3 h-3 mr-1" />
+                      Chờ duyệt (Gửi bởi {publication?.publicationRequestedBy?.fullName || "Ban khảo thí"})
+                    </Badge>
+                  )}
+                  {publication?.publicationApprovalStatus === "REJECTED" && (
+                    <Badge variant="red" size="sm">
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Bị từ chối: {publication?.publicationRejectionReason || "Không đạt yêu cầu"}
+                    </Badge>
+                  )}
+                  {(!publication?.publicationApprovalStatus || publication?.publicationApprovalStatus === "NOT_REQUESTED") && (
+                    <Badge variant="gray" size="sm">Chưa gửi duyệt</Badge>
+                  )}
+                </div>
               )}
             </div>
 
@@ -975,40 +1167,43 @@ export default function ExamSubmissionsPage() {
                             className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded text-xs font-semibold inline-flex items-center transition-colors"
                             title="Xem chi tiết bài làm và lịch sử duyệt"
                           >
-                            Chi tiết & Duyệt
+                            {isStaffManager ? "Chi tiết & Duyệt" : "Xem chi tiết"}
                           </Link>
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSubToEditSbd(sub);
-                              setEditingSbdInput(sub.studentNumber.resolved || sub.studentNumber.detected || "");
-                              setSbdSaveError("");
-                              loadEligibleStudents();
-                            }}
-                            className={`px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1 transition-colors cursor-pointer ${
-                              sub.isDuplicateSbd || sub.studentNumber.needsReview
-                                ? "bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold"
-                                : "hover:bg-slate-100 text-slate-600"
-                            }`}
-                            title="Sửa / Duyệt số báo danh nhanh"
-                          >
-                            <Edit className="w-3 h-3" />
-                            Sửa SBD
-                          </button>
+                          {isStaffManager && !publication?.isPublished && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSubToEditSbd(sub);
+                                  setEditingSbdInput(sub.studentNumber.resolved || sub.studentNumber.detected || "");
+                                  setSbdSaveError("");
+                                  loadEligibleStudents();
+                                }}
+                                className={`px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1 transition-colors cursor-pointer ${
+                                  sub.isDuplicateSbd || sub.studentNumber.needsReview
+                                    ? "bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold"
+                                    : "hover:bg-slate-100 text-slate-600"
+                                }`}
+                                title="Sửa / Duyệt số báo danh nhanh"
+                              >
+                                <Edit className="w-3 h-3" />
+                                Sửa SBD
+                              </button>
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSubToDelete(sub);
-                              setDeleteError("");
-                            }}
-                            disabled={publication?.isPublished}
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                            title={publication?.isPublished ? "Không thể xoá bài khi kết quả đã công bố" : "Xoá bài nộp này"}
-                          >
-                            <Trash2 className="w-4 h-4 text-rose-500" />
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSubToDelete(sub);
+                                  setDeleteError("");
+                                }}
+                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                                title="Xoá bài nộp này"
+                              >
+                                <Trash2 className="w-4 h-4 text-rose-500" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1132,6 +1327,153 @@ export default function ExamSubmissionsPage() {
                 onChange={(e) => setUnpublishReason(e.target.value)}
                 placeholder="Ví dụ: Cần điều chỉnh duyệt lại câu hỏi..."
                 className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        </Modal>
+
+        {/* ===================================================== */}
+        {/* MODAL: Request Publication Approval */}
+        {/* ===================================================== */}
+        <Modal
+          isOpen={requestModalOpen}
+          onClose={() => !pubActionLoading && setRequestModalOpen(false)}
+          title="Gửi yêu cầu phê duyệt công bố điểm"
+          footer={
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pubActionLoading}
+                onClick={() => setRequestModalOpen(false)}
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Send}
+                loading={pubActionLoading}
+                onClick={handleRequestPublicationConfirm}
+              >
+                Gửi yêu cầu
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm text-slate-700">
+            <p>
+              Bạn đang yêu cầu Ban giáo dục và đào tạo phê duyệt công bố điểm cho kỳ thi chính quy <strong>"{examTitle}"</strong>.
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                Ghi chú đính kèm (không bắt buộc):
+              </label>
+              <textarea
+                rows={3}
+                value={requestNote}
+                onChange={(e) => setRequestNote(e.target.value)}
+                placeholder="Nhập ghi chú cho Ban giáo dục và đào tạo..."
+                className="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        </Modal>
+
+        {/* ===================================================== */}
+        {/* MODAL: Approve Publication */}
+        {/* ===================================================== */}
+        <Modal
+          isOpen={approveModalOpen}
+          onClose={() => !pubActionLoading && setApproveModalOpen(false)}
+          title="Phê duyệt công bố điểm kỳ thi"
+          footer={
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pubActionLoading}
+                onClick={() => setApproveModalOpen(false)}
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                variant="success"
+                size="sm"
+                icon={ShieldCheck}
+                loading={pubActionLoading}
+                onClick={handleApprovePublicationConfirm}
+              >
+                Xác nhận phê duyệt
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm text-slate-700">
+            <p>
+              Xác nhận phê duyệt công bố điểm kỳ thi <strong>"{examTitle}"</strong>?
+            </p>
+            <p className="text-xs text-slate-500">
+              Sau khi được phê duyệt, Ban khảo thí hoặc Quản trị viên có thể tiến hành công bố điểm cho học sinh và phụ huynh xem.
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                Ghi chú phê duyệt (không bắt buộc):
+              </label>
+              <textarea
+                rows={2}
+                value={approveNote}
+                onChange={(e) => setApproveNote(e.target.value)}
+                placeholder="Ghi chú xác nhận..."
+                className="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+        </Modal>
+
+        {/* ===================================================== */}
+        {/* MODAL: Reject Publication */}
+        {/* ===================================================== */}
+        <Modal
+          isOpen={rejectModalOpen}
+          onClose={() => !pubActionLoading && setRejectModalOpen(false)}
+          title="Từ chối phê duyệt công bố điểm"
+          footer={
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pubActionLoading}
+                onClick={() => setRejectModalOpen(false)}
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                icon={XCircle}
+                loading={pubActionLoading}
+                onClick={handleRejectPublicationConfirm}
+              >
+                Xác nhận từ chối
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm text-slate-700">
+            <p>
+              Từ chối yêu cầu phê duyệt công bố điểm của kỳ thi <strong>"{examTitle}"</strong>.
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                Lý do từ chối (bắt buộc):
+              </label>
+              <textarea
+                rows={3}
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Nhập lý do chưa đạt yêu cầu (ví dụ: cần rà soát lại bài nộp mã đề 102)..."
+                className="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
               />
             </div>
           </div>

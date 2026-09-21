@@ -10,7 +10,7 @@ import { gradingUploadLimiter } from "../config/rate-limit.config.js";
 const router = Router({ mergeParams: true });
 
 router.use(authenticate);
-const requireTeacher = authorizeRoles("TEACHER");
+const canGrade = authorizeRoles("TEACHER", "EXAM_BOARD", "ADMIN");
 
 const storage = multer.memoryStorage();
 export const uploadImage = multer({
@@ -119,17 +119,17 @@ export function handleBatchImageUpload(req, res, next) {
 
 // Stateless regression endpoint
 // POST /api/exams/:examId/grade-image
-router.post("/:examId/grade-image", requireTeacher, handleImageUpload, gradeImageController);
+router.post("/:examId/grade-image", canGrade, handleImageUpload, gradeImageController);
 
 // Phase 6 Persistent endpoint
 // POST /api/exams/:examId/submissions
-router.post("/:examId/submissions", requireTeacher, gradingUploadLimiter, handleImageUpload, createSubmissionController);
+router.post("/:examId/submissions", canGrade, gradingUploadLimiter, handleImageUpload, createSubmissionController);
 
 // BullMQ Batch Queue endpoint
 // POST /api/exams/:examId/submissions/batch
 router.post(
   "/:examId/submissions/batch",
-  requireTeacher,
+  canGrade,
   handleBatchImageUpload,
   async (req, res, next) => {
     const { createBatchSubmissionController } = await import(
@@ -143,7 +143,7 @@ router.post(
 // GET /api/exams/:examId/batches/:batchId
 router.get(
   "/:examId/batches/:batchId",
-  requireTeacher,
+  canGrade,
   async (req, res, next) => {
     const { getBatchStatusController } = await import(
       "../controllers/submission.controller.js"

@@ -35,6 +35,17 @@ export const createTeacherSchema = z
       .optional()
       .nullable()
       .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
+    title: z
+      .string()
+      .trim()
+      .max(100, "Chức danh không được vượt quá 100 ký tự.")
+      .optional()
+      .nullable(),
+    primarySubjectId: z
+      .string()
+      .trim()
+      .optional()
+      .nullable(),
   })
   .strip();
 
@@ -65,6 +76,17 @@ export const updateTeacherSchema = z
       .optional()
       .nullable()
       .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
+    title: z
+      .string()
+      .trim()
+      .max(100, "Chức danh không được vượt quá 100 ký tự.")
+      .optional()
+      .nullable(),
+    primarySubjectId: z
+      .string()
+      .trim()
+      .optional()
+      .nullable(),
   })
   .strip();
 

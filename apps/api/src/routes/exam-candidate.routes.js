@@ -10,12 +10,19 @@ import {
 } from "../controllers/exam-candidate.controller.js";
 
 const router = Router({ mergeParams: true });
-const requireTeacherOrAdmin = [authenticate, authorizeRoles("TEACHER", "ADMIN")];
+const viewCandidatesRoles = [
+  authenticate,
+  authorizeRoles("ADMIN", "TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"),
+];
+const mutateCandidatesRoles = [
+  authenticate,
+  authorizeRoles("ADMIN", "TEACHER", "EXAM_BOARD"),
+];
 
-router.get("/:examId/candidates", requireTeacherOrAdmin, listCandidates);
-router.get("/:examId/eligible-students", requireTeacherOrAdmin, listEligibleStudents);
-router.post("/:examId/candidates", requireTeacherOrAdmin, createCandidate);
-router.post("/:examId/candidates/auto-assign", requireTeacherOrAdmin, autoAssignCandidatesController);
-router.delete("/:examId/candidates/:candidateId", requireTeacherOrAdmin, deleteCandidate);
+router.get("/:examId/candidates", viewCandidatesRoles, listCandidates);
+router.get("/:examId/eligible-students", viewCandidatesRoles, listEligibleStudents);
+router.post("/:examId/candidates", mutateCandidatesRoles, createCandidate);
+router.post("/:examId/candidates/auto-assign", mutateCandidatesRoles, autoAssignCandidatesController);
+router.delete("/:examId/candidates/:candidateId", mutateCandidatesRoles, deleteCandidate);
 
 export default router;

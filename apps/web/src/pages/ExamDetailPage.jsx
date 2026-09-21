@@ -647,8 +647,13 @@ export default function ExamDetailPage() {
   const isLocked = !isDraft;
 
   const isAdmin = user?.role === "ADMIN";
-  const isOwner = Boolean(exam.teacherId && user?.teacher?.id && exam.teacherId === user.teacher.id);
-  const canManage = isAdmin || isOwner;
+  const isCreator = Boolean(exam.createdByUserId && exam.createdByUserId === user?.id);
+  const isTeacherOwner = Boolean(exam.teacherId && user?.teacher?.id && exam.teacherId === user.teacher.id);
+  const isExamBoardOfficial =
+    user?.role === "EXAM_BOARD" &&
+    ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType);
+  const canManage = isAdmin || isCreator || isTeacherOwner || isExamBoardOfficial;
+  const canGrade = ["ADMIN", "TEACHER", "EXAM_BOARD"].includes(user?.role);
 
   // Readiness calculation
   const hasExamCodes = examCodes.length > 0;
@@ -836,14 +841,16 @@ export default function ExamDetailPage() {
                       Sửa thông tin
                     </Button>
                   )}
-                  <Button
-                    variant="primary"
-                    size="md"
-                    icon={ScanLine}
-                    onClick={() => navigate(`/grade?examId=${exam.id}`)}
-                  >
-                    Chấm bài ngay
-                  </Button>
+                  {canGrade && (
+                    <Button
+                      variant="primary"
+                      size="md"
+                      icon={ScanLine}
+                      onClick={() => navigate(`/grade?examId=${exam.id}`)}
+                    >
+                      Chấm bài ngay
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="md"

@@ -29,31 +29,40 @@ import examAnalyticsRoutes from "./exam-analytics.routes.js";
 const router = Router();
 
 router.use(authenticate);
-const denyStudent = authorizeRoles("ADMIN", "TEACHER");
+
+const allStaffRoles = authorizeRoles(
+  "ADMIN",
+  "TEACHER",
+  "PRINCIPAL",
+  "VICE_PRINCIPAL",
+  "EXAM_BOARD",
+  "ACADEMIC_BOARD"
+);
+const examCreators = authorizeRoles("ADMIN", "TEACHER", "EXAM_BOARD");
 const adminOnly = authorizeRoles("ADMIN");
 
 // Exam CRUD
-router.post("/", denyStudent, createExamController);
-router.get("/", denyStudent, listExamsController);
+router.post("/", examCreators, createExamController);
+router.get("/", allStaffRoles, listExamsController);
 router.post("/bulk-delete", adminOnly, bulkDeleteExamsController);
-router.get("/:examId", denyStudent, getExamController);
-router.patch("/:examId", denyStudent, updateExamController);
-router.delete("/:examId", denyStudent, deleteExamController);
-router.post("/:examId/clone", denyStudent, cloneExamController);
+router.get("/:examId", allStaffRoles, getExamController);
+router.patch("/:examId", examCreators, updateExamController);
+router.delete("/:examId", examCreators, deleteExamController);
+router.post("/:examId/clone", examCreators, cloneExamController);
 
 // Exam lifecycle
-router.post("/:examId/publish", denyStudent, publishExamController);
-router.post("/:examId/close", denyStudent, closeExamController);
-router.post("/:examId/archive", denyStudent, archiveExamController);
+router.post("/:examId/publish", examCreators, publishExamController);
+router.post("/:examId/close", examCreators, closeExamController);
+router.post("/:examId/archive", examCreators, archiveExamController);
 
 // ExamCode
-router.post("/:examId/codes", denyStudent, createExamCodeController);
-router.get("/:examId/codes", denyStudent, listExamCodesController);
-router.delete("/:examId/codes/:codeId", denyStudent, deleteExamCodeController);
+router.post("/:examId/codes", examCreators, createExamCodeController);
+router.get("/:examId/codes", allStaffRoles, listExamCodesController);
+router.delete("/:examId/codes/:codeId", examCreators, deleteExamCodeController);
 
 // AnswerKey
-router.put("/:examId/codes/:codeId/answer-key", denyStudent, putAnswerKeyController);
-router.get("/:examId/codes/:codeId/answer-key", denyStudent, getAnswerKeyController);
+router.put("/:examId/codes/:codeId/answer-key", examCreators, putAnswerKeyController);
+router.get("/:examId/codes/:codeId/answer-key", allStaffRoles, getAnswerKeyController);
 
 // Sub-modules: Answer Key Import, OMR Answer Sheet Template, & Grading
 router.use("/", answerKeyImportRoutes);

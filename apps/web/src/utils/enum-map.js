@@ -35,6 +35,10 @@ export const USER_ROLE_LABELS = {
   ADMIN: "Quản trị viên",
   TEACHER: "Giáo viên",
   STUDENT: "Học sinh",
+  PRINCIPAL: "Hiệu trưởng",
+  VICE_PRINCIPAL: "Hiệu phó",
+  EXAM_BOARD: "Ban khảo thí",
+  ACADEMIC_BOARD: "Ban giáo dục và đào tạo",
 };
 
 export const USER_STATUS_LABELS = {
@@ -42,6 +46,24 @@ export const USER_STATUS_LABELS = {
   LOCKED: "Đã khóa",
   INACTIVE: "Không hoạt động",
   PENDING_APPROVAL: "Chờ phê duyệt",
+};
+
+export const EXAM_TYPE_LABELS = {
+  REGULAR: "Kiểm tra thường xuyên",
+  MIN_15: "Kiểm tra 15 phút",
+  MIN_45: "Kiểm tra 45 phút",
+  MIN_60: "Kiểm tra 60 phút",
+  MIN_90: "Kiểm tra 90 phút",
+  MIDTERM: "Kiểm tra giữa kỳ",
+  FINAL: "Kiểm tra cuối kỳ",
+  OTHER: "Kỳ thi khác",
+};
+
+export const PUBLICATION_APPROVAL_STATUS_LABELS = {
+  NOT_REQUESTED: "Không yêu cầu duyệt",
+  PENDING_APPROVAL: "Đang chờ phê duyệt",
+  APPROVED: "Đã phê duyệt",
+  REJECTED: "Đã từ chối",
 };
 
 /**
@@ -82,7 +104,7 @@ export function formatOmrStatus(status) {
 
 /**
  * Format UserRole enum to Vietnamese string
- * @param {string} role - ADMIN | TEACHER | STUDENT
+ * @param {string} role - ADMIN | TEACHER | STUDENT | PRINCIPAL | VICE_PRINCIPAL | EXAM_BOARD | ACADEMIC_BOARD
  * @returns {string} Localized label
  */
 export function formatUserRole(role) {
@@ -91,11 +113,29 @@ export function formatUserRole(role) {
 
 /**
  * Format UserStatus enum to Vietnamese string
- * @param {string} status - ACTIVE | LOCKED | INACTIVE
+ * @param {string} status - ACTIVE | LOCKED | INACTIVE | PENDING_APPROVAL
  * @returns {string} Localized label
  */
 export function formatUserStatus(status) {
   return USER_STATUS_LABELS[status] || status || "—";
+}
+
+/**
+ * Format ExamType enum to Vietnamese string
+ * @param {string} type - REGULAR | MIN_15 | MIN_45 | MIN_60 | MIN_90 | MIDTERM | FINAL | OTHER
+ * @returns {string} Localized label
+ */
+export function formatExamType(type) {
+  return EXAM_TYPE_LABELS[type] || type || "—";
+}
+
+/**
+ * Format PublicationApprovalStatus enum to Vietnamese string
+ * @param {string} status
+ * @returns {string} Localized label
+ */
+export function formatPublicationApprovalStatus(status) {
+  return PUBLICATION_APPROVAL_STATUS_LABELS[status] || status || "—";
 }
 
 /**
@@ -135,9 +175,19 @@ export function getAvatarUrl(avatarUrl) {
   ) {
     return avatarUrl;
   }
-  const base = import.meta.env.VITE_API_URL || "/api";
+  const base = import.meta.env.VITE_API_URL || "";
   const cleanBase = base.endsWith("/") ? base.slice(0, -1) : base;
-  const cleanUrl = avatarUrl.startsWith("/") ? avatarUrl : `/${avatarUrl}`;
+  let cleanUrl = avatarUrl.startsWith("/") ? avatarUrl : `/${avatarUrl}`;
+
+  // If cleanUrl is legacy "/profile/avatar/...", prefix with "/api" so it routes through API proxy
+  if (cleanUrl.startsWith("/profile/avatar/")) {
+    cleanUrl = `/api${cleanUrl}`;
+  }
+
+  // Prevent double /api if base already contains /api
+  if (cleanBase.endsWith("/api") && cleanUrl.startsWith("/api/")) {
+    return `${cleanBase}${cleanUrl.slice(4)}`;
+  }
+
   return `${cleanBase}${cleanUrl}`;
 }
-

@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
-import { getTeacherProfile } from "./exam.service.js";
+import { assertExamAccess } from "./exam.service.js";
 
 /**
  * Sanitizes a cell value to prevent formula injection.
@@ -17,60 +17,34 @@ function sanitizeCellValue(val) {
 }
 
 /**
- * Asserts that the requesting teacher owns the exam, results are published,
+ * Asserts that the requesting user has access to the exam, results are published,
  * and the published dataset is consistent.
  */
 async function assertExportAccess(examId, user) {
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
-    select: {
-      id: true,
-      title: true,
-      teacherId: true,
-      status: true,
-      questionCount: true,
-      maxScore: true,
-      scoringType: true,
-      resultsPublishedAt: true,
-    },
-  });
-  if (!exam) throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
-
-  if (user.role !== "TEACHER") {
-    throw new AppError("Chỉ giáo viên sở hữu kỳ thi mới có quyền xuất kết quả.", 403, "FORBIDDEN");
-  }
-    const teacher = await getTeacherProfile(user.id);
-    const isDirectOwner = exam.teacherId && exam.teacherId === teacher.id;
-    if (!isDirectOwner) {
-      const examWithClasses = await prisma.exam.findUnique({
-        where: { id: examId },
-        select: {
-          subjectId: true,
-          classId: true,
-          examClasses: { select: { classId: true } },
-        },
-      });
-      const examClassIds = [
-        ...(examWithClasses?.classId ? [examWithClasses.classId] : []),
-        ...(examWithClasses?.examClasses ? examWithClasses.examClasses.map((ec) => ec.classId) : []),
-      ];
-      const assignment = await prisma.teachingAssignment.findFirst({
-        where: {
-          teacherId: teacher.id,
-          subjectId: examWithClasses.subjectId,
-          classId: { in: examClassIds },
-        },
-      });
-      if (!assignment) {
-        throw new AppError("Bạn không có quyền xuất kết quả kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
-      }
-    }
+  const exam = await assertExamAccess(examId, user);
   if (!exam.resultsPublishedAt) {
     throw new AppError(
       "Kết quả kỳ thi chưa được công bố. Chỉ có thể xuất sau khi đã công bố.",
       422,
       "RESULTS_NOT_PUBLISHED"
     );
+  }
+
+  // Section 6: Teacher Data-Scope Guard
+  // Normal teachers cannot export whole-school/multi-class official exams.
+  // They may only export routine assessments they directly own.
+  const isOfficial = ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType);
+  if (user.role === "TEACHER" && isOfficial) {
+    const isOwner =
+      (exam.teacherId && user.teacher && exam.teacherId === user.teacher.id) ||
+      exam.createdByUserId === user.id;
+    if (!isOwner) {
+      throw new AppError(
+        "Giáo viên không có quyền xuất kết quả kỳ thi chính quy toàn trường. Báo cáo này do Ban khảo thí và Ban giám hiệu quản lý.",
+        403,
+        "TEACHER_OFFICIAL_EXPORT_DENIED"
+      );
+    }
   }
 
   // Section 21: Export dataset consistency guard

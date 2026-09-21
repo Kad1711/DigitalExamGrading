@@ -19,7 +19,13 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
   }
 
   let teacherAssignedClassIds = null;
-  if (userRole !== "ADMIN") {
+  const isOversight =
+    ["ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "ACADEMIC_BOARD"].includes(userRole) ||
+    (userRole === "EXAM_BOARD" &&
+      (exam.createdByUserId === teacherUserId ||
+        ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType)));
+
+  if (!isOversight) {
     const teacher = await prisma.teacher.findUnique({ where: { userId: teacherUserId } });
     if (!teacher) {
       throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");

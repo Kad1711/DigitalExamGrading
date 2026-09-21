@@ -84,6 +84,7 @@ export async function getAvatarController(req, res, next) {
     const { stream, mimeType } = await profileService.getAvatarStream(req.params.filename);
     res.setHeader("Content-Type", mimeType);
     res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     stream.pipe(res);
   } catch (err) {
     next(err);

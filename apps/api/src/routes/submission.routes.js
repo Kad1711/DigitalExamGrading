@@ -13,25 +13,36 @@ import {
 
 const router = Router();
 
-router.use(authenticate, authorizeRoles("TEACHER", "ADMIN"));
+router.use(authenticate);
+
+const viewSubmissionRoles = authorizeRoles(
+  "TEACHER",
+  "EXAM_BOARD",
+  "ACADEMIC_BOARD",
+  "PRINCIPAL",
+  "VICE_PRINCIPAL",
+  "ADMIN"
+);
+const mutateSubmissionRoles = authorizeRoles("TEACHER", "EXAM_BOARD", "ADMIN");
 
 // Submission Details & Deletion
-router.get("/:submissionId", getSubmissionController);
-router.delete("/:submissionId", deleteSubmissionController);
+router.get("/:submissionId", viewSubmissionRoles, getSubmissionController);
+router.delete("/:submissionId", mutateSubmissionRoles, deleteSubmissionController);
 
 // Authenticated image streaming routes
-router.get("/:submissionId/image", getSubmissionImageController);
+router.get("/:submissionId/image", viewSubmissionRoles, getSubmissionImageController);
 router.get(
   "/:submissionId/answers/:questionNumber/review-crop",
+  viewSubmissionRoles,
   getSubmissionReviewCropController
 );
 
 // Review actions
-router.patch("/:submissionId/review", reviewSubmissionAnswersController);
-router.patch("/:submissionId/identity", reviewSubmissionIdentityController);
+router.patch("/:submissionId/review", mutateSubmissionRoles, reviewSubmissionAnswersController);
+router.patch("/:submissionId/identity", mutateSubmissionRoles, reviewSubmissionIdentityController);
 
 // Audit history
-router.get("/:submissionId/audit", getSubmissionAuditLogsController);
-router.get("/:submissionId/audit-logs", getSubmissionAuditLogsController);
+router.get("/:submissionId/audit", viewSubmissionRoles, getSubmissionAuditLogsController);
+router.get("/:submissionId/audit-logs", viewSubmissionRoles, getSubmissionAuditLogsController);
 
 export default router;

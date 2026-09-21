@@ -92,9 +92,7 @@ export default function TeacherProfilePage() {
     try {
       setUploadingAvatar(true);
       setProfileAlert(null);
-      const res = await api.post("/profile/avatar", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.post("/profile/avatar", formData);
       const newAvatarUrl = res.data.data.avatarUrl;
       setProfile((prev) => ({ ...prev, avatarUrl: newAvatarUrl }));
       updateUser({ avatarUrl: newAvatarUrl });

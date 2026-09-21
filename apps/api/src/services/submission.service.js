@@ -3,7 +3,7 @@ import { performance } from "node:perf_hooks";
 import { Prisma } from "@prisma/client";
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
-import { assertExamAccess, getTeacherProfile } from "./exam.service.js";
+import { assertExamAccess, assertExamManageAccess, getTeacherProfile } from "./exam.service.js";
 import { analyzeOmrSheet } from "./omr-client.service.js";
 import { normalizeExamCode } from "../utils/exam-code.js";
 import { evaluateSubmission } from "./grading.service.js";
@@ -46,43 +46,8 @@ export async function assertSubmissionAccess(submissionId, reqUser) {
     throw new AppError("Không tìm thấy bài nộp trong hệ thống.", 404, "SUBMISSION_NOT_FOUND");
   }
 
-  if (reqUser.role !== "TEACHER") {
-    throw new AppError("Chỉ giáo viên sở hữu kỳ thi mới có quyền truy cập bài nộp.", 403, "FORBIDDEN");
-  }
-
-  const teacher = await getTeacherProfile(reqUser.id);
-  if (submission.exam.teacherId && submission.exam.teacherId === teacher.id) {
-    return submission;
-  }
-
-  const examWithClasses = await prisma.exam.findUnique({
-    where: { id: submission.examId },
-    select: {
-      subjectId: true,
-      classId: true,
-      examClasses: { select: { classId: true } },
-    },
-  });
-
-  const examClassIds = [
-    ...(examWithClasses?.classId ? [examWithClasses.classId] : []),
-    ...(examWithClasses?.examClasses ? examWithClasses.examClasses.map((ec) => ec.classId) : []),
-  ];
-
-  if (examClassIds.length > 0) {
-    const assignment = await prisma.teachingAssignment.findFirst({
-      where: {
-        teacherId: teacher.id,
-        subjectId: examWithClasses.subjectId,
-        classId: { in: examClassIds },
-      },
-    });
-    if (assignment) {
-      return submission;
-    }
-  }
-
-  throw new AppError("Bạn không có quyền truy cập bài nộp này.", 403, "SUBMISSION_ACCESS_DENIED");
+  await assertExamAccess(submission.examId, reqUser);
+  return submission;
 }
 
 /**
@@ -98,55 +63,33 @@ export function formatSubmissionResponse(sub, answers = [], auditLogs = []) {
     candidate: ans.candidate,
     originalCandidates: ans.originalCandidates,
     omrStatus: ans.omrStatus,
-    confidence: ans.confidence,
-    fillRatios: ans.fillRatios,
-    reviewCropUrl: ans.reviewCropStorageKey
-      ? `/submissions/${sub.id}/answers/${ans.questionNumber}/review-crop`
-      : null,
-    correctAnswer: ans.correctAnswerSnapshot,
-    correctAnswerSnapshot: ans.correctAnswerSnapshot,
-    scoreSnapshot: Number(ans.scoreSnapshot),
-    resolvedByTeacher: ans.resolvedByTeacher,
-    teacherResolution: ans.teacherResolution,
-    resolvedAnswer: ans.resolvedAnswer,
-    reviewedAt: ans.reviewedAt,
-    effectiveAnswer: ans.effectiveAnswer,
-    result: ans.result,
-    isCorrect: ans.result === "CORRECT",
-    scoreEarned: ans.scoreEarned !== null ? Number(ans.scoreEarned) : null,
-    needsReview: ans.needsReview,
+    confidence: ans.confidence !== null ? Number(ans.confidence) : null,
+    manualResolvedAnswer: ans.manualResolvedAnswer,
+    isOverridden: ans.isOverridden,
+    isCorrect: ans.isCorrect,
+    score: ans.score !== null ? Number(ans.score) : null,
+    hasReviewCrop: !!ans.reviewCropStorageKey,
+    needsReview: ans.omrStatus === "MULTIPLE" || ans.omrStatus === "UNCERTAIN",
   }));
 
   return {
     id: sub.id,
-    status: sub.status,
-    exam: {
-      id: sub.exam?.id || sub.examId,
-      title: sub.exam?.title,
-      subject: sub.exam?.subject?.name,
-      class: sub.exam?.class?.name,
-      questionCount: sub.questionCountSnapshot,
-      maxScore: Number(sub.maxScoreSnapshot),
-      scoringType: sub.scoringTypeSnapshot,
+    examId: sub.examId,
+    examTitle: sub.exam?.title || null,
+    student: {
+      detectedSbd: sub.detectedStudentNumber,
+      resolvedSbd: sub.resolvedStudentNumber,
+      sbdConfidence: sub.studentNumberConfidence !== null ? Number(sub.studentNumberConfidence) : null,
+      identityNeedsReview: sub.identityNeedsReview,
+      identityReviewReason: sub.identityReviewReason,
+      identityReviewedBy: sub.identityReviewedByUser,
+      identityReviewedAt: sub.identityReviewedAt,
     },
     examCode: {
       id: sub.examCodeId,
-      code: sub.examCodeSnapshot,
-    },
-    identity: {
-      detectedStudentNumber: sub.detectedStudentNumber,
-      candidateStudentNumber: sub.candidateStudentNumber,
-      studentNumberOmrStatus: sub.studentNumberOmrStatus,
-      resolvedStudentNumber: sub.resolvedStudentNumber,
-      identityNeedsReview: sub.identityNeedsReview,
-      identityReviewedAt: sub.identityReviewedAt,
-    },
-    image: {
-      url: `/api/submissions/${sub.id}/image`,
-      mimeType: sub.originalImageMimeType,
-      sizeBytes: sub.originalImageSizeBytes,
-      width: sub.originalImageWidth,
-      height: sub.originalImageHeight,
+      detectedCode: sub.detectedExamCode,
+      code: sub.examCode?.code || sub.detectedExamCode || null,
+      confidence: sub.examCodeConfidence !== null ? Number(sub.examCodeConfidence) : null,
     },
     omr: {
       overallStatus: sub.omrOverallStatus,
@@ -164,6 +107,13 @@ export function formatSubmissionResponse(sub, answers = [], auditLogs = []) {
       unresolvedCount: sub.unresolvedCount,
       maxScore: Number(sub.maxScoreSnapshot),
       questions: formattedAnswers,
+    },
+    image: {
+      url: `/api/submissions/${sub.id}/image`,
+      mimeType: sub.originalImageMimeType,
+      sizeBytes: sub.originalImageSizeBytes,
+      width: sub.originalImageWidth,
+      height: sub.originalImageHeight,
     },
     auditLogs: auditLogs.map((log) => ({
       id: log.id,
@@ -202,14 +152,12 @@ export async function createSubmission({
   const t0 = performance.now();
 
   // 1. Verify exam access & status
-  if (user.role !== "TEACHER") {
-    throw new AppError("Chỉ giáo viên sở hữu kỳ thi mới có quyền chấm bài.", 403, "FORBIDDEN");
+  if (!["TEACHER", "EXAM_BOARD", "ADMIN"].includes(user.role)) {
+    throw new AppError("Chỉ giáo viên phụ trách, Ban khảo thí hoặc Quản trị viên mới có quyền chấm bài.", 403, "FORBIDDEN");
   }
   const exam = await assertExamAccess(examId, user);
-  const teacher = await getTeacherProfile(user.id);
-  if (exam.teacherId !== teacher.id) {
-    throw new AppError("Bạn không có quyền chấm bài cho kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
-  }
+  await assertExamManageAccess(exam, user);
+
   if (exam.status !== "PUBLISHED") {
     throw new AppError(
       `Kỳ thi đang ở trạng thái ${exam.status}, không thể chấm bài mới (chỉ chấp nhận PUBLISHED).`,

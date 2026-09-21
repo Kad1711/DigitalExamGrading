@@ -8,6 +8,8 @@ import { createCorsMiddleware } from "./config/cors.config.js";
 import { generalApiLimiter } from "./config/rate-limit.config.js";
 import prisma from "./config/prisma.js";
 
+import { getAvatarController } from "./controllers/profile.controller.js";
+
 const app = express();
 
 // =====================================================
@@ -85,6 +87,9 @@ app.use("/api", generalApiLimiter);
 // =====================================================
 // API ROUTES
 // =====================================================
+
+// Backward compatibility route for legacy avatar URLs lacking /api prefix
+app.get("/profile/avatar/:filename", getAvatarController);
 
 app.use("/api", apiRouter);
 

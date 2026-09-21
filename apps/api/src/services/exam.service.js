@@ -26,6 +26,7 @@ export async function assertExamAccess(examId, reqUser) {
       grade: { select: { id: true, name: true, level: true } },
       examClasses: { include: { class: { select: { id: true, name: true } } } },
       teacher: { select: { id: true, fullName: true, teacherCode: true } },
+      createdByUser: { select: { id: true, fullName: true, role: true } },
       examCodes: { select: { id: true, code: true } },
     },
   });
@@ -34,32 +35,51 @@ export async function assertExamAccess(examId, reqUser) {
     throw new AppError("Ky thi khong ton tai.", 404, "EXAM_NOT_FOUND");
   }
 
-  if (reqUser.role === "ADMIN") {
+  // School oversight and Academic board can view all exams
+  if (["ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "ACADEMIC_BOARD"].includes(reqUser.role)) {
     return exam;
   }
 
-  const teacher = await getTeacherProfile(reqUser.id);
-  // 1. Direct owner
-  if (exam.teacherId && exam.teacherId === teacher.id) {
-    return exam;
-  }
-
-  // 2. Or teacher teaches this exam's subject in the primary class or any assigned examClasses
-  const examClassIds = [
-    ...(exam.classId ? [exam.classId] : []),
-    ...(exam.examClasses ? exam.examClasses.map((ec) => ec.classId) : []),
-  ];
-
-  if (examClassIds.length > 0) {
-    const assignment = await prisma.teachingAssignment.findFirst({
-      where: {
-        teacherId: teacher.id,
-        subjectId: exam.subjectId,
-        classId: { in: examClassIds },
-      },
-    });
-    if (assignment) {
+  // Exam Board can view all official exams or exams created by them
+  if (reqUser.role === "EXAM_BOARD") {
+    if (
+      exam.createdByUserId === reqUser.id ||
+      ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType)
+    ) {
       return exam;
+    }
+  }
+
+  // Direct creator check
+  if (exam.createdByUserId && exam.createdByUserId === reqUser.id) {
+    return exam;
+  }
+
+  // Teacher check
+  if (reqUser.role === "TEACHER") {
+    const teacher = await getTeacherProfile(reqUser.id);
+    // 1. Direct owner
+    if (exam.teacherId && exam.teacherId === teacher.id) {
+      return exam;
+    }
+
+    // 2. Or teacher teaches this exam's subject in the primary class or any assigned examClasses
+    const examClassIds = [
+      ...(exam.classId ? [exam.classId] : []),
+      ...(exam.examClasses ? exam.examClasses.map((ec) => ec.classId) : []),
+    ];
+
+    if (examClassIds.length > 0) {
+      const assignment = await prisma.teachingAssignment.findFirst({
+        where: {
+          teacherId: teacher.id,
+          subjectId: exam.subjectId,
+          classId: { in: examClassIds },
+        },
+      });
+      if (assignment) {
+        return exam;
+      }
     }
   }
 
@@ -84,12 +104,26 @@ export async function assertExamManageAccess(exam, reqUser) {
   if (reqUser.role === "ADMIN") {
     return true;
   }
-  const teacher = await getTeacherProfile(reqUser.id);
-  if (exam.teacherId && exam.teacherId === teacher.id) {
-    return true;
+
+  if (reqUser.role === "EXAM_BOARD") {
+    // EXAM_BOARD can manage official exams they created or all official exams not owned by a normal teacher
+    if (
+      exam.createdByUserId === reqUser.id ||
+      (!exam.teacherId && ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType))
+    ) {
+      return true;
+    }
   }
+
+  if (reqUser.role === "TEACHER") {
+    const teacher = await getTeacherProfile(reqUser.id);
+    if ((exam.teacherId && exam.teacherId === teacher.id) || exam.createdByUserId === reqUser.id) {
+      return true;
+    }
+  }
+
   throw new AppError(
-    "Bạn không có quyền chỉnh sửa kỳ thi này. Chỉ Quản trị viên hoặc Giáo viên trực tiếp tạo đề mới có quyền thay đổi cấu hình kỳ thi.",
+    "Bạn không có quyền chỉnh sửa kỳ thi này. Chỉ Quản trị viên, Ban khảo thí hoặc Giáo viên trực tiếp tạo đề mới có quyền thay đổi cấu hình kỳ thi.",
     403,
     "EXAM_MANAGEMENT_DENIED"
   );
@@ -101,11 +135,40 @@ export async function assertExamManageAccess(exam, reqUser) {
 
 export async function createExam(data, reqUser) {
   let teacherId = null;
+  const createdByUserId = reqUser.id;
+  let finalExamType = data.examType || "REGULAR";
 
   if (reqUser.role === "TEACHER") {
     const teacher = await getTeacherProfile(reqUser.id);
     teacherId = teacher.id;
 
+    // 1. Mandatory Primary Subject Check
+    if (!teacher.primarySubjectId) {
+      throw new AppError(
+        "Tài khoản giáo viên chưa được cấu hình môn học chuyên môn chính. Vui lòng liên hệ Quản trị viên để được phân công trước khi tạo bài kiểm tra.",
+        403,
+        "PRIMARY_SUBJECT_REQUIRED"
+      );
+    }
+
+    if (data.subjectId !== teacher.primarySubjectId) {
+      throw new AppError(
+        "Giáo viên chỉ được phép tạo bài kiểm tra cho môn chuyên môn chính của mình.",
+        403,
+        "SUBJECT_MISMATCH"
+      );
+    }
+
+    // 2. Exam Type Restriction: Only REGULAR or MIN_15
+    if (finalExamType !== "REGULAR" && finalExamType !== "MIN_15") {
+      throw new AppError(
+        "Giáo viên chỉ được phép tạo bài kiểm tra Thường xuyên hoặc 15 phút.",
+        403,
+        "EXAM_TYPE_NOT_ALLOWED"
+      );
+    }
+
+    // 3. Single Class Restriction
     const classIds = Array.isArray(data.classIds) && data.classIds.length > 0
       ? data.classIds
       : (data.classId ? [data.classId] : []);
@@ -120,7 +183,7 @@ export async function createExam(data, reqUser) {
 
     if (classIds.length > 1) {
       throw new AppError(
-        "Giáo viên chỉ có thể tạo bài kiểm tra cho 1 lớp học cụ thể (ví dụ: kiểm tra 15 phút, 1 tiết).",
+        "Giáo viên chỉ có thể tạo bài kiểm tra cho đúng 1 lớp học cụ thể.",
         400,
         "SINGLE_CLASS_REQUIRED"
       );
@@ -149,6 +212,16 @@ export async function createExam(data, reqUser) {
         );
       }
     }
+  } else if (reqUser.role === "EXAM_BOARD") {
+    // EXAM_BOARD creates official examinations
+    if (finalExamType === "REGULAR" || finalExamType === "MIN_15") {
+      throw new AppError(
+        "Ban khảo thí chỉ phụ trách các kỳ thi chính quy (tối thiểu 45 phút, giữa kỳ, cuối kỳ).",
+        400,
+        "OFFICIAL_EXAM_TYPE_REQUIRED"
+      );
+    }
+    teacherId = null;
   } else if (reqUser.role === "ADMIN") {
     if (data.teacherId) {
       teacherId = data.teacherId;
@@ -182,11 +255,13 @@ export async function createExam(data, reqUser) {
       title: data.title,
       description: data.description ?? null,
       teacherId,
+      createdByUserId,
       subjectId: data.subjectId,
       classId: primaryClassId,
       gradeId: data.gradeId ?? null,
       durationMinutes: data.durationMinutes ?? 45,
       sheetPreset: data.sheetPreset ?? "PRESET_45MIN_40Q",
+      examType: finalExamType,
       questionCount: data.questionCount,
       maxScore: data.maxScore,
       scoringType: data.scoringType,
@@ -205,13 +280,15 @@ export async function createExam(data, reqUser) {
       grade: { select: { id: true, name: true, level: true } },
       examClasses: { include: { class: { select: { id: true, name: true } } } },
       teacher: { select: { id: true, fullName: true, teacherCode: true } },
+      createdByUser: { select: { id: true, fullName: true, role: true } },
     },
   });
 }
 
 export async function listExams(query, reqUser) {
-  const { status, subjectId, classId, gradeId, search, page = 1, limit = 20 } = query;
+  const { status, subjectId, classId, gradeId, examType, publicationApprovalStatus, search, page = 1, limit = 20 } = query;
   const where = {};
+  const andClauses = [];
 
   if (reqUser.role === "TEACHER") {
     const teacher = await getTeacherProfile(reqUser.id);
@@ -222,28 +299,50 @@ export async function listExams(query, reqUser) {
     const assignedClassIds = assignments.map((a) => a.classId);
     const assignedSubjectIds = [...new Set(assignments.map((a) => a.subjectId))];
 
-    where.OR = [
-      { teacherId: teacher.id },
-      {
-        subjectId: { in: assignedSubjectIds },
-        OR: [
-          { classId: { in: assignedClassIds } },
-          { examClasses: { some: { classId: { in: assignedClassIds } } } },
-        ],
-      },
-    ];
+    andClauses.push({
+      OR: [
+        { teacherId: teacher.id },
+        { createdByUserId: reqUser.id },
+        ...(assignedSubjectIds.length > 0 && assignedClassIds.length > 0
+          ? [
+              {
+                subjectId: { in: assignedSubjectIds },
+                OR: [
+                  { classId: { in: assignedClassIds } },
+                  { examClasses: { some: { classId: { in: assignedClassIds } } } },
+                ],
+              },
+            ]
+          : []),
+      ],
+    });
+  } else if (reqUser.role === "EXAM_BOARD") {
+    andClauses.push({
+      OR: [
+        { createdByUserId: reqUser.id },
+        { examType: { in: ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"] } },
+      ],
+    });
   }
 
   if (status) where.status = status;
+  if (examType) where.examType = examType;
+  if (publicationApprovalStatus) where.publicationApprovalStatus = publicationApprovalStatus;
   if (subjectId) where.subjectId = subjectId;
   if (gradeId) where.gradeId = gradeId;
   if (classId) {
-    where.OR = [
-      { classId },
-      { examClasses: { some: { classId } } },
-    ];
+    andClauses.push({
+      OR: [
+        { classId },
+        { examClasses: { some: { classId } } },
+      ],
+    });
   }
   if (search) where.title = { contains: search, mode: "insensitive" };
+
+  if (andClauses.length > 0) {
+    where.AND = andClauses;
+  }
 
   const pageNum = parseInt(page, 10) || 1;
   const limitNum = parseInt(limit, 10) || 20;
@@ -259,6 +358,7 @@ export async function listExams(query, reqUser) {
         grade: { select: { id: true, name: true, level: true } },
         examClasses: { include: { class: { select: { id: true, name: true } } } },
         teacher: { select: { id: true, fullName: true } },
+        createdByUser: { select: { id: true, fullName: true, role: true } },
         _count: { select: { examCodes: true, submissions: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -304,6 +404,7 @@ export async function updateExam(examId, data, reqUser) {
       "questionCount",
       "maxScore",
       "scoringType",
+      "examType",
     ];
     for (const field of lockedFields) {
       if (data[field] !== undefined) {
@@ -316,6 +417,32 @@ export async function updateExam(examId, data, reqUser) {
     }
   }
 
+  if (reqUser.role === "TEACHER") {
+    const teacher = await getTeacherProfile(reqUser.id);
+    if (data.subjectId && data.subjectId !== teacher.primarySubjectId) {
+      throw new AppError(
+        "Giáo viên chỉ được phép gán kỳ thi cho môn chuyên môn chính của mình.",
+        403,
+        "SUBJECT_MISMATCH"
+      );
+    }
+    if (data.examType && data.examType !== "REGULAR" && data.examType !== "MIN_15") {
+      throw new AppError(
+        "Giáo viên chỉ được phép tạo hoặc cập nhật bài kiểm tra Thường xuyên hoặc 15 phút.",
+        403,
+        "EXAM_TYPE_NOT_ALLOWED"
+      );
+    }
+  } else if (reqUser.role === "EXAM_BOARD") {
+    if (data.examType && (data.examType === "REGULAR" || data.examType === "MIN_15")) {
+      throw new AppError(
+        "Ban khảo thí chỉ phụ trách các kỳ thi chính quy (tối thiểu 45 phút, giữa kỳ, cuối kỳ).",
+        400,
+        "OFFICIAL_EXAM_TYPE_REQUIRED"
+      );
+    }
+  }
+
   const updateData = {
     title: data.title,
     description: data.description,
@@ -324,6 +451,7 @@ export async function updateExam(examId, data, reqUser) {
     gradeId: data.gradeId !== undefined ? data.gradeId : undefined,
     durationMinutes: data.durationMinutes !== undefined ? data.durationMinutes : undefined,
     sheetPreset: data.sheetPreset !== undefined ? data.sheetPreset : undefined,
+    examType: data.examType !== undefined ? data.examType : undefined,
     questionCount: data.questionCount,
     maxScore: data.maxScore,
     scoringType: data.scoringType,
@@ -436,6 +564,8 @@ export async function cloneExam(examId, reqUser) {
         title: clonedTitle,
         description: sourceExam.description,
         teacherId: sourceExam.teacherId,
+        createdByUserId: reqUser.id,
+        examType: sourceExam.examType,
         subjectId: sourceExam.subjectId,
         classId: sourceExam.classId,
         questionCount: sourceExam.questionCount,
@@ -450,6 +580,7 @@ export async function cloneExam(examId, reqUser) {
         subject: { select: { id: true, name: true, code: true } },
         class: { select: { id: true, name: true } },
         teacher: { select: { id: true, fullName: true, teacherCode: true } },
+        createdByUser: { select: { id: true, fullName: true, role: true } },
       },
     });
 

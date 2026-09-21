@@ -61,7 +61,17 @@ function handleAvatarUpload(req, res, next) {
 
 // 3. Toàn bộ các route hồ sơ cá nhân bên dưới cần đăng nhập
 router.use(authenticate);
-router.use(authorizeRoles("TEACHER", "STUDENT", "ADMIN"));
+router.use(
+  authorizeRoles(
+    "TEACHER",
+    "STUDENT",
+    "ADMIN",
+    "PRINCIPAL",
+    "VICE_PRINCIPAL",
+    "EXAM_BOARD",
+    "ACADEMIC_BOARD"
+  )
+);
 
 router.get("/", profileController.getProfileController);
 router.patch("/", profileController.updateProfileController);

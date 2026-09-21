@@ -10,47 +10,7 @@ function getExamClassIds(exam) {
 }
 
 export async function verifyExamOwnership(examId, teacherUserId, userRole = "TEACHER") {
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
-    include: {
-      teacher: true,
-      class: true,
-      examClasses: true,
-    },
-  });
-
-  if (!exam) {
-    throw new AppError("Kỳ thi không tồn tại hoặc đã bị xóa.", 404, "EXAM_NOT_FOUND");
-  }
-
-  if (userRole === "ADMIN") {
-    return exam;
-  }
-
-  const teacher = await prisma.teacher.findUnique({ where: { userId: teacherUserId } });
-  if (!teacher) {
-    throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
-  }
-
-  if (exam.teacherId && exam.teacherId === teacher.id) {
-    return exam;
-  }
-
-  const classIds = getExamClassIds(exam);
-  if (classIds.length > 0) {
-    const assignment = await prisma.teachingAssignment.findFirst({
-      where: {
-        teacherId: teacher.id,
-        subjectId: exam.subjectId,
-        classId: { in: classIds },
-      },
-    });
-    if (assignment) {
-      return exam;
-    }
-  }
-
-  throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
+  return assertExamAccess(examId, { id: teacherUserId, role: userRole });
 }
 
 export async function listExamCandidates(teacherUserId, examId, userRole = "TEACHER") {

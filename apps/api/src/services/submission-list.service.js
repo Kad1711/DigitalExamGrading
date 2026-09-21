@@ -1,67 +1,7 @@
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
-import { getTeacherProfile } from "./exam.service.js";
+import { assertExamAccess } from "./exam.service.js";
 import { normalizeExamCode } from "../utils/exam-code.js";
-
-/**
- * Asserts TEACHER-only access to an exam for submission listing.
- * Admin cannot access submission lists (core security rule).
- */
-async function assertTeacherExamAccess(examId, reqUser) {
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
-    select: {
-      id: true,
-      teacherId: true,
-      subjectId: true,
-      classId: true,
-      title: true,
-      status: true,
-      questionCount: true,
-      maxScore: true,
-      examClasses: { select: { classId: true } },
-    },
-  });
-  if (!exam) {
-    throw new AppError("Ky thi khong ton tai.", 404, "EXAM_NOT_FOUND");
-  }
-
-  if (reqUser.role !== "TEACHER") {
-    throw new AppError(
-      "Chi giao vien so huu ky thi moi co quyen xem danh sach bai nop.",
-      403,
-      "FORBIDDEN"
-    );
-  }
-  const teacher = await getTeacherProfile(reqUser.id);
-  if (exam.teacherId && exam.teacherId === teacher.id) {
-    return { exam, teacher };
-  }
-
-  const examClassIds = [
-    ...(exam.classId ? [exam.classId] : []),
-    ...(exam.examClasses ? exam.examClasses.map((ec) => ec.classId) : []),
-  ];
-
-  if (examClassIds.length > 0) {
-    const assignment = await prisma.teachingAssignment.findFirst({
-      where: {
-        teacherId: teacher.id,
-        subjectId: exam.subjectId,
-        classId: { in: examClassIds },
-      },
-    });
-    if (assignment) {
-      return { exam, teacher };
-    }
-  }
-
-  throw new AppError(
-    "Ban khong co quyen truy cap danh sach bai nop cua ky thi nay.",
-    403,
-    "EXAM_ACCESS_DENIED"
-  );
-}
 
 /**
  * Lists exam submissions with pagination and filters.
@@ -80,7 +20,7 @@ async function assertTeacherExamAccess(examId, reqUser) {
  * @returns { submissions, total, page, pageSize, totalPages, hasDuplicateSbd, duplicateGroupCount, duplicateSubmissionCount }
  */
 export async function listExamSubmissions({ examId, user, query }) {
-  await assertTeacherExamAccess(examId, user);
+  await assertExamAccess(examId, user);
 
   const {
     page = 1,
@@ -275,7 +215,7 @@ export async function listExamSubmissions({ examId, user, query }) {
  * Returns a summary of submission statistics for an exam.
  */
 export async function getExamSubmissionsSummary({ examId, user }) {
-  await assertTeacherExamAccess(examId, user);
+  await assertExamAccess(examId, user);
 
   const [totalSubmissions, provisionalCount, finalCount, identityNeedsReviewCount, needsAnswerReviewCount] = await Promise.all([
     prisma.examSubmission.count({ where: { examId } }),

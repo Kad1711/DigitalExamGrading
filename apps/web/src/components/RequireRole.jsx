@@ -30,13 +30,15 @@ export default function RequireRole({ roles, children }) {
   if (roles && !roles.includes(user.role)) {
     // Neu khong dung quyen, chuyen huong ve trang mac dinh theo vai tro cua ho
     if (user.role === "ADMIN") {
-      return <Navigate to="/admin/teachers" replace />;
-    }
-    if (user.role === "TEACHER") {
-      return <Navigate to="/exams" replace />;
+      return <Navigate to="/admin/dashboard" replace />;
     }
     if (user.role === "STUDENT") {
-      return <Navigate to="/student/results" replace />;
+      return <Navigate to="/student/exams" replace />;
+    }
+    // All staff roles (TEACHER, PRINCIPAL, VICE_PRINCIPAL, EXAM_BOARD, ACADEMIC_BOARD) go to /exams
+    const staffRoles = ["TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"];
+    if (staffRoles.includes(user.role)) {
+      return <Navigate to="/exams" replace />;
     }
     return <Navigate to="/login" replace />;
   }

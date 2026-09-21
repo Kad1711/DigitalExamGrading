@@ -6,15 +6,17 @@ import * as adminDashboardController from "../controllers/admin-dashboard.contro
 
 const router = Router();
 
-// Toan bo routes cua admin deu can dang nhap va phan quyen ADMIN
+// Toan bo routes cua admin deu can dang nhap
 router.use(authenticate);
-router.use(authorizeRoles("ADMIN"));
+
+const adminOnly = authorizeRoles("ADMIN");
+const canViewOversight = authorizeRoles("ADMIN", "PRINCIPAL", "VICE_PRINCIPAL");
 
 /**
  * GET /api/admin/test
  * Chi ADMIN truy cap duoc. Dung de verify RBAC.
  */
-router.get("/test", (req, res) => {
+router.get("/test", adminOnly, (req, res) => {
   res.status(200).json({
     success: true,
     message: "RBAC OK - ban la ADMIN.",
@@ -24,27 +26,28 @@ router.get("/test", (req, res) => {
 
 /**
  * GET /api/admin/dashboard
- * Tong quan thong ke he thong danh rieng cho ADMIN.
+ * Tong quan thong ke he thong danh cho ADMIN, PRINCIPAL, VICE_PRINCIPAL.
  */
-router.get("/dashboard", adminDashboardController.getAdminDashboardController);
+router.get("/dashboard", canViewOversight, adminDashboardController.getAdminDashboardController);
 
 /**
  * Quan ly tai khoan giao vien
  */
-router.get("/teachers", adminTeacherController.listTeachersController);
-router.get("/teachers/next-code", adminTeacherController.nextTeacherCodeController);
-router.post("/teachers", adminTeacherController.createTeacherController);
-router.get("/teachers/:teacherId", adminTeacherController.getTeacherDetailController);
-router.patch("/teachers/:teacherId", adminTeacherController.updateTeacherController);
-router.post("/teachers/:teacherId/lock", adminTeacherController.lockTeacherController);
-router.post("/teachers/:teacherId/unlock", adminTeacherController.unlockTeacherController);
+router.get("/teachers", canViewOversight, adminTeacherController.listTeachersController);
+router.get("/teachers/next-code", adminOnly, adminTeacherController.nextTeacherCodeController);
+router.post("/teachers", adminOnly, adminTeacherController.createTeacherController);
+router.get("/teachers/:teacherId", canViewOversight, adminTeacherController.getTeacherDetailController);
+router.patch("/teachers/:teacherId", adminOnly, adminTeacherController.updateTeacherController);
+router.post("/teachers/:teacherId/lock", adminOnly, adminTeacherController.lockTeacherController);
+router.post("/teachers/:teacherId/unlock", adminOnly, adminTeacherController.unlockTeacherController);
 router.post(
   "/teachers/:teacherId/reset-password",
+  adminOnly,
   adminTeacherController.resetTeacherPasswordController
 );
-router.post("/teachers/:teacherId/approve", adminTeacherController.approveTeacherController);
-router.post("/teachers/:teacherId/reject", adminTeacherController.rejectTeacherController);
-router.delete("/teachers/:teacherId", adminTeacherController.deleteTeacherController);
-router.post("/teachers/bulk-delete-locked", adminTeacherController.bulkDeleteLockedTeachersController);
+router.post("/teachers/:teacherId/approve", adminOnly, adminTeacherController.approveTeacherController);
+router.post("/teachers/:teacherId/reject", adminOnly, adminTeacherController.rejectTeacherController);
+router.delete("/teachers/:teacherId", adminOnly, adminTeacherController.deleteTeacherController);
+router.post("/teachers/bulk-delete-locked", adminOnly, adminTeacherController.bulkDeleteLockedTeachersController);
 
 export default router;

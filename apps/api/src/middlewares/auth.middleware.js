@@ -49,6 +49,15 @@ export async function authenticate(req, res, next) {
           teacherCode: true,
           fullName: true,
           phone: true,
+          title: true,
+          primarySubjectId: true,
+          primarySubject: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
         },
       },
       student: {
@@ -122,13 +131,26 @@ export async function authenticate(req, res, next) {
       );
     }
 
+    const roleDefaultNames = {
+      ADMIN: "Quản trị hệ thống",
+      PRINCIPAL: "Hiệu trưởng",
+      VICE_PRINCIPAL: "Hiệu phó",
+      EXAM_BOARD: "Ban khảo thí",
+      ACADEMIC_BOARD: "Ban Giáo dục và Đào tạo",
+    };
+
     req.user = {
       id: user.id,
       email: user.email,
       role: user.role,
       status: user.status,
       avatarUrl: user.avatarUrl || null,
-      fullName: user.teacher?.fullName || user.student?.fullName || user.fullName || (user.role === "ADMIN" ? "Quản trị viên" : null),
+      fullName:
+        user.teacher?.fullName ||
+        user.student?.fullName ||
+        user.fullName ||
+        roleDefaultNames[user.role] ||
+        "Người dùng",
       phone: user.teacher?.phone || user.phone || null,
       teacher: user.teacher,
       student: user.student,

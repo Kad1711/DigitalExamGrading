@@ -17,12 +17,14 @@ import {
   Layers,
   Sparkles,
   Clock,
+  Lock,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Alert from "../components/ui/Alert";
 import Modal from "../components/ui/Modal";
 import Breadcrumbs from "../components/ui/Breadcrumbs";
 import { useAuth } from "../context/AuthContext";
+import { EXAM_TYPE_LABELS } from "../utils/enum-map";
 
 export default function ExamCreatePage() {
   const { user } = useAuth();
@@ -64,6 +66,59 @@ export default function ExamCreatePage() {
   const [errorMsg, setErrorMsg] = useState("");
 
   const isAdmin = user?.role === "ADMIN";
+  const isTeacher = user?.role === "TEACHER";
+  const isExamBoard = user?.role === "EXAM_BOARD";
+  const isMultiClassAllowed = isAdmin || isExamBoard;
+
+  const [examType, setExamType] = useState(() => {
+    if (user?.role === "EXAM_BOARD") return "MIDTERM";
+    return "REGULAR";
+  });
+
+  const routineExamTypes = [
+    { value: "REGULAR", label: "Kiểm tra thường xuyên" },
+    { value: "MIN_15", label: "Kiểm tra 15 phút" },
+  ];
+
+  const officialExamTypes = [
+    { value: "MIN_45", label: "Kiểm tra 45 phút (1 tiết)" },
+    { value: "MIN_60", label: "Kiểm tra 60 phút" },
+    { value: "MIN_90", label: "Kiểm tra 90 phút" },
+    { value: "MIDTERM", label: "Kiểm tra giữa kỳ" },
+    { value: "FINAL", label: "Kiểm tra cuối kỳ" },
+    { value: "OTHER", label: "Kỳ thi khác" },
+  ];
+
+  const availableExamTypes = isTeacher
+    ? routineExamTypes
+    : isExamBoard
+    ? officialExamTypes
+    : [...routineExamTypes, ...officialExamTypes];
+
+  const handleExamTypeChange = (newType) => {
+    setExamType(newType);
+    if (newType === "MIN_15") {
+      setDurationMinutes(15);
+      setQuestionCount(20);
+      setSheetPreset("PRESET_15MIN_20Q");
+    } else if (newType === "MIN_45") {
+      setDurationMinutes(45);
+      setQuestionCount(40);
+      setSheetPreset("PRESET_45MIN_40Q");
+    } else if (newType === "MIN_60") {
+      setDurationMinutes(60);
+      setQuestionCount(50);
+      setSheetPreset("PRESET_60MIN_50Q");
+    } else if (newType === "MIN_90") {
+      setDurationMinutes(90);
+      setQuestionCount(50);
+      setSheetPreset("PRESET_90MIN_50Q");
+    } else if (newType === "MIDTERM" || newType === "FINAL") {
+      setDurationMinutes(90);
+      setQuestionCount(50);
+      setSheetPreset("PRESET_TERM_50Q");
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -76,29 +131,53 @@ export default function ExamCreatePage() {
       setLoadingData(true);
       setErrorMsg("");
 
-      if (!isAdmin) {
-        // Luồng Giáo viên: Lấy phân công giảng dạy
+      if (isTeacher) {
+        // Teacher workflow: locked to primarySubject, single-class assignments
+        const primarySubId = user?.teacher?.primarySubjectId;
+        const primarySub = user?.teacher?.primarySubject;
+
+        let assignClasses = [];
         try {
           const assignRes = await api.get("/teacher/assignments");
-          const { classes: assignClasses, subjects: assignSubjects } = assignRes.data.data;
-
-          if (assignSubjects && assignSubjects.length > 0) {
-            setSubjects(assignSubjects);
-            setSubjectId(assignSubjects[0].id);
-          }
-          if (assignClasses && assignClasses.length > 0) {
-            setClasses(assignClasses);
-            setClassId(assignClasses[0].id);
-            setSelectedClassIds([assignClasses[0].id]);
-          }
-          setLoadingData(false);
-          return;
+          assignClasses = assignRes.data.data?.classes || [];
         } catch (err) {
-          console.warn("Could not load teacher assignments, fallback to normal:", err);
+          console.warn("Could not load teacher assignments:", err);
         }
+
+        if (primarySubId && primarySub) {
+          setSubjects([primarySub]);
+          setSubjectId(primarySubId);
+        } else if (primarySubId) {
+          const subRes = await api.get("/subjects");
+          const allSubs = subRes.data.data || [];
+          const found = allSubs.find((s) => s.id === primarySubId);
+          if (found) {
+            setSubjects([found]);
+            setSubjectId(found.id);
+          } else {
+            setSubjects(allSubs);
+            setSubjectId(primarySubId);
+          }
+        } else {
+          setErrorMsg(
+            "Tài khoản giáo viên chưa được cấu hình môn chuyên môn chính. Vui lòng liên hệ Quản trị viên để phân công môn học trước khi tạo bài kiểm tra."
+          );
+        }
+
+        setClasses(assignClasses);
+        if (assignClasses.length > 0) {
+          setClassId(assignClasses[0].id);
+          setSelectedClassIds([assignClasses[0].id]);
+        }
+
+        const grRes = await api.get("/grades").catch(() => ({ data: { data: [] } }));
+        setGrades(grRes.data?.data || []);
+
+        setLoadingData(false);
+        return;
       }
 
-      // Luồng Ban Giám Hiệu (hoặc fallback)
+      // EXAM_BOARD or ADMIN: can select any subject, multi-class
       const [subRes, clsRes, grRes] = await Promise.all([
         api.get("/subjects"),
         api.get("/classes"),
@@ -318,8 +397,8 @@ export default function ExamCreatePage() {
       return;
     }
 
-    if (!isAdmin && classIdsToSend.length > 1) {
-      setErrorMsg("Giáo viên chỉ có thể tạo bài kiểm tra cho 1 lớp học cụ thể (ví dụ kiểm tra 15 phút, 1 tiết).");
+    if (isTeacher && classIdsToSend.length > 1) {
+      setErrorMsg("Giáo viên chỉ có thể tạo bài kiểm tra cho 1 lớp học cụ thể (ví dụ kiểm tra 15 phút, thường xuyên).");
       return;
     }
 
@@ -342,6 +421,7 @@ export default function ExamCreatePage() {
       const payload = {
         title: title.trim(),
         description: description.trim() || undefined,
+        examType,
         subjectId,
         classId: classIdsToSend[0],
         classIds: classIdsToSend,
@@ -373,16 +453,18 @@ export default function ExamCreatePage() {
       <AppHeader />
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Breadcrumbs items={[{ label: isAdmin ? "Tạo kỳ thi mới (BGH)" : "Tạo bài kiểm tra lớp" }]} />
+        <Breadcrumbs items={[{ label: isExamBoard ? "Tạo kỳ thi chính quy (Ban Khảo Thí)" : isAdmin ? "Tạo kỳ thi mới (Quản trị viên)" : "Tạo bài kiểm tra lớp" }]} />
 
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            {isAdmin ? "Tạo Kỳ thi Mới (Ban Giám Hiệu)" : "Tạo Bài Kiểm Tra Lớp"}
+            {isExamBoard ? "Tạo Kỳ Thi Chính Quy (Ban Khảo Thí)" : isAdmin ? "Tạo Kỳ thi Mới (Quản trị viên)" : "Tạo Bài Kiểm Tra Lớp"}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            {isAdmin
+            {isExamBoard
+              ? "Khởi tạo kỳ thi chính quy (giữa kỳ, cuối kỳ, 45-90 phút) áp dụng cho nhiều lớp hoặc toàn khối."
+              : isAdmin
               ? "Kỳ thi chung áp dụng cho nhiều lớp hoặc toàn khối. Đề thi sẽ được tạo ở trạng thái Nháp (DRAFT)."
-              : "Khởi tạo bài kiểm tra 15 phút, 1 tiết hoặc thường xuyên cho 1 lớp cụ thể bạn phụ trách giảng dạy."}
+              : "Khởi tạo bài kiểm tra 15 phút hoặc thường xuyên cho đúng 1 lớp cụ thể bạn phụ trách."}
           </p>
         </div>
 
@@ -421,7 +503,7 @@ export default function ExamCreatePage() {
                   disabled={submitting}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder={isAdmin ? "Ví dụ: Khảo sát chất lượng Toán 11 - Học kỳ 2" : "Ví dụ: Kiểm tra 15 phút Toán 11A1 - Chương 3"}
+                  placeholder={isExamBoard ? "Ví dụ: Kiểm tra học kỳ 1 môn Toán khối 12" : isAdmin ? "Ví dụ: Khảo sát chất lượng Toán 11 - Học kỳ 2" : "Ví dụ: Kiểm tra 15 phút Toán 11A1 - Chương 3"}
                   className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
                 />
               </div>
@@ -445,22 +527,72 @@ export default function ExamCreatePage() {
                 />
               </div>
 
+              {/* Exam Type Selection */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <label
+                    htmlFor="examType"
+                    className="block text-xs font-bold text-slate-800 uppercase tracking-wider"
+                  >
+                    Loại kỳ thi / Hình thức kiểm tra <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[11px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0">
+                    {isTeacher
+                      ? "Giáo viên: Chỉ tạo kiểm tra thường xuyên / 15 phút"
+                      : isExamBoard
+                      ? "Ban khảo thí: Kỳ thi chính quy (tối thiểu 45 phút)"
+                      : "Quản trị viên: Toàn quyền"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {availableExamTypes.map((et) => {
+                    const isSelected = examType === et.value;
+                    return (
+                      <button
+                        key={et.value}
+                        type="button"
+                        disabled={submitting}
+                        onClick={() => handleExamTypeChange(et.value)}
+                        className={`px-3 py-2.5 rounded-lg text-xs font-semibold border transition-all text-left flex items-center justify-between cursor-pointer ${
+                          isSelected
+                            ? "bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-200"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span>{et.label}</span>
+                        {isSelected && <CheckCircle className="w-3.5 h-3.5 shrink-0 ml-1" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Subject & Grade Selection */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label
-                    htmlFor="subjectId"
-                    className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
-                  >
-                    Môn học <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label
+                      htmlFor="subjectId"
+                      className="block text-xs font-semibold text-slate-700 uppercase tracking-wider"
+                    >
+                      Môn học <span className="text-rose-500">*</span>
+                    </label>
+                    {isTeacher && user?.teacher?.primarySubject && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        <Lock className="w-3 h-3" /> Môn chuyên môn chính
+                      </span>
+                    )}
+                  </div>
                   <select
                     id="subjectId"
                     required
-                    disabled={submitting}
+                    disabled={submitting || (isTeacher && Boolean(user?.teacher?.primarySubjectId))}
                     value={subjectId}
                     onChange={(e) => setSubjectId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all cursor-pointer"
+                    className={`w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all ${
+                      isTeacher && user?.teacher?.primarySubjectId ? "bg-slate-100 text-slate-600 cursor-not-allowed" : "cursor-pointer"
+                    }`}
                   >
                     {subjects.map((sub) => (
                       <option key={sub.id} value={sub.id}>
@@ -494,8 +626,8 @@ export default function ExamCreatePage() {
                 </div>
               </div>
 
-              {/* Class Selection: Teacher Single-Class vs Admin Multi-Class */}
-              {!isAdmin ? (
+              {/* Class Selection: Teacher Single-Class vs Admin/ExamBoard Multi-Class */}
+              {!isMultiClassAllowed ? (
                 /* Teacher Single-Class Selection */
                 <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">

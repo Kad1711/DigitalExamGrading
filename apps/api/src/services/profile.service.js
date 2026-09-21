@@ -268,12 +268,12 @@ export async function updateAvatar(userId, { buffer, mimeType }) {
   await storageService.saveFile(storageKey, buffer);
 
   // Xóa ảnh đại diện cũ trên local storage nếu có
-  if (user.avatarUrl && user.avatarUrl.startsWith("/profile/avatar/")) {
-    const oldFilename = user.avatarUrl.replace("/profile/avatar/", "");
+  if (user.avatarUrl && user.avatarUrl.includes("/avatar/")) {
+    const oldFilename = path.basename(user.avatarUrl);
     await storageService.deleteFile(`avatars/${oldFilename}`).catch(() => {});
   }
 
-  const publicAvatarUrl = `/profile/avatar/${filename}`;
+  const publicAvatarUrl = `/api/profile/avatar/${filename}`;
 
   await prisma.user.update({
     where: { id: userId },

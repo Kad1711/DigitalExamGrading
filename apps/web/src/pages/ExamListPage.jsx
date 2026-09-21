@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import AppHeader from "../components/AppHeader";
 import ExamStatusBadge from "../components/ExamStatusBadge";
-import { formatScoringType } from "../utils/enum-map";
+import { formatScoringType, formatExamType, formatPublicationApprovalStatus } from "../utils/enum-map";
 import { getErrorMessage } from "../utils/error-map";
 import { examDetailPath } from "../utils/slug";
 import {
@@ -25,6 +25,10 @@ import {
   AlertTriangle,
   Trash2,
   FileText,
+  ShieldCheck,
+  Check,
+  X,
+  Send,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -36,13 +40,32 @@ import { useAuth } from "../context/AuthContext";
 export default function ExamListPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
+  const isTeacher = user?.role === "TEACHER";
+  const isExamBoard = user?.role === "EXAM_BOARD";
+  const isAcademicBoard = user?.role === "ACADEMIC_BOARD";
+  const isPrincipal = user?.role === "PRINCIPAL";
+  const isVicePrincipal = user?.role === "VICE_PRINCIPAL";
+  const canCreateExam = isAdmin || isTeacher || isExamBoard;
+  const canApprove = isAdmin || isAcademicBoard;
+
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTab = searchParams.get("tab") || "exams";
+
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Approval Queue State
+  const [approvalQueue, setApprovalQueue] = useState([]);
+  const [loadingQueue, setLoadingQueue] = useState(false);
+  const [queueStatusFilter, setQueueStatusFilter] = useState("PENDING_APPROVAL");
+  const [rejectModalExam, setRejectModalExam] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [processingAction, setProcessingAction] = useState(false);
 
   // Deletion States
   const [selectedDraftExamIds, setSelectedDraftExamIds] = useState([]);
@@ -71,6 +94,91 @@ export default function ExamListPage() {
     fetchExams();
     fetchDashboard();
   }, [statusFilter]);
+
+  useEffect(() => {
+    if (canApprove && currentTab === "approval-queue") {
+      fetchApprovalQueue();
+    }
+  }, [currentTab, queueStatusFilter, canApprove]);
+
+  const fetchApprovalQueue = async () => {
+    try {
+      setLoadingQueue(true);
+      setErrorMsg("");
+      let url = "/exams/publication/approval-queue";
+      if (queueStatusFilter && queueStatusFilter !== "ALL") {
+        url += `?status=${queueStatusFilter}`;
+      }
+      const res = await api.get(url);
+      setApprovalQueue(res.data.data || []);
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      const raw = err.response?.data?.error?.message;
+      setErrorMsg(getErrorMessage(code, raw || "Không thể tải hàng đợi phê duyệt."));
+    } finally {
+      setLoadingQueue(false);
+    }
+  };
+
+  const handleApprovePublication = async (exam) => {
+    try {
+      setProcessingAction(true);
+      setErrorMsg("");
+      await api.post(`/exams/${exam.id}/publication/approve`);
+      setSuccessMsg(`Đã phê duyệt và công bố điểm kỳ thi "${exam.title}" thành công.`);
+      fetchApprovalQueue();
+      fetchExams();
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      const raw = err.response?.data?.error?.message;
+      setErrorMsg(getErrorMessage(code, raw || "Không thể phê duyệt công bố điểm."));
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleRejectPublication = async () => {
+    if (!rejectModalExam) return;
+    if (!rejectionReason.trim()) {
+      setErrorMsg("Vui lòng nhập lý do từ chối phê duyệt.");
+      return;
+    }
+
+    try {
+      setProcessingAction(true);
+      setErrorMsg("");
+      await api.post(`/exams/${rejectModalExam.id}/publication/reject`, {
+        reason: rejectionReason.trim(),
+      });
+      setSuccessMsg(`Đã từ chối yêu cầu công bố điểm kỳ thi "${rejectModalExam.title}".`);
+      setRejectModalExam(null);
+      setRejectionReason("");
+      fetchApprovalQueue();
+      fetchExams();
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      const raw = err.response?.data?.error?.message;
+      setErrorMsg(getErrorMessage(code, raw || "Không thể từ chối yêu cầu công bố."));
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleRequestPublication = async (exam) => {
+    try {
+      setProcessingAction(true);
+      setErrorMsg("");
+      await api.post(`/exams/${exam.id}/publication/request`);
+      setSuccessMsg(`Đã gửi yêu cầu phê duyệt công bố điểm kỳ thi "${exam.title}" tới Ban Giáo Dục.`);
+      fetchExams();
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      const raw = err.response?.data?.error?.message;
+      setErrorMsg(getErrorMessage(code, raw || "Không thể gửi yêu cầu phê duyệt."));
+    } finally {
+      setProcessingAction(false);
+    }
+  };
 
   const fetchExams = async () => {
     try {
@@ -212,20 +320,249 @@ export default function ExamListPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <Button
-              variant="primary"
-              size="md"
-              icon={Plus}
-              onClick={() => navigate("/exams/new")}
-              className="w-full sm:w-auto"
-            >
-              {isAdmin ? "Tạo kỳ thi mới" : "Tạo bài kiểm tra"}
-            </Button>
-          </div>
+          {canCreateExam && (
+            <div className="flex items-center gap-3 shrink-0">
+              <Button
+                variant="primary"
+                size="md"
+                icon={Plus}
+                onClick={() => navigate("/exams/new")}
+                className="w-full sm:w-auto"
+              >
+                {isExamBoard ? "Tạo kỳ thi chính quy" : isAdmin ? "Tạo kỳ thi mới" : "Tạo bài kiểm tra"}
+              </Button>
+            </div>
+          )}
         </div>
 
-        {/* Teacher Dashboard Top Cards & Actions (Phase 10) */}
+        {/* Management Top Navigation Tabs */}
+        {canApprove && (
+          <div className="flex items-center gap-2 mb-6 border-b border-slate-200">
+            <button
+              type="button"
+              onClick={() => setSearchParams({})}
+              className={`pb-3 px-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+                currentTab !== "approval-queue"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+              }`}
+            >
+              Danh sách kỳ thi
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchParams({ tab: "approval-queue" })}
+              className={`pb-3 px-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                currentTab === "approval-queue"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Hàng đợi phê duyệt công bố điểm</span>
+              {approvalQueue.filter((e) => e.publicationApprovalStatus === "PENDING_APPROVAL").length > 0 && (
+                <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+                  {approvalQueue.filter((e) => e.publicationApprovalStatus === "PENDING_APPROVAL").length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {currentTab === "approval-queue" ? (
+          /* =================================================== */
+          /* APPROVAL QUEUE VIEW (Ban Giáo Dục & Quản trị viên)  */
+          /* =================================================== */
+          <div className="space-y-6">
+            {/* Filter Tabs */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 overflow-x-auto">
+                {[
+                  { id: "PENDING_APPROVAL", label: "Chờ phê duyệt" },
+                  { id: "APPROVED", label: "Đã phê duyệt" },
+                  { id: "REJECTED", label: "Đã từ chối" },
+                  { id: "ALL", label: "Tất cả" },
+                ].map((qf) => (
+                  <button
+                    key={qf.id}
+                    type="button"
+                    onClick={() => setQueueStatusFilter(qf.id)}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      queueStatusFilter === qf.id
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {qf.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="text-xs text-slate-500 font-medium">
+                Tìm thấy <strong>{approvalQueue.length}</strong> kỳ thi trong danh sách
+              </div>
+            </div>
+
+            {loadingQueue ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-16 flex flex-col items-center justify-center text-slate-400">
+                <Loader2 className="w-8 h-8 animate-spin mb-3 text-blue-600" />
+                <span className="text-sm font-medium">Đang tải hàng đợi phê duyệt...</span>
+              </div>
+            ) : approvalQueue.length === 0 ? (
+              <EmptyState
+                icon={ShieldCheck}
+                title="Không có yêu cầu công bố điểm nào"
+                description={
+                  queueStatusFilter === "PENDING_APPROVAL"
+                    ? "Hiện tại không có kỳ thi nào đang chờ Ban Giáo Dục phê duyệt công bố điểm."
+                    : "Không tìm thấy kỳ thi nào phù hợp với bộ lọc trạng thái đã chọn."
+                }
+              />
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                        <th className="py-3.5 px-4">Tên kỳ thi / Môn học</th>
+                        <th className="py-3.5 px-4 text-center">Loại kỳ thi</th>
+                        <th className="py-3.5 px-4 text-center">Lớp áp dụng</th>
+                        <th className="py-3.5 px-4 text-center">Người yêu cầu & Thời gian</th>
+                        <th className="py-3.5 px-4 text-center">Trạng thái duyệt</th>
+                        <th className="py-3.5 px-4 text-right">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {approvalQueue.map((exam) => {
+                        const classNames =
+                          exam.examClasses && exam.examClasses.length > 0
+                            ? exam.examClasses.map((ec) => ec.class?.name).filter(Boolean).join(", ")
+                            : exam.class?.name || (exam.grade ? `Khối ${exam.grade.name}` : "—");
+                        const isPending = exam.publicationApprovalStatus === "PENDING_APPROVAL";
+                        const isSelfRequest =
+                          exam.createdByUserId === user?.id ||
+                          exam.publicationRequestedByUserId === user?.id;
+                        const cannotSelfApprove = isSelfRequest && !isAdmin;
+
+                        return (
+                          <tr key={exam.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-4 px-4 font-medium text-slate-900">
+                              <div className="flex flex-col">
+                                <Link
+                                  to={examDetailPath(exam)}
+                                  className="font-bold text-slate-900 hover:text-blue-600 transition-colors line-clamp-1"
+                                >
+                                  {exam.title}
+                                </Link>
+                                <span className="text-xs text-slate-500 mt-0.5">
+                                  {exam.subject?.name} &bull; {exam.questionCount} câu &bull; Thang{" "}
+                                  {Number(exam.maxScore)}đ
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-center whitespace-nowrap">
+                              <Badge variant="blue" size="sm">
+                                {formatExamType(exam.examType)}
+                              </Badge>
+                            </td>
+                            <td className="py-4 px-4 text-center whitespace-nowrap text-xs text-slate-700">
+                              {classNames}
+                            </td>
+                            <td className="py-4 px-4 text-center whitespace-nowrap text-xs text-slate-600">
+                              <div>
+                                {exam.publicationRequestedByUser?.fullName ||
+                                  exam.publicationRequestedByUser?.email ||
+                                  "Ban khảo thí"}
+                              </div>
+                              <div className="text-[11px] text-slate-400">
+                                {exam.publicationRequestedAt
+                                  ? new Date(exam.publicationRequestedAt).toLocaleString("vi-VN")
+                                  : "—"}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-center whitespace-nowrap">
+                              {exam.publicationApprovalStatus === "PENDING_APPROVAL" && (
+                                <Badge variant="amber" size="sm">
+                                  Chờ BGD duyệt
+                                </Badge>
+                              )}
+                              {exam.publicationApprovalStatus === "APPROVED" && (
+                                <Badge variant="emerald" size="sm">
+                                  Đã phê duyệt
+                                </Badge>
+                              )}
+                              {exam.publicationApprovalStatus === "REJECTED" && (
+                                <Badge
+                                  variant="rose"
+                                  size="sm"
+                                  title={exam.publicationRejectionReason || undefined}
+                                >
+                                  Đã từ chối
+                                </Badge>
+                              )}
+                              {exam.publicationApprovalStatus === "NOT_REQUESTED" && (
+                                <Badge variant="gray" size="sm">
+                                  Chưa yêu cầu
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="py-4 px-4 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-2">
+                                {isPending && (
+                                  <>
+                                    <Button
+                                      variant="primary"
+                                      size="xs"
+                                      icon={Check}
+                                      disabled={processingAction || cannotSelfApprove}
+                                      onClick={() => handleApprovePublication(exam)}
+                                      title={
+                                        cannotSelfApprove
+                                          ? "Không thể tự phê duyệt đề thi do chính bạn tạo hoặc yêu cầu"
+                                          : "Phê duyệt công bố điểm"
+                                      }
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    >
+                                      Phê duyệt
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="xs"
+                                      icon={X}
+                                      disabled={processingAction}
+                                      onClick={() => {
+                                        setRejectModalExam(exam);
+                                        setRejectionReason("");
+                                      }}
+                                      className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                                    >
+                                      Từ chối
+                                    </Button>
+                                  </>
+                                )}
+                                <Button
+                                  variant="outline"
+                                  size="xs"
+                                  icon={Eye}
+                                  onClick={() => navigate(examDetailPath(exam))}
+                                >
+                                  Chi tiết
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Normal Exams List View */
+          <>
+            {/* Teacher Dashboard Top Cards & Actions (Phase 10) */}
         {dashboard?.summary && (
           <div className="space-y-4 mb-6">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -513,6 +850,27 @@ export default function ExamListPage() {
                                     Đề BGH chung
                                   </span>
                                 )}
+                                {exam.examType && (
+                                  <span className="text-[10px] bg-slate-100 text-slate-700 font-semibold px-1.5 py-0.5 rounded border border-slate-200">
+                                    {formatExamType(exam.examType)}
+                                  </span>
+                                )}
+                                {exam.publicationApprovalStatus && exam.publicationApprovalStatus !== "NOT_REQUESTED" && (
+                                  <span
+                                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                                      exam.publicationApprovalStatus === "APPROVED"
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                        : exam.publicationApprovalStatus === "PENDING_APPROVAL"
+                                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                                        : exam.publicationApprovalStatus === "REJECTED"
+                                        ? "bg-rose-50 text-rose-700 border-rose-200"
+                                        : "bg-slate-50 text-slate-600 border-slate-200"
+                                    }`}
+                                    title={exam.publicationRejectionReason || undefined}
+                                  >
+                                    {formatPublicationApprovalStatus(exam.publicationApprovalStatus)}
+                                  </span>
+                                )}
                                 {exam.sheetPreset && (
                                   <span className="text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
                                     {exam.sheetPreset === "PRESET_15MIN_30Q"
@@ -624,6 +982,23 @@ export default function ExamListPage() {
                                   >
                                     Chi tiết
                                   </Button>
+                                  {(isExamBoard || isAdmin) &&
+                                    exam.examType !== "REGULAR" &&
+                                    exam.examType !== "MIN_15" &&
+                                    (exam.publicationApprovalStatus === "NOT_REQUESTED" ||
+                                      exam.publicationApprovalStatus === "REJECTED") && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        icon={Send}
+                                        disabled={processingAction}
+                                        onClick={() => handleRequestPublication(exam)}
+                                        title="Gửi yêu cầu Ban Giáo Dục duyệt công bố kết quả"
+                                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                                      >
+                                        Gửi duyệt
+                                      </Button>
+                                    )}
                                   <div className="inline-flex items-center gap-1 pl-1 border-l border-slate-200">
                                     <button
                                       type="button"
@@ -834,6 +1209,8 @@ export default function ExamListPage() {
             </div>
           </>
         )}
+        </>
+      )}
       </main>
 
       {/* Delete Single Draft Exam Modal */}
@@ -955,6 +1332,64 @@ export default function ExamListPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Rejection Reason Modal */}
+      {rejectModalExam && (
+        <Modal
+          isOpen={Boolean(rejectModalExam)}
+          onClose={() => {
+            if (!processingAction) {
+              setRejectModalExam(null);
+              setRejectionReason("");
+            }
+          }}
+          title="Từ chối phê duyệt công bố điểm"
+        >
+          <div className="space-y-4">
+            <p className="text-xs text-slate-600">
+              Vui lòng nhập lý do từ chối công bố điểm cho kỳ thi{" "}
+              <strong>"{rejectModalExam.title}"</strong>. Lý do này sẽ được thông báo lại cho Ban khảo thí.
+            </p>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Lý do từ chối <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                required
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Ví dụ: Cần rà soát lại đáp án câu 15 và kiểm tra lại điểm số bài thi..."
+                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={processingAction}
+                onClick={() => {
+                  setRejectModalExam(null);
+                  setRejectionReason("");
+                }}
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                loading={processingAction}
+                disabled={!rejectionReason.trim()}
+                onClick={handleRejectPublication}
+              >
+                Xác nhận từ chối
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

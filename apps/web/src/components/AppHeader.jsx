@@ -32,6 +32,11 @@ export default function AppHeader() {
   const isAdmin = user?.role === "ADMIN";
   const isTeacher = user?.role === "TEACHER";
   const isStudent = user?.role === "STUDENT";
+  const isPrincipal = user?.role === "PRINCIPAL";
+  const isVicePrincipal = user?.role === "VICE_PRINCIPAL";
+  const isExamBoard = user?.role === "EXAM_BOARD";
+  const isAcademicBoard = user?.role === "ACADEMIC_BOARD";
+  const isManagement = isPrincipal || isVicePrincipal || isExamBoard || isAcademicBoard;
 
   const isExamsActive = location.pathname.startsWith("/exams");
   const isClassesActive = location.pathname.startsWith("/classes");
@@ -41,6 +46,8 @@ export default function AppHeader() {
   const isProfileActive = location.pathname.startsWith("/profile");
   const isStudentExamsActive = location.pathname.startsWith("/student/exams");
   const isStudentResultsActive = location.pathname.startsWith("/student/results");
+  const isApprovalQueueActive = location.pathname.startsWith("/exams/approval-queue") ||
+    location.pathname.startsWith("/publication/approval-queue");
 
   const displayName =
     user?.fullName ||
@@ -131,13 +138,120 @@ export default function AppHeader() {
     },
   ];
 
+  // Nav for PRINCIPAL / VICE_PRINCIPAL — oversight only
+  const principalNavItems = [
+    {
+      label: "Kỳ thi & Đề thi",
+      href: "/exams",
+      icon: FileText,
+      active: isExamsActive,
+    },
+    {
+      label: "Lớp học & Học sinh",
+      href: "/classes",
+      icon: Users,
+      active: isClassesActive,
+    },
+    {
+      label: "Giáo viên",
+      href: "/admin/teachers",
+      icon: UserCheck,
+      active: isAdminTeachersActive,
+    },
+    {
+      label: "Hồ sơ",
+      href: "/profile",
+      icon: UserCheck,
+      active: isProfileActive,
+    },
+  ];
+
+  // Nav for EXAM_BOARD — can create official exams + grade
+  const examBoardNavItems = [
+    {
+      label: "Kỳ thi chính thức",
+      href: "/exams",
+      icon: FileText,
+      active: isExamsActive,
+    },
+    {
+      label: "Chấm bài OMR",
+      href: "/grade",
+      icon: ScanLine,
+      active: isGradeActive,
+    },
+    {
+      label: "Lớp học & Học sinh",
+      href: "/classes",
+      icon: Users,
+      active: isClassesActive,
+    },
+    {
+      label: "Hồ sơ",
+      href: "/profile",
+      icon: UserCheck,
+      active: isProfileActive,
+    },
+  ];
+
+  // Nav for ACADEMIC_BOARD — can approve publication requests
+  const academicBoardNavItems = [
+    {
+      label: "Kỳ thi & Đề thi",
+      href: "/exams",
+      icon: FileText,
+      active: isExamsActive,
+    },
+    {
+      label: "Hàng đợi phê duyệt",
+      href: "/exams?tab=approval-queue",
+      icon: ShieldCheck,
+      active: isApprovalQueueActive,
+    },
+    {
+      label: "Lớp học & Học sinh",
+      href: "/classes",
+      icon: Users,
+      active: isClassesActive,
+    },
+    {
+      label: "Hồ sơ",
+      href: "/profile",
+      icon: UserCheck,
+      active: isProfileActive,
+    },
+  ];
+
   const currentNavItems = isTeacher
     ? teacherNavItems
     : isStudent
     ? studentNavItems
     : isAdmin
     ? adminNavItems
+    : isPrincipal || isVicePrincipal
+    ? principalNavItems
+    : isExamBoard
+    ? examBoardNavItems
+    : isAcademicBoard
+    ? academicBoardNavItems
     : [];
+
+  // Home redirect per role
+  const homeHref = isAdmin
+    ? "/admin/dashboard"
+    : isStudent
+    ? "/student/exams"
+    : "/exams";
+
+  // Sidebar section label per role
+  const sectionLabel = isAdmin
+    ? "Quản trị hệ thống"
+    : isStudent
+    ? "Cổng học sinh"
+    : isManagement
+    ? "Ban quản lý"
+    : "Thao tác chính";
+
 
   return (
     <>
@@ -149,7 +263,7 @@ export default function AppHeader() {
         <div>
           <div className="p-5 border-b border-slate-100">
             <Link
-              to={isAdmin ? "/admin/dashboard" : isStudent ? "/student/exams" : "/exams"}
+              to={homeHref}
               className="flex items-center gap-3 group focus:outline-none"
             >
               <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/30 group-hover:bg-blue-700 transition-colors shrink-0">
@@ -175,7 +289,7 @@ export default function AppHeader() {
           {/* Navigation Links */}
           <div className="p-3 space-y-1">
             <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              {isAdmin ? "Quản trị hệ thống" : isStudent ? "Cổng học sinh" : "Thao tác chính"}
+              {sectionLabel}
             </div>
 
             <nav className="space-y-1">

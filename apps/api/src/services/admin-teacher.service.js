@@ -39,6 +39,13 @@ export async function listTeachers({ search, status } = {}) {
           updatedAt: true,
         },
       },
+      primarySubject: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      },
       _count: {
         select: {
           exams: true,
@@ -55,6 +62,9 @@ export async function listTeachers({ search, status } = {}) {
     teacherCode: t.teacherCode,
     fullName: t.fullName,
     phone: t.phone,
+    title: t.title || "Giáo viên",
+    primarySubjectId: t.primarySubjectId || null,
+    primarySubject: t.primarySubject || null,
     email: t.user.email,
     role: t.user.role,
     status: t.user.status,
@@ -76,6 +86,8 @@ export async function createTeacher({
   email,
   initialPassword,
   phone,
+  title,
+  primarySubjectId,
 }) {
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -89,6 +101,18 @@ export async function createTeacher({
       409,
       "EMAIL_ALREADY_EXISTS"
     );
+  }
+
+  // Kiem tra primarySubjectId neu co
+  let validatedSubjectId = null;
+  if (primarySubjectId) {
+    const subjectExists = await prisma.subject.findUnique({
+      where: { id: primarySubjectId },
+    });
+    if (!subjectExists) {
+      throw new AppError("Môn học không tồn tại.", 404, "SUBJECT_NOT_FOUND");
+    }
+    validatedSubjectId = subjectExists.id;
   }
 
   let finalCode = teacherCode?.trim()?.toUpperCase();
@@ -127,6 +151,13 @@ export async function createTeacher({
         teacherCode: finalCode,
         fullName: fullName.trim(),
         phone: phone ? phone.trim() : null,
+        title: title?.trim() || "Giáo viên",
+        primarySubjectId: validatedSubjectId,
+      },
+      include: {
+        primarySubject: {
+          select: { id: true, name: true, code: true },
+        },
       },
     });
 
@@ -136,6 +167,9 @@ export async function createTeacher({
       teacherCode: teacher.teacherCode,
       fullName: teacher.fullName,
       phone: teacher.phone,
+      title: teacher.title,
+      primarySubjectId: teacher.primarySubjectId,
+      primarySubject: teacher.primarySubject || null,
       email: user.email,
       role: user.role,
       status: user.status,
@@ -163,6 +197,13 @@ export async function getTeacherById(teacherId) {
           updatedAt: true,
         },
       },
+      primarySubject: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      },
       _count: {
         select: { exams: true },
       },
@@ -183,6 +224,9 @@ export async function getTeacherById(teacherId) {
     teacherCode: teacher.teacherCode,
     fullName: teacher.fullName,
     phone: teacher.phone,
+    title: teacher.title || "Giáo viên",
+    primarySubjectId: teacher.primarySubjectId || null,
+    primarySubject: teacher.primarySubject || null,
     email: teacher.user.email,
     role: teacher.user.role,
     status: teacher.user.status,
@@ -255,6 +299,24 @@ export async function updateTeacher(teacherId, data) {
     teacherUpdates.phone = data.phone ? data.phone.trim() : null;
   }
 
+  if (data.title !== undefined) {
+    teacherUpdates.title = data.title ? data.title.trim() : "Giáo viên";
+  }
+
+  if (data.primarySubjectId !== undefined) {
+    if (data.primarySubjectId) {
+      const subjectExists = await prisma.subject.findUnique({
+        where: { id: data.primarySubjectId },
+      });
+      if (!subjectExists) {
+        throw new AppError("Môn học không tồn tại.", 404, "SUBJECT_NOT_FOUND");
+      }
+      teacherUpdates.primarySubjectId = subjectExists.id;
+    } else {
+      teacherUpdates.primarySubjectId = null;
+    }
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     let updatedUser = teacher.user;
     if (Object.keys(userUpdates).length > 0) {
@@ -264,13 +326,15 @@ export async function updateTeacher(teacherId, data) {
       });
     }
 
-    let updatedTeacher = teacher;
-    if (Object.keys(teacherUpdates).length > 0) {
-      updatedTeacher = await tx.teacher.update({
-        where: { id: teacherId },
-        data: teacherUpdates,
-      });
-    }
+    let updatedTeacher = await tx.teacher.update({
+      where: { id: teacherId },
+      data: teacherUpdates,
+      include: {
+        primarySubject: {
+          select: { id: true, name: true, code: true },
+        },
+      },
+    });
 
     return {
       id: updatedTeacher.id,
@@ -278,6 +342,9 @@ export async function updateTeacher(teacherId, data) {
       teacherCode: updatedTeacher.teacherCode,
       fullName: updatedTeacher.fullName,
       phone: updatedTeacher.phone,
+      title: updatedTeacher.title,
+      primarySubjectId: updatedTeacher.primarySubjectId,
+      primarySubject: updatedTeacher.primarySubject || null,
       email: updatedUser.email,
       role: updatedUser.role,
       status: updatedUser.status,

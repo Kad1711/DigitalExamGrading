@@ -7,12 +7,15 @@ import {
 } from "../controllers/exam-submission-list.controller.js";
 
 const router = Router({ mergeParams: true });
-const requireTeacherOrAdmin = [authenticate, authorizeRoles("TEACHER", "ADMIN")];
+const canViewSubmissions = [
+  authenticate,
+  authorizeRoles("TEACHER", "EXAM_BOARD", "ACADEMIC_BOARD", "PRINCIPAL", "VICE_PRINCIPAL", "ADMIN"),
+];
 
 // GET /api/exams/:examId/submissions
-router.get("/:examId/submissions", requireTeacherOrAdmin, listExamSubmissionsController);
+router.get("/:examId/submissions", canViewSubmissions, listExamSubmissionsController);
 
 // GET /api/exams/:examId/submissions/summary
-router.get("/:examId/submissions/summary", requireTeacherOrAdmin, getExamSubmissionsSummaryController);
+router.get("/:examId/submissions/summary", canViewSubmissions, getExamSubmissionsSummaryController);
 
 export default router;

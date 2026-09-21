@@ -5,6 +5,17 @@ import { normalizeExamCode } from "../utils/exam-code.js";
 // EXAM SCHEMAS
 // =====================================================
 
+export const examTypeEnum = z.enum([
+  "REGULAR",
+  "MIN_15",
+  "MIN_45",
+  "MIN_60",
+  "MIN_90",
+  "MIDTERM",
+  "FINAL",
+  "OTHER",
+]);
+
 export const createExamSchema = z.object({
   title: z.string().min(1, "Ten ky thi khong duoc de trong.").max(255),
   description: z.string().max(1000).optional(),
@@ -14,6 +25,7 @@ export const createExamSchema = z.object({
   gradeId: z.string().optional().nullable(),
   durationMinutes: z.number().int().min(1).max(300).default(45).optional(),
   sheetPreset: z.string().default("PRESET_TERM_50Q").optional(),
+  examType: examTypeEnum.default("REGULAR").optional(),
   questionCount: z
     .number({ invalid_type_error: "questionCount phai la so." })
     .int("questionCount phai la so nguyen.")
@@ -37,6 +49,7 @@ export const updateExamSchema = z.object({
   gradeId: z.string().nullable().optional(),
   durationMinutes: z.number().int().min(1).max(300).optional(),
   sheetPreset: z.string().optional(),
+  examType: examTypeEnum.optional(),
   questionCount: z.number().int().min(1).optional(),
   maxScore: z.number().positive().max(10).optional(),
   scoringType: z.enum(["EQUAL", "CUSTOM"]).optional(),

@@ -55,6 +55,15 @@ export async function login(email, password) {
         teacherCode: true,
         fullName: true,
         phone: true,
+        title: true,
+        primarySubjectId: true,
+        primarySubject: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
       },
     },
     student: {
@@ -156,21 +165,34 @@ export async function login(email, password) {
     data: { tokenHash, userId: user.id, expiresAt },
   });
 
-  return {
-    user: {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      avatarUrl: user.avatarUrl || null,
-      fullName: user.teacher?.fullName || user.student?.fullName || user.fullName || (user.role === "ADMIN" ? "Quản trị viên" : null),
-      phone: user.teacher?.phone || user.phone || null,
-      teacher: user.teacher || null,
-      student: user.student || null,
-    },
-    accessToken,
-    refreshToken,
-  };
+    const roleDefaultNames = {
+      ADMIN: "Quản trị hệ thống",
+      PRINCIPAL: "Hiệu trưởng",
+      VICE_PRINCIPAL: "Hiệu phó",
+      EXAM_BOARD: "Ban khảo thí",
+      ACADEMIC_BOARD: "Ban Giáo dục và Đào tạo",
+    };
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        avatarUrl: user.avatarUrl || null,
+        fullName:
+          user.teacher?.fullName ||
+          user.student?.fullName ||
+          user.fullName ||
+          roleDefaultNames[user.role] ||
+          "Người dùng",
+        phone: user.teacher?.phone || user.phone || null,
+        teacher: user.teacher || null,
+        student: user.student || null,
+      },
+      accessToken,
+      refreshToken,
+    };
 }
 
 export async function refreshAccessToken(refreshToken) {

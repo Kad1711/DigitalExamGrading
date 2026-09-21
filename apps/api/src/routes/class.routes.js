@@ -23,34 +23,47 @@ import {
 
 const router = Router();
 
-// Protect all class & student management routes for TEACHER and ADMIN
+// Protect all class & student routes with authentication
 router.use(authenticate);
-const requireTeacherOrAdmin = authorizeRoles("TEACHER", "ADMIN");
-router.use(requireTeacherOrAdmin);
+
+const canReadClasses = authorizeRoles(
+  "ADMIN",
+  "ACADEMIC_BOARD",
+  "PRINCIPAL",
+  "VICE_PRINCIPAL",
+  "EXAM_BOARD",
+  "TEACHER"
+);
+
+const canManageClasses = authorizeRoles("ACADEMIC_BOARD", "ADMIN");
 
 // Grades
-router.get("/grades", getGrades);
+router.get("/grades", canReadClasses, getGrades);
 
-// Classes CRUD
-router.get("/", getClasses);
-router.post("/", createClass);
-router.post("/batch", createBatchClasses);
-router.post("/bulk-delete", bulkDeleteClasses);
-router.patch("/:classId", updateClass);
-router.delete("/:classId", deleteClass);
+// Classes Read
+router.get("/", canReadClasses, getClasses);
 
-// Class Students Management
-router.get("/:classId/students", getClassStudents);
-router.post("/:classId/students", addStudent);
-router.delete("/:classId/students", clearClassStudents);
-router.post("/:classId/students/bulk-delete", bulkRemoveStudents);
-router.patch("/:classId/students/:studentId", updateStudent);
-router.delete("/:classId/students/:studentId", removeStudent);
-router.post("/:classId/standardize-sbd", standardizeClassSbd);
+// Classes Mutations (ACADEMIC_BOARD primary owner, ADMIN fallback)
+router.post("/", canManageClasses, createClass);
+router.post("/batch", canManageClasses, createBatchClasses);
+router.post("/bulk-delete", canManageClasses, bulkDeleteClasses);
+router.patch("/:classId", canManageClasses, updateClass);
+router.delete("/:classId", canManageClasses, deleteClass);
+
+// Class Students Read
+router.get("/:classId/students", canReadClasses, getClassStudents);
+
+// Class Students Mutations (ACADEMIC_BOARD primary owner, ADMIN fallback)
+router.post("/:classId/students", canManageClasses, addStudent);
+router.delete("/:classId/students", canManageClasses, clearClassStudents);
+router.post("/:classId/students/bulk-delete", canManageClasses, bulkRemoveStudents);
+router.patch("/:classId/students/:studentId", canManageClasses, updateStudent);
+router.delete("/:classId/students/:studentId", canManageClasses, removeStudent);
+router.post("/:classId/standardize-sbd", canManageClasses, standardizeClassSbd);
 
 // Smart Excel Import
-router.post("/:classId/students/import-preview", handleExcelUpload, previewExcelImport);
-router.post("/:classId/students/import", handleExcelUpload, executeExcelImport);
+router.post("/:classId/students/import-preview", canManageClasses, handleExcelUpload, previewExcelImport);
+router.post("/:classId/students/import", canManageClasses, handleExcelUpload, executeExcelImport);
 
 export default router;
 

@@ -14,6 +14,10 @@ enum UserRole {
   ADMIN
   TEACHER
   STUDENT
+  PRINCIPAL
+  VICE_PRINCIPAL
+  EXAM_BOARD
+  ACADEMIC_BOARD
 }
 
 enum UserStatus {
@@ -26,6 +30,24 @@ enum UserStatus {
 // =====================================================
 // ENUMS - Exam
 // =====================================================
+
+enum ExamType {
+  REGULAR
+  MIN_15
+  MIN_45
+  MIN_60
+  MIN_90
+  MIDTERM
+  FINAL
+  OTHER
+}
+
+enum PublicationApprovalStatus {
+  NOT_REQUESTED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
 
 enum ExamStatus {
   DRAFT
@@ -82,6 +104,10 @@ enum SubmissionAuditEventType {
 // =====================================================
 
 enum ResultPublicationAction {
+  REQUESTED
+  APPROVAL_REQUESTED
+  APPROVED
+  REJECTED
   PUBLISHED
   UNPUBLISHED
 }
@@ -109,6 +135,9 @@ model User {
   submissionAnswersReviewed   SubmissionAnswer[]       @relation("SubmissionAnswersReviewed")
   submissionAuditLogs         ExamSubmissionAuditLog[] @relation("SubmissionAuditLogs")
   examsPublished              Exam[]                   @relation("ExamResultPublisher")
+  examsCreated                Exam[]                   @relation("ExamsCreated")
+  examsPublicationRequested   Exam[]                   @relation("ExamPublicationRequester")
+  examsPublicationApproved    Exam[]                   @relation("ExamPublicationApprover")
   resultPublicationLogs       ExamResultPublicationLog[] @relation("PublicationLogActor")
 
   createdAt DateTime @default(now())
@@ -134,18 +163,23 @@ model RefreshToken {
 // =====================================================
 
 model Teacher {
-  id          String  @id @default(cuid())
-  userId      String  @unique
-  teacherCode String  @unique
-  fullName    String
-  phone       String?
+  id               String  @id @default(cuid())
+  userId           String  @unique
+  teacherCode      String  @unique
+  fullName         String
+  phone            String?
+  title            String? @default("Giáo viên")
+  primarySubjectId String?
 
-  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assignments TeachingAssignment[]
-  exams       Exam[]
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primarySubject Subject?             @relation("TeacherPrimarySubject", fields: [primarySubjectId], references: [id], onDelete: SetNull)
+  assignments    TeachingAssignment[]
+  exams          Exam[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([primarySubjectId])
 }
 
 model Student {
@@ -254,8 +288,9 @@ model Subject {
   name        String  @unique
   description String?
 
-  assignments TeachingAssignment[]
-  exams       Exam[]
+  primaryTeachers Teacher[]            @relation("TeacherPrimarySubject")
+  assignments     TeachingAssignment[]
+  exams           Exam[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -293,11 +328,13 @@ model Exam {
   description String?
 
   teacherId       String?
+  createdByUserId String?
   subjectId       String
   classId         String?
   gradeId         String?
-  durationMinutes Int?    @default(45)
-  sheetPreset     String? @default("PRESET_TERM_50Q")
+  durationMinutes Int?     @default(45)
+  sheetPreset     String?  @default("PRESET_TERM_50Q")
+  examType        ExamType @default(REGULAR)
 
   questionCount Int
   maxScore      Decimal     @db.Decimal(6, 4)
@@ -313,26 +350,40 @@ model Exam {
   resultsPublishedAt         DateTime?
   resultsPublishedByUserId   String?
 
-  teacher              Teacher?              @relation(fields: [teacherId], references: [id], onDelete: SetNull)
-  subject              Subject               @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  class                Class?                @relation(fields: [classId], references: [id], onDelete: SetNull)
-  grade                Grade?                @relation(fields: [gradeId], references: [id], onDelete: SetNull)
-  examClasses          ExamClass[]
-  resultsPublishedByUser User?               @relation("ExamResultPublisher", fields: [resultsPublishedByUserId], references: [id], onDelete: SetNull)
-  examCodes            ExamCode[]
-  answerSheetTemplates AnswerSheetTemplate[]
-  submissions          ExamSubmission[]
-  publicationLogs      ExamResultPublicationLog[]
-  candidates           ExamCandidate[]
+  // Publication Approval Workflow
+  publicationApprovalStatus    PublicationApprovalStatus @default(NOT_REQUESTED)
+  publicationRequestedAt       DateTime?
+  publicationRequestedByUserId String?
+  publicationApprovedAt        DateTime?
+  publicationApprovedByUserId  String?
+  publicationRejectionReason   String?
+
+  teacher                    Teacher?                  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  createdByUser              User?                     @relation("ExamsCreated", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  subject                    Subject                   @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  class                      Class?                    @relation(fields: [classId], references: [id], onDelete: SetNull)
+  grade                      Grade?                    @relation(fields: [gradeId], references: [id], onDelete: SetNull)
+  examClasses                ExamClass[]
+  resultsPublishedByUser     User?                     @relation("ExamResultPublisher", fields: [resultsPublishedByUserId], references: [id], onDelete: SetNull)
+  publicationRequestedByUser User?                     @relation("ExamPublicationRequester", fields: [publicationRequestedByUserId], references: [id], onDelete: SetNull)
+  publicationApprovedByUser  User?                     @relation("ExamPublicationApprover", fields: [publicationApprovedByUserId], references: [id], onDelete: SetNull)
+  examCodes                  ExamCode[]
+  answerSheetTemplates       AnswerSheetTemplate[]
+  submissions                ExamSubmission[]
+  publicationLogs            ExamResultPublicationLog[]
+  candidates                 ExamCandidate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([teacherId])
+  @@index([createdByUserId])
   @@index([subjectId])
   @@index([classId])
   @@index([gradeId])
   @@index([status])
+  @@index([examType])
+  @@index([publicationApprovalStatus])
 }
 
 model ExamClass {

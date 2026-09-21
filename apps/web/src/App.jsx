@@ -19,6 +19,12 @@ const StudentResultDetailPage = lazy(() => import("./pages/StudentResultDetailPa
 const ExamAnalyticsPage = lazy(() => import("./pages/ExamAnalyticsPage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 
+// Role groups for route protection
+const ALL_STAFF_ROLES = ["ADMIN", "TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"];
+const EXAM_CREATOR_ROLES = ["ADMIN", "TEACHER", "EXAM_BOARD"];
+const GRADING_ROLES = ["ADMIN", "TEACHER", "EXAM_BOARD"];
+const MANAGEMENT_VIEW_ROLES = ["ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"];
+
 function PageLoading() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -36,6 +42,7 @@ function RootRedirect() {
   if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
   if (user.role === "ADMIN") return <Navigate to="/admin/dashboard" replace />;
   if (user.role === "STUDENT") return <Navigate to="/student/exams" replace />;
+  // All staff roles (TEACHER, PRINCIPAL, VICE_PRINCIPAL, EXAM_BOARD, ACADEMIC_BOARD) go to /exams
   return <Navigate to="/exams" replace />;
 }
 
@@ -60,27 +67,27 @@ export default function App() {
           <Route
             path="/admin/teachers"
             element={
-              <RequireRole roles={["ADMIN"]}>
+              <RequireRole roles={["ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"]}>
                 <AdminTeacherListPage />
               </RequireRole>
             }
           />
 
-          {/* User Profile & Security */}
+          {/* User Profile & Security — all authenticated users */}
           <Route
             path="/profile"
             element={
-              <RequireRole roles={["TEACHER", "STUDENT", "ADMIN"]}>
+              <RequireRole roles={["TEACHER", "STUDENT", "ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_BOARD", "ACADEMIC_BOARD"]}>
                 <TeacherProfilePage />
               </RequireRole>
             }
           />
 
-          {/* Classes & Students */}
+          {/* Classes & Students — all staff */}
           <Route
             path="/classes"
             element={
-              <RequireRole roles={["TEACHER", "ADMIN"]}>
+              <RequireRole roles={ALL_STAFF_ROLES}>
                 <TeacherClassesPage />
               </RequireRole>
             }
@@ -90,7 +97,7 @@ export default function App() {
           <Route
             path="/exams"
             element={
-              <RequireRole roles={["TEACHER", "ADMIN"]}>
+              <RequireRole roles={ALL_STAFF_ROLES}>
                 <ExamListPage />
               </RequireRole>
             }
@@ -98,7 +105,7 @@ export default function App() {
           <Route
             path="/exams/new"
             element={
-              <RequireRole roles={["TEACHER", "ADMIN"]}>
+              <RequireRole roles={EXAM_CREATOR_ROLES}>
                 <ExamCreatePage />
               </RequireRole>
             }
@@ -106,7 +113,7 @@ export default function App() {
           <Route
             path="/exams/:examId"
             element={
-              <RequireRole roles={["TEACHER", "ADMIN"]}>
+              <RequireRole roles={ALL_STAFF_ROLES}>
                 <ExamDetailPage />
               </RequireRole>
             }
@@ -114,7 +121,7 @@ export default function App() {
           <Route
             path="/exams/:examId/submissions"
             element={
-              <RequireRole roles={["TEACHER", "ADMIN"]}>
+              <RequireRole roles={ALL_STAFF_ROLES}>
                 <ExamSubmissionsPage />
               </RequireRole>
             }
@@ -122,7 +129,7 @@ export default function App() {
           <Route
             path="/exams/:examId/analytics"
             element={
-              <RequireRole roles={["TEACHER", "ADMIN"]}>
+              <RequireRole roles={ALL_STAFF_ROLES}>
                 <ExamAnalyticsPage />
               </RequireRole>
             }
@@ -130,7 +137,7 @@ export default function App() {
           <Route
             path="/exams/:examId/:slug"
             element={
-              <RequireRole roles={["TEACHER", "ADMIN"]}>
+              <RequireRole roles={ALL_STAFF_ROLES}>
                 <ExamDetailPage />
               </RequireRole>
             }
@@ -138,7 +145,7 @@ export default function App() {
           <Route
             path="/grade"
             element={
-              <RequireRole roles={["TEACHER"]}>
+              <RequireRole roles={GRADING_ROLES}>
                 <GradingPage />
               </RequireRole>
             }
@@ -146,7 +153,7 @@ export default function App() {
           <Route
             path="/submissions/:submissionId"
             element={
-              <RequireRole roles={["TEACHER", "ADMIN"]}>
+              <RequireRole roles={ALL_STAFF_ROLES}>
                 <GradingPage />
               </RequireRole>
             }
