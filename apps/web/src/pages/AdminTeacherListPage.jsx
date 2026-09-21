@@ -5,6 +5,7 @@ import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import Alert from "../components/ui/Alert";
 import EmptyState from "../components/ui/EmptyState";
+import Modal from "../components/ui/Modal";
 import TeacherModals from "../components/admin/TeacherModals";
 import {
   Users,
@@ -23,6 +24,10 @@ import {
   ShieldAlert,
   Trash2,
   AlertTriangle,
+  School,
+  CheckSquare,
+  Square,
+  Save,
 } from "lucide-react";
 import { formatUserStatus, getInitials } from "../utils/enum-map";
 
@@ -47,10 +52,19 @@ function maskPhone(phone) {
 
 export default function AdminTeacherListPage() {
   const [teachers, setTeachers] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [alert, setAlert] = useState(null);
+
+  // Assignment modal states
+  const [assignTeacher, setAssignTeacher] = useState(null);
+  const [assignedClassIds, setAssignedClassIds] = useState([]);
+  const [assignSubjectId, setAssignSubjectId] = useState("");
+  const [savingAssign, setSavingAssign] = useState(false);
+  const [assignError, setAssignError] = useState("");
 
   // Masked contact info states
   const [visibleEmails, setVisibleEmails] = useState({});
@@ -96,6 +110,8 @@ export default function AdminTeacherListPage() {
     teacherCode: "",
     email: "",
     phone: "",
+    title: "Giáo viên",
+    primarySubjectId: "",
   });
 
   const [resetForm, setResetForm] = useState({
@@ -135,6 +151,22 @@ export default function AdminTeacherListPage() {
     return () => clearTimeout(timer);
   }, [fetchTeachers]);
 
+  useEffect(() => {
+    async function loadMetadata() {
+      try {
+        const [subRes, clsRes] = await Promise.all([
+          api.get("/subjects"),
+          api.get("/classes"),
+        ]);
+        setSubjects(subRes.data.data || []);
+        setClasses(clsRes.data.data || []);
+      } catch (err) {
+        console.error("Failed to load metadata:", err);
+      }
+    }
+    loadMetadata();
+  }, []);
+
   // Open Create Modal
   const handleOpenCreate = () => {
     setCreateForm({
@@ -151,22 +183,12 @@ export default function AdminTeacherListPage() {
     setIsCreateOpen(true);
   };
 
-  const handleSubjectChange = async (subjectCode) => {
-    setCreateForm((prev) => ({ ...prev, subject: subjectCode }));
-    if (subjectCode) {
-      try {
-        const res = await api.get(`/admin/teachers/next-code?subject=${subjectCode}`);
-        if (res.data?.data?.nextTeacherCode) {
-          setCreateForm((prev) => ({
-            ...prev,
-            subject: subjectCode,
-            teacherCode: res.data.data.nextTeacherCode,
-          }));
-        }
-      } catch (err) {
-        console.warn("Could not fetch next teacher code:", err);
-      }
-    }
+  const handleSubjectChange = (subjectCode) => {
+    setCreateForm((prev) => ({
+      ...prev,
+      subject: subjectCode,
+      teacherCode: subjectCode ? `GV${subjectCode}` : prev.teacherCode,
+    }));
   };
 
   // Submit Create Teacher
@@ -255,6 +277,8 @@ export default function AdminTeacherListPage() {
       teacherCode: t.teacherCode || "",
       email: t.email || "",
       phone: t.phone || "",
+      title: t.title || "Giáo viên",
+      primarySubjectId: t.primarySubjectId || "",
     });
     setModalError("");
     setIsEditOpen(true);
@@ -302,12 +326,14 @@ export default function AdminTeacherListPage() {
         teacherCode,
         email,
         phone: phone || null,
+        title: editForm.title?.trim() || "Giáo viên",
+        primarySubjectId: editForm.primarySubjectId || null,
       });
 
       setIsEditOpen(false);
       setAlert({
         type: "success",
-        message: `Đã cập nhật thông tin giáo viên "${fullName}".`,
+        message: `Đã cập nhật thông tin và chuyên môn giáo viên "${fullName}".`,
       });
       fetchTeachers();
     } catch (err) {
@@ -317,6 +343,59 @@ export default function AdminTeacherListPage() {
       );
     } finally {
       setModalLoading(false);
+    }
+  };
+
+  // Open Assignment Modal
+  const handleOpenAssign = async (t) => {
+    setAssignTeacher(t);
+    setAssignError("");
+    try {
+      const res = await api.get(`/admin/teachers/${t.id}/assignments`);
+      const data = res.data.data || {};
+      const existingClassIds = (data.assignments || []).map((a) => a.classId);
+      setAssignedClassIds(existingClassIds);
+      setAssignSubjectId(
+        data.assignments?.[0]?.subjectId || t.primarySubjectId || ""
+      );
+    } catch {
+      setAssignedClassIds([]);
+      setAssignSubjectId(t.primarySubjectId || "");
+    }
+  };
+
+  const toggleAssignClass = (classId) => {
+    setAssignedClassIds((prev) =>
+      prev.includes(classId)
+        ? prev.filter((id) => id !== classId)
+        : [...prev, classId]
+    );
+  };
+
+  const handleSaveAssignments = async () => {
+    if (!assignSubjectId) {
+      setAssignError("Vui lòng chọn môn học cho phân công.");
+      return;
+    }
+    try {
+      setSavingAssign(true);
+      setAssignError("");
+      await api.put(`/admin/teachers/${assignTeacher.id}/assignments`, {
+        classIds: assignedClassIds,
+        subjectId: assignSubjectId,
+      });
+      setAlert({
+        type: "success",
+        message: `Đã cập nhật phân công lớp cho giáo viên "${assignTeacher.fullName}".`,
+      });
+      setAssignTeacher(null);
+      fetchTeachers();
+    } catch (err) {
+      setAssignError(
+        err.response?.data?.error?.message || "Không thể cập nhật phân công."
+      );
+    } finally {
+      setSavingAssign(false);
     }
   };
 
@@ -731,6 +810,9 @@ export default function AdminTeacherListPage() {
                       />
                     </th>
                     <th className="py-3.5 px-4 sm:px-6">Giáo viên</th>
+                    <th className="py-3.5 px-4 text-center">Chức danh</th>
+                    <th className="py-3.5 px-4 text-center">Môn chuyên môn</th>
+                    <th className="py-3.5 px-4 text-center">Phân công lớp</th>
                     <th className="py-3.5 px-4">Mã GV</th>
                     <th className="py-3.5 px-4">Email</th>
                     <th className="py-3.5 px-4">Số điện thoại</th>
@@ -743,6 +825,7 @@ export default function AdminTeacherListPage() {
                   {teachers.map((t) => {
                     const initials = getInitials(t.fullName, t.email);
                     const isLocked = t.status === "LOCKED";
+                    const assignmentCount = t.assignments?.length || 0;
 
                     return (
                       <tr
@@ -779,6 +862,42 @@ export default function AdminTeacherListPage() {
                               </span>
                             </div>
                           </div>
+                        </td>
+
+                        {/* Title */}
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          <Badge variant="blue" size="sm">
+                            {t.title || "Giáo viên"}
+                          </Badge>
+                        </td>
+
+                        {/* Primary Subject */}
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          {t.primarySubject ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                              <BookOpen className="w-3 h-3" />
+                              {t.primarySubject.name}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">
+                              Chưa đặt
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Class Assignment */}
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAssign(t)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
+                            title="Bấm để chỉnh sửa phân công lớp"
+                          >
+                            <School className="w-3.5 h-3.5" />
+                            <span>
+                              {assignmentCount > 0 ? `${assignmentCount} lớp` : "Phân công"}
+                            </span>
+                          </button>
                         </td>
 
                         {/* Teacher Code */}
@@ -1108,6 +1227,7 @@ export default function AdminTeacherListPage() {
         editForm={editForm}
         setEditForm={setEditForm}
         handleEditSubmit={handleEditSubmit}
+        subjects={subjects}
 
         isResetPasswordOpen={isResetPasswordOpen}
         setIsResetPasswordOpen={setIsResetPasswordOpen}
@@ -1148,6 +1268,110 @@ export default function AdminTeacherListPage() {
         modalLoading={modalLoading}
         modalError={modalError}
       />
+
+      {/* Teaching Assignment Modal */}
+      <Modal
+        isOpen={Boolean(assignTeacher)}
+        onClose={() => !savingAssign && setAssignTeacher(null)}
+        title={`Phân công giảng dạy: ${assignTeacher?.fullName || ""}`}
+        description="Chọn môn học và các lớp được phân công cho giáo viên."
+        maxWidth="max-w-2xl"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setAssignTeacher(null)}
+              disabled={savingAssign}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              icon={Save}
+              loading={savingAssign}
+              onClick={handleSaveAssignments}
+            >
+              Lưu phân công
+            </Button>
+          </>
+        }
+      >
+        {assignError && (
+          <Alert variant="danger" className="mb-4">
+            {assignError}
+          </Alert>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              Môn học phân công <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={assignSubjectId}
+              onChange={(e) => setAssignSubjectId(e.target.value)}
+              className="block w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all cursor-pointer"
+            >
+              <option value="">-- Chọn môn học --</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.code})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Chọn các lớp giảng dạy ({assignedClassIds.length} lớp đã chọn)
+              </label>
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setAssignedClassIds(classes.map((c) => c.id))}
+                  className="text-blue-600 hover:underline cursor-pointer font-medium"
+                >
+                  Chọn tất cả
+                </button>
+                <span className="text-slate-300">|</span>
+                <button
+                  type="button"
+                  onClick={() => setAssignedClassIds([])}
+                  className="text-slate-500 hover:underline cursor-pointer"
+                >
+                  Bỏ chọn hết
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-60 overflow-y-auto p-3 bg-slate-50 rounded-xl border border-slate-200">
+              {classes.map((c) => {
+                const checked = assignedClassIds.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => toggleAssignClass(c.id)}
+                    className={`flex items-center gap-2 p-2.5 rounded-lg text-xs font-semibold border text-left transition-all cursor-pointer ${
+                      checked
+                        ? "bg-blue-50 text-blue-800 border-blue-300 shadow-xs"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {checked ? (
+                      <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" />
+                    ) : (
+                      <Square className="w-4 h-4 text-slate-400 shrink-0" />
+                    )}
+                    <span className="truncate">{c.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

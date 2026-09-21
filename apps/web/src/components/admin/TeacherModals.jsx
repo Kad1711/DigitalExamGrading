@@ -28,6 +28,7 @@ export default function TeacherModals({
   editForm,
   setEditForm,
   handleEditSubmit,
+  subjects = [],
 
   // Reset Password Modal
   isResetPasswordOpen,
@@ -388,6 +389,48 @@ export default function TeacherModals({
               }
               className="block w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              Chức danh chuyên môn
+            </label>
+            <select
+              disabled={modalLoading}
+              value={editForm.title || "Giáo viên"}
+              onChange={(e) =>
+                setEditForm({ ...editForm, title: e.target.value })
+              }
+              className="block w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all cursor-pointer"
+            >
+              <option value="Giáo viên">Giáo viên</option>
+              <option value="Giáo viên chính">Giáo viên chính</option>
+              <option value="Giáo viên cao cấp">Giáo viên cao cấp</option>
+              <option value="Tổ trưởng bộ môn">Tổ trưởng bộ môn</option>
+              <option value="Tổ phó bộ môn">Tổ phó bộ môn</option>
+              <option value="Giáo viên kiêm nhiệm">Giáo viên kiêm nhiệm</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              Môn chuyên môn chính
+            </label>
+            <select
+              disabled={modalLoading}
+              value={editForm.primarySubjectId || ""}
+              onChange={(e) =>
+                setEditForm({ ...editForm, primarySubjectId: e.target.value })
+              }
+              className="block w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all cursor-pointer"
+            >
+              <option value="">-- Chưa đặt môn chuyên môn --</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} {s.code ? `(${s.code})` : ""}
+                </option>
+              ))}
+            </select>
           </div>
         </form>
       </Modal>
