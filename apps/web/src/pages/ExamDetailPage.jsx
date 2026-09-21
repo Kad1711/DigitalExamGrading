@@ -35,8 +35,10 @@ import Alert from "../components/ui/Alert";
 import Modal from "../components/ui/Modal";
 import Breadcrumbs from "../components/ui/Breadcrumbs";
 import EmptyState from "../components/ui/EmptyState";
+import { useAuth } from "../context/AuthContext";
 
 export default function ExamDetailPage() {
+  const { user } = useAuth();
   const { examId, slug } = useParams();
   const navigate = useNavigate();
 
@@ -644,6 +646,10 @@ export default function ExamDetailPage() {
   const isArchived = exam.status === "ARCHIVED";
   const isLocked = !isDraft;
 
+  const isAdmin = user?.role === "ADMIN";
+  const isOwner = Boolean(exam.teacherId && user?.teacher?.id && exam.teacherId === user.teacher.id);
+  const canManage = isAdmin || isOwner;
+
   // Readiness calculation
   const hasExamCodes = examCodes.length > 0;
   const allCodesComplete =
@@ -667,6 +673,19 @@ export default function ExamDetailPage() {
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Breadcrumbs items={[{ label: exam.title }]} />
+
+        {/* BGH Exam Notice for Teachers */}
+        {!canManage && (
+          <div className="mb-6 p-4 rounded-xl border border-blue-200 bg-blue-50/70 text-blue-900 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <span className="font-bold block text-sm mb-0.5 text-blue-900">
+                Kỳ thi chung của Ban Giám Hiệu
+              </span>
+              Đề thi và đáp án chuẩn do Ban Giám Hiệu cấu hình tập trung để đảm bảo tính bảo mật và đồng nhất. Quý Thầy/Cô sử dụng chức năng <strong>Chấm bài ngay</strong>, <strong>Bài đã chấm</strong>, và <strong>Thống kê phổ điểm</strong> cho các lớp mình giảng dạy.
+            </div>
+          </div>
+        )}
 
         {/* Header Title & Status Bar */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 mb-6">
@@ -750,65 +769,73 @@ export default function ExamDetailPage() {
             <div className="flex items-center gap-2 flex-wrap">
               {/* DRAFT Actions */}
               {isDraft && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="md"
-                    icon={Pencil}
-                    onClick={() => {
-                      setEditTitle(exam.title);
-                      setEditDescription(exam.description || "");
-                      setShowEditMetadataModal(true);
-                    }}
-                  >
-                    Sửa thông tin
-                  </Button>
-                  <Button
-                    variant="success"
-                    size="md"
-                    icon={Send}
-                    disabled={!isReadyToPublish}
-                    onClick={() => setConfirmPublishOpen(true)}
-                    title={
-                      !hasExamCodes
-                        ? "Cần tạo ít nhất một mã đề trước khi phát hành"
-                        : !allCodesComplete
-                        ? "Cần hoàn tất đủ đáp án cho tất cả mã đề trước khi phát hành"
-                        : !hasTemplate
-                        ? "Cần tạo mẫu phiếu OMR trước khi phát hành"
-                        : "Phát hành kỳ thi để tiến hành chấm bài"
-                    }
-                  >
-                    Phát hành kỳ thi
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="md"
-                    icon={Trash2}
-                    onClick={() => setConfirmDeleteOpen(true)}
-                    className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:border-rose-300"
-                  >
-                    Xóa kỳ thi
-                  </Button>
-                </>
+                canManage ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="md"
+                      icon={Pencil}
+                      onClick={() => {
+                        setEditTitle(exam.title);
+                        setEditDescription(exam.description || "");
+                        setShowEditMetadataModal(true);
+                      }}
+                    >
+                      Sửa thông tin
+                    </Button>
+                    <Button
+                      variant="success"
+                      size="md"
+                      icon={Send}
+                      disabled={!isReadyToPublish}
+                      onClick={() => setConfirmPublishOpen(true)}
+                      title={
+                        !hasExamCodes
+                          ? "Cần tạo ít nhất một mã đề trước khi phát hành"
+                          : !allCodesComplete
+                          ? "Cần hoàn tất đủ đáp án cho tất cả mã đề trước khi phát hành"
+                          : !hasTemplate
+                          ? "Cần tạo mẫu phiếu OMR trước khi phát hành"
+                          : "Phát hành kỳ thi để tiến hành chấm bài"
+                      }
+                    >
+                      Phát hành kỳ thi
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="md"
+                      icon={Trash2}
+                      onClick={() => setConfirmDeleteOpen(true)}
+                      className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:border-rose-300"
+                    >
+                      Xóa kỳ thi
+                    </Button>
+                  </>
+                ) : (
+                  <Badge variant="amber" size="md">
+                    Ban Giám Hiệu đang chuẩn bị đề thi
+                  </Badge>
+                )
               )}
 
               {/* PUBLISHED Actions */}
               {isPublished && (
                 <>
-                  <Button
-                    variant="outline"
-                    size="md"
-                    icon={Pencil}
-                    onClick={() => {
-                      setEditTitle(exam.title);
-                      setEditDescription(exam.description || "");
-                      setShowEditMetadataModal(true);
-                    }}
-                    title="Chỉnh sửa tên và mô tả kỳ thi"
-                  >
-                    Sửa thông tin
-                  </Button>
+                  {canManage && (
+                    <Button
+                      variant="outline"
+                      size="md"
+                      icon={Pencil}
+                      onClick={() => {
+                        setEditTitle(exam.title);
+                        setEditDescription(exam.description || "");
+                        setShowEditMetadataModal(true);
+                      }}
+                      title="Chỉnh sửa tên và mô tả kỳ thi"
+                    >
+                      Sửa thông tin
+                    </Button>
+                  )}
                   <Button
                     variant="primary"
                     size="md"
@@ -833,23 +860,27 @@ export default function ExamDetailPage() {
                   >
                     Thống kê
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="md"
-                    icon={Copy}
-                    onClick={() => setConfirmCloneOpen(true)}
-                    title="Nhân bản để tạo một bản Nháp mới"
-                  >
-                    Nhân bản
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="md"
-                    icon={Lock}
-                    onClick={() => setConfirmCloseOpen(true)}
-                  >
-                    Đóng kỳ thi
-                  </Button>
+                  {canManage && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="md"
+                        icon={Copy}
+                        onClick={() => setConfirmCloneOpen(true)}
+                        title="Nhân bản để tạo một bản Nháp mới"
+                      >
+                        Nhân bản
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="md"
+                        icon={Lock}
+                        onClick={() => setConfirmCloseOpen(true)}
+                      >
+                        Đóng kỳ thi
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
 
@@ -872,22 +903,26 @@ export default function ExamDetailPage() {
                   >
                     Thống kê
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="md"
-                    icon={Copy}
-                    onClick={() => setConfirmCloneOpen(true)}
-                  >
-                    Nhân bản kỳ thi
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="md"
-                    icon={Archive}
-                    onClick={() => setConfirmArchiveOpen(true)}
-                  >
-                    Lưu trữ kỳ thi
-                  </Button>
+                  {canManage && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="md"
+                        icon={Copy}
+                        onClick={() => setConfirmCloneOpen(true)}
+                      >
+                        Nhân bản kỳ thi
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="md"
+                        icon={Archive}
+                        onClick={() => setConfirmArchiveOpen(true)}
+                      >
+                        Lưu trữ kỳ thi
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
 
@@ -1099,17 +1134,19 @@ export default function ExamDetailPage() {
                     thống sẽ sinh layout chuẩn ({exam.questionCount} câu) có
                     mã QR nhận diện.
                   </p>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    icon={Plus}
-                    onClick={handleGenerateTemplate}
-                    loading={generatingTemplate}
-                    disabled={!isDraft}
-                    className="w-full"
-                  >
-                    Tạo phiếu trả lời OMR
-                  </Button>
+                  {canManage && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={Plus}
+                      onClick={handleGenerateTemplate}
+                      loading={generatingTemplate}
+                      disabled={!isDraft}
+                      className="w-full"
+                    >
+                      Tạo phiếu trả lời OMR
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1146,7 +1183,7 @@ export default function ExamDetailPage() {
                     {downloadingPdf ? "Đang tải PDF..." : "Tải phiếu OMR PDF"}
                   </Button>
 
-                  {isDraft && (
+                  {isDraft && canManage && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1171,7 +1208,7 @@ export default function ExamDetailPage() {
                 </h2>
               </div>
 
-              {isDraft && (
+              {isDraft && canManage && (
                 <form onSubmit={handleCreateCode} className="flex gap-2 mb-4">
                   <input
                     type="text"
@@ -1247,7 +1284,7 @@ export default function ExamDetailPage() {
                           </div>
                         </div>
 
-                        {isDraft && (
+                        {isDraft && canManage && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1318,7 +1355,7 @@ export default function ExamDetailPage() {
 
                   {/* Actions: Import & Save */}
                   <div className="flex items-center gap-2">
-                    {isDraft && (
+                    {isDraft && canManage && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1329,7 +1366,7 @@ export default function ExamDetailPage() {
                       </Button>
                     )}
 
-                    {isDraft && (
+                    {isDraft && canManage && (
                       <Button
                         variant="primary"
                         size="sm"
@@ -1343,13 +1380,17 @@ export default function ExamDetailPage() {
                   </div>
                 </div>
 
-                {isLocked && (
+                {!canManage ? (
+                  <Alert variant="info">
+                    Đề thi chung do Ban Giám Hiệu quản lý. Bảng đáp án chuẩn đang ở chế độ <strong>chỉ đọc</strong>.
+                  </Alert>
+                ) : isLocked ? (
                   <Alert variant="warning">
                     Kỳ thi đã phát hành. Bảng đáp án đang ở chế độ{" "}
                     <strong>chỉ đọc</strong> nhằm đảm bảo tính bảo mật và công
                     bằng khi chấm bài.
                   </Alert>
-                )}
+                ) : null}
 
                 {/* Compact Multi-Column Question Bubble Matrix */}
                 {loadingAnswers ? (
@@ -1389,7 +1430,7 @@ export default function ExamDetailPage() {
                                 <button
                                   key={opt}
                                   type="button"
-                                  disabled={isLocked}
+                                  disabled={isLocked || !canManage}
                                   onClick={() =>
                                     handleSelectAnswer(ans.questionNumber, opt)
                                   }

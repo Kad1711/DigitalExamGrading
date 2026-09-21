@@ -1,6 +1,6 @@
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
-import { assertExamAccess, assertExamDraft } from "./exam.service.js";
+import { assertExamAccess, assertExamDraft, assertExamManageAccess } from "./exam.service.js";
 import {
   buildAnswerSheetGeometry,
   TEMPLATE_VERSION,
@@ -40,6 +40,7 @@ export function assertExamCodesOmrCompatible(examCodes, maxDigits) {
  */
 export async function createOrRegenerateTemplate(examId, options = {}, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(exam, reqUser);
   assertExamDraft(exam);
 
   const studentNumberDigits = options.studentNumberDigits || DEFAULT_STUDENT_DIGITS;

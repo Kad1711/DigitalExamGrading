@@ -1,11 +1,12 @@
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
-import { assertExamAccess, assertExamDraft } from "./exam.service.js";
+import { assertExamAccess, assertExamDraft, assertExamManageAccess } from "./exam.service.js";
 import { normalizeExamCode } from "../utils/exam-code.js";
 
 export async function createExamCode(examId, code, reqUser) {
   const canonicalCode = normalizeExamCode(code);
   const exam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(exam, reqUser);
   assertExamDraft(exam);
 
   // Kiem tra xem co ma de nao da ton tai sau khi chuan hoa
@@ -45,6 +46,7 @@ export async function listExamCodes(examId, reqUser) {
 
 export async function deleteExamCode(examId, codeId, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(exam, reqUser);
   assertExamDraft(exam);
 
   const examCode = await prisma.examCode.findUnique({ where: { id: codeId } });

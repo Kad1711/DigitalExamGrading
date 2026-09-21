@@ -213,17 +213,15 @@ export default function ExamListPage() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {isAdmin && (
-              <Button
-                variant="primary"
-                size="md"
-                icon={Plus}
-                onClick={() => navigate("/exams/new")}
-                className="w-full sm:w-auto"
-              >
-                Tạo kỳ thi mới
-              </Button>
-            )}
+            <Button
+              variant="primary"
+              size="md"
+              icon={Plus}
+              onClick={() => navigate("/exams/new")}
+              className="w-full sm:w-auto"
+            >
+              {isAdmin ? "Tạo kỳ thi mới" : "Tạo bài kiểm tra"}
+            </Button>
           </div>
         </div>
 
@@ -477,13 +475,16 @@ export default function ExamListPage() {
                         ? exam.examClasses.map((ec) => ec.class?.name).filter(Boolean).join(", ")
                         : (exam.class?.name || "—");
 
+                      const isOwner = Boolean(exam.teacherId && user?.teacher?.id && exam.teacherId === user.teacher.id);
+                      const canManage = isAdmin || isOwner;
+
                       return (
                         <tr
                           key={exam.id}
                           className="hover:bg-slate-50/70 transition-colors group"
                         >
                           <td className="py-4 px-3 text-center">
-                            {isAdmin && exam.status === "DRAFT" ? (
+                            {canManage && exam.status === "DRAFT" ? (
                               <input
                                 type="checkbox"
                                 checked={selectedDraftExamIds.includes(exam.id)}
@@ -502,23 +503,34 @@ export default function ExamListPage() {
                               >
                                 {exam.title}
                               </Link>
-                              {exam.sheetPreset && (
-                                <span className="text-[11px] text-indigo-600 font-medium mt-0.5">
-                                  {exam.sheetPreset === "PRESET_15MIN_30Q"
-                                    ? "Preset 15p - 30 câu"
-                                    : exam.sheetPreset === "PRESET_15MIN_20Q"
-                                    ? "Preset 15p - 20 câu"
-                                    : exam.sheetPreset === "PRESET_45MIN_40Q"
-                                    ? "Preset 45p - 40 câu"
-                                    : exam.sheetPreset === "PRESET_TERM_50Q"
-                                    ? "Preset Học kỳ - 50 câu"
-                                    : exam.sheetPreset === "PRESET_45MIN_60Q"
-                                    ? "Preset 45p - 60 câu"
-                                    : exam.sheetPreset === "PRESET_90MIN_60Q"
-                                    ? "Preset 90p - 60 câu"
-                                    : "Tùy chỉnh"}
-                                </span>
-                              )}
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                {exam.teacherId ? (
+                                  <span className="text-[10px] bg-emerald-50 text-emerald-700 font-medium px-1.5 py-0.5 rounded border border-emerald-200">
+                                    Kiểm tra lớp {exam.teacher?.fullName ? `(${exam.teacher.fullName})` : ""}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] bg-blue-50 text-blue-700 font-medium px-1.5 py-0.5 rounded border border-blue-200">
+                                    Đề BGH chung
+                                  </span>
+                                )}
+                                {exam.sheetPreset && (
+                                  <span className="text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                                    {exam.sheetPreset === "PRESET_15MIN_30Q"
+                                      ? "15p - 30 câu"
+                                      : exam.sheetPreset === "PRESET_15MIN_20Q"
+                                      ? "15p - 20 câu"
+                                      : exam.sheetPreset === "PRESET_45MIN_40Q"
+                                      ? "45p - 40 câu"
+                                      : exam.sheetPreset === "PRESET_TERM_50Q"
+                                      ? "Học kỳ - 50 câu"
+                                      : exam.sheetPreset === "PRESET_45MIN_60Q"
+                                      ? "45p - 60 câu"
+                                      : exam.sheetPreset === "PRESET_90MIN_60Q"
+                                      ? "90p - 60 câu"
+                                      : "Tùy chỉnh"}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="py-4 px-4 whitespace-nowrap text-slate-700">
@@ -556,7 +568,7 @@ export default function ExamListPage() {
                           <td className="py-4 px-4 whitespace-nowrap text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               {exam.status === "DRAFT" ? (
-                                isAdmin ? (
+                                canManage ? (
                                   <>
                                     <Button
                                       variant="outline"

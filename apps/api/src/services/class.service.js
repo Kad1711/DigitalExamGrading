@@ -246,6 +246,14 @@ export async function createBatchClasses({ names, gradeId, teacherUserId }) {
     });
   }
 
+  if (createdClasses.length === 0 && skippedNames.length > 0) {
+    throw new AppError(
+      "Tất cả các lớp trong danh sách đều đã tồn tại.",
+      409,
+      "ALL_CLASSES_ALREADY_EXIST"
+    );
+  }
+
   return {
     created: createdClasses,
     skipped: skippedNames,

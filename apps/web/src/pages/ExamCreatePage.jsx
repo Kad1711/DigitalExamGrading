@@ -63,12 +63,12 @@ export default function ExamCreatePage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  const isAdmin = user?.role === "ADMIN";
+
   useEffect(() => {
-    if (user && user.role !== "ADMIN") {
-      navigate("/exams", { replace: true });
-      return;
+    if (user) {
+      loadOptions();
     }
-    loadOptions();
   }, [user]);
 
   const loadOptions = async () => {
@@ -76,6 +76,29 @@ export default function ExamCreatePage() {
       setLoadingData(true);
       setErrorMsg("");
 
+      if (!isAdmin) {
+        // Luồng Giáo viên: Lấy phân công giảng dạy
+        try {
+          const assignRes = await api.get("/teacher/assignments");
+          const { classes: assignClasses, subjects: assignSubjects } = assignRes.data.data;
+
+          if (assignSubjects && assignSubjects.length > 0) {
+            setSubjects(assignSubjects);
+            setSubjectId(assignSubjects[0].id);
+          }
+          if (assignClasses && assignClasses.length > 0) {
+            setClasses(assignClasses);
+            setClassId(assignClasses[0].id);
+            setSelectedClassIds([assignClasses[0].id]);
+          }
+          setLoadingData(false);
+          return;
+        } catch (err) {
+          console.warn("Could not load teacher assignments, fallback to normal:", err);
+        }
+      }
+
+      // Luồng Ban Giám Hiệu (hoặc fallback)
       const [subRes, clsRes, grRes] = await Promise.all([
         api.get("/subjects"),
         api.get("/classes"),
@@ -295,6 +318,11 @@ export default function ExamCreatePage() {
       return;
     }
 
+    if (!isAdmin && classIdsToSend.length > 1) {
+      setErrorMsg("Giáo viên chỉ có thể tạo bài kiểm tra cho 1 lớp học cụ thể (ví dụ kiểm tra 15 phút, 1 tiết).");
+      return;
+    }
+
     const qCount = Number(questionCount);
     if (isNaN(qCount) || qCount <= 0 || !Number.isInteger(qCount)) {
       setErrorMsg("Số câu hỏi phải là số nguyên lớn hơn 0.");
@@ -345,17 +373,16 @@ export default function ExamCreatePage() {
       <AppHeader />
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Breadcrumbs items={[{ label: "Tạo kỳ thi mới" }]} />
+        <Breadcrumbs items={[{ label: isAdmin ? "Tạo kỳ thi mới (BGH)" : "Tạo bài kiểm tra lớp" }]} />
 
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            Tạo Kỳ thi Mới
+            {isAdmin ? "Tạo Kỳ thi Mới (Ban Giám Hiệu)" : "Tạo Bài Kiểm Tra Lớp"}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Kỳ thi sẽ được tạo ở trạng thái{" "}
-            <span className="font-semibold text-slate-700">Nháp (DRAFT)</span>.
-            Sau khi tạo, bạn sẽ thiết lập mã đề, nhập đáp án và tạo mẫu phiếu
-            trả lời OMR.
+            {isAdmin
+              ? "Kỳ thi chung áp dụng cho nhiều lớp hoặc toàn khối. Đề thi sẽ được tạo ở trạng thái Nháp (DRAFT)."
+              : "Khởi tạo bài kiểm tra 15 phút, 1 tiết hoặc thường xuyên cho 1 lớp cụ thể bạn phụ trách giảng dạy."}
           </p>
         </div>
 
@@ -385,7 +412,7 @@ export default function ExamCreatePage() {
                   htmlFor="title"
                   className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5"
                 >
-                  Tên kỳ thi <span className="text-rose-500">*</span>
+                  Tên kỳ thi / bài kiểm tra <span className="text-rose-500">*</span>
                 </label>
                 <input
                   id="title"
@@ -394,7 +421,7 @@ export default function ExamCreatePage() {
                   disabled={submitting}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ví dụ: Kiểm tra 1 tiết Toán 11 - Học kỳ 2"
+                  placeholder={isAdmin ? "Ví dụ: Khảo sát chất lượng Toán 11 - Học kỳ 2" : "Ví dụ: Kiểm tra 15 phút Toán 11A1 - Chương 3"}
                   className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
                 />
               </div>
@@ -413,7 +440,7 @@ export default function ExamCreatePage() {
                   disabled={submitting}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Phạm vi bài thi, phòng thi, giáo viên phụ trách..."
+                  placeholder="Phạm vi bài thi, phòng thi, nội dung kiến thức..."
                   className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
                 />
               </div>
@@ -467,102 +494,169 @@ export default function ExamCreatePage() {
                 </div>
               </div>
 
-              {/* Multi-Class Assignment */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
-                      Lớp học tham gia kỳ thi <span className="text-rose-500">*</span>
-                    </label>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Chọn một hoặc nhiều lớp. Giáo viên được phân công giảng dạy môn này ở các lớp đã chọn sẽ cùng truy cập đề thi để chấm bài.
-                    </p>
+              {/* Class Selection: Teacher Single-Class vs Admin Multi-Class */}
+              {!isAdmin ? (
+                /* Teacher Single-Class Selection */
+                <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        Lớp học kiểm tra <span className="text-rose-500">*</span>
+                      </label>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Chọn đúng 1 lớp cụ thể bạn phụ trách giảng dạy để tạo bài kiểm tra (15 phút, 1 tiết...).
+                      </p>
+                    </div>
+                    <span className="text-[11px] font-semibold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded shrink-0">
+                      Áp dụng 1 lớp cụ thể
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {selectedGradeId && (
+
+                  {classes.length === 0 ? (
+                    <p className="text-xs text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                      Chưa tìm thấy lớp học phù hợp trong phân công giảng dạy. Vui lòng liên hệ Ban Giám Hiệu nếu bạn chưa được gán lớp.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
+                      {classes
+                        .filter((cls) => {
+                          if (!selectedGradeId) return true;
+                          return (cls.gradeId || cls.grade?.id) === selectedGradeId;
+                        })
+                        .map((cls) => {
+                          const isSelected = selectedClassIds.includes(cls.id);
+                          return (
+                            <button
+                              key={cls.id}
+                              type="button"
+                              disabled={submitting}
+                              onClick={() => {
+                                setSelectedClassIds([cls.id]);
+                                setClassId(cls.id);
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-200"
+                                  : "bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
+                              }`}
+                            >
+                              {isSelected ? (
+                                <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                              ) : (
+                                <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 inline-block" />
+                              )}
+                              Lớp {cls.name}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  <div className="text-[11px] text-slate-600 font-medium">
+                    Lớp đã chọn:{" "}
+                    <strong className="text-blue-700 font-bold">
+                      {classes.find((c) => selectedClassIds.includes(c.id))?.name || "Chưa chọn lớp nào"}
+                    </strong>
+                  </div>
+                </div>
+              ) : (
+                /* Admin Multi-Class Assignment */
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        Lớp học tham gia kỳ thi (BGH) <span className="text-rose-500">*</span>
+                      </label>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Chọn một hoặc nhiều lớp. Giáo viên được phân công giảng dạy môn này ở các lớp đã chọn sẽ cùng truy cập đề thi để chấm bài.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {selectedGradeId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const inGrade = classes.filter(
+                              (c) => (c.gradeId || c.grade?.id) === selectedGradeId
+                            );
+                            const inGradeIds = inGrade.map((c) => c.id);
+                            const allSelected = inGradeIds.every((id) =>
+                              selectedClassIds.includes(id)
+                            );
+                            if (allSelected) {
+                              setSelectedClassIds((prev) =>
+                                prev.filter((id) => !inGradeIds.includes(id))
+                              );
+                            } else {
+                              setSelectedClassIds((prev) => [
+                                ...new Set([...prev, ...inGradeIds]),
+                              ]);
+                            }
+                          }}
+                          className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                        >
+                          Chọn toàn khối
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
-                          const inGrade = classes.filter(
-                            (c) => (c.gradeId || c.grade?.id) === selectedGradeId
-                          );
-                          const inGradeIds = inGrade.map((c) => c.id);
-                          const allSelected = inGradeIds.every((id) =>
-                            selectedClassIds.includes(id)
-                          );
-                          if (allSelected) {
-                            setSelectedClassIds((prev) =>
-                              prev.filter((id) => !inGradeIds.includes(id))
-                            );
-                          } else {
-                            setSelectedClassIds((prev) => [
-                              ...new Set([...prev, ...inGradeIds]),
-                            ]);
-                          }
+                          setCreateClassError("");
+                          setShowCreateClassModal(true);
                         }}
-                        className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
                       >
-                        Chọn toàn khối
+                        <Plus className="w-3.5 h-3.5" />
+                        Tạo lớp mới
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCreateClassError("");
-                        setShowCreateClassModal(true);
-                      }}
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Tạo lớp mới
-                    </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
+                    {classes
+                      .filter((cls) => {
+                        if (!selectedGradeId) return true;
+                        return (cls.gradeId || cls.grade?.id) === selectedGradeId;
+                      })
+                      .map((cls) => {
+                        const isSelected = selectedClassIds.includes(cls.id);
+                        return (
+                          <button
+                            key={cls.id}
+                            type="button"
+                            disabled={submitting}
+                            onClick={() => {
+                              setSelectedClassIds((prev) =>
+                                prev.includes(cls.id)
+                                  ? prev.filter((id) => id !== cls.id)
+                                  : [...prev, cls.id]
+                              );
+                            }}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                                : "bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
+                            }`}
+                          >
+                            {isSelected ? (
+                              <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                            ) : (
+                              <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 inline-block" />
+                            )}
+                            {cls.name}
+                          </button>
+                        );
+                      })}
+                  </div>
+                  <div className="text-[11px] text-slate-600 font-medium">
+                    Đã chọn:{" "}
+                    <strong className="text-blue-700 font-bold">
+                      {selectedClassIds.length}
+                    </strong>{" "}
+                    lớp ({classes.filter((c) => selectedClassIds.includes(c.id)).map((c) => c.name).join(", ") || "Chưa chọn lớp nào"})
                   </div>
                 </div>
-
-                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
-                  {classes
-                    .filter((cls) => {
-                      if (!selectedGradeId) return true;
-                      return (cls.gradeId || cls.grade?.id) === selectedGradeId;
-                    })
-                    .map((cls) => {
-                      const isSelected = selectedClassIds.includes(cls.id);
-                      return (
-                        <button
-                          key={cls.id}
-                          type="button"
-                          disabled={submitting}
-                          onClick={() => {
-                            setSelectedClassIds((prev) =>
-                              prev.includes(cls.id)
-                                ? prev.filter((id) => id !== cls.id)
-                                : [...prev, cls.id]
-                            );
-                          }}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                            isSelected
-                              ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                              : "bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
-                          }`}
-                        >
-                          {isSelected ? (
-                            <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                          ) : (
-                            <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 inline-block" />
-                          )}
-                          {cls.name}
-                        </button>
-                      );
-                    })}
-                </div>
-                <div className="text-[11px] text-slate-600 font-medium">
-                  Đã chọn:{" "}
-                  <strong className="text-blue-700 font-bold">
-                    {selectedClassIds.length}
-                  </strong>{" "}
-                  lớp ({classes.filter((c) => selectedClassIds.includes(c.id)).map((c) => c.name).join(", ") || "Chưa chọn lớp nào"})
-                </div>
-              </div>
+              )}
 
               {/* Cấu hình Thời gian & Số câu trắc nghiệm (Chuẩn THCS & THPT) */}
               <div className="bg-slate-50/80 rounded-xl border border-slate-200 p-4 space-y-4">

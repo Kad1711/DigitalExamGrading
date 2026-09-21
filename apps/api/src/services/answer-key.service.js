@@ -1,6 +1,6 @@
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
-import { assertExamAccess } from "./exam.service.js";
+import { assertExamAccess, assertExamManageAccess } from "./exam.service.js";
 
 // =====================================================
 // ANSWER KEY SERVICE
@@ -104,6 +104,7 @@ function validateAnswers(answers, questionCount, scoringType) {
 
 export async function putAnswerKey(examId, codeId, answers, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(exam, reqUser);
   const examCode = await assertExamCodeBelongsToExam(examId, codeId);
 
   if (exam.status !== "DRAFT") {

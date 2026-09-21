@@ -15,7 +15,7 @@ const denyStudent = authorizeRoles("ADMIN", "TEACHER");
 const adminOnly = authorizeRoles("ADMIN");
 
 // Create / regenerate template (DRAFT only)
-router.post("/:examId/answer-sheet-template", adminOnly, createTemplateController);
+router.post("/:examId/answer-sheet-template", denyStudent, createTemplateController);
 
 // Get latest template metadata
 router.get("/:examId/answer-sheet-template", denyStudent, getLatestTemplateController);

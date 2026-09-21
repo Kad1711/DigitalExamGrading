@@ -33,26 +33,26 @@ const denyStudent = authorizeRoles("ADMIN", "TEACHER");
 const adminOnly = authorizeRoles("ADMIN");
 
 // Exam CRUD
-router.post("/", adminOnly, createExamController);
+router.post("/", denyStudent, createExamController);
 router.get("/", denyStudent, listExamsController);
 router.post("/bulk-delete", adminOnly, bulkDeleteExamsController);
 router.get("/:examId", denyStudent, getExamController);
-router.patch("/:examId", adminOnly, updateExamController);
-router.delete("/:examId", adminOnly, deleteExamController);
-router.post("/:examId/clone", adminOnly, cloneExamController);
+router.patch("/:examId", denyStudent, updateExamController);
+router.delete("/:examId", denyStudent, deleteExamController);
+router.post("/:examId/clone", denyStudent, cloneExamController);
 
 // Exam lifecycle
-router.post("/:examId/publish", adminOnly, publishExamController);
-router.post("/:examId/close", adminOnly, closeExamController);
-router.post("/:examId/archive", adminOnly, archiveExamController);
+router.post("/:examId/publish", denyStudent, publishExamController);
+router.post("/:examId/close", denyStudent, closeExamController);
+router.post("/:examId/archive", denyStudent, archiveExamController);
 
 // ExamCode
-router.post("/:examId/codes", adminOnly, createExamCodeController);
+router.post("/:examId/codes", denyStudent, createExamCodeController);
 router.get("/:examId/codes", denyStudent, listExamCodesController);
-router.delete("/:examId/codes/:codeId", adminOnly, deleteExamCodeController);
+router.delete("/:examId/codes/:codeId", denyStudent, deleteExamCodeController);
 
 // AnswerKey
-router.put("/:examId/codes/:codeId/answer-key", adminOnly, putAnswerKeyController);
+router.put("/:examId/codes/:codeId/answer-key", denyStudent, putAnswerKeyController);
 router.get("/:examId/codes/:codeId/answer-key", denyStudent, getAnswerKeyController);
 
 // Sub-modules: Answer Key Import, OMR Answer Sheet Template, & Grading

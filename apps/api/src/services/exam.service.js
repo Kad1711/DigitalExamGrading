@@ -80,27 +80,90 @@ export function assertExamDraft(exam) {
   }
 }
 
+export async function assertExamManageAccess(exam, reqUser) {
+  if (reqUser.role === "ADMIN") {
+    return true;
+  }
+  const teacher = await getTeacherProfile(reqUser.id);
+  if (exam.teacherId && exam.teacherId === teacher.id) {
+    return true;
+  }
+  throw new AppError(
+    "Bạn không có quyền chỉnh sửa kỳ thi này. Chỉ Quản trị viên hoặc Giáo viên trực tiếp tạo đề mới có quyền thay đổi cấu hình kỳ thi.",
+    403,
+    "EXAM_MANAGEMENT_DENIED"
+  );
+}
+
 // =====================================================
 // EXAM CRUD
 // =====================================================
 
 export async function createExam(data, reqUser) {
-  if (reqUser.role !== "ADMIN") {
+  let teacherId = null;
+
+  if (reqUser.role === "TEACHER") {
+    const teacher = await getTeacherProfile(reqUser.id);
+    teacherId = teacher.id;
+
+    const classIds = Array.isArray(data.classIds) && data.classIds.length > 0
+      ? data.classIds
+      : (data.classId ? [data.classId] : []);
+
+    if (classIds.length === 0) {
+      throw new AppError(
+        "Vui lòng chọn 1 lớp học cụ thể để tạo bài kiểm tra.",
+        400,
+        "SINGLE_CLASS_REQUIRED"
+      );
+    }
+
+    if (classIds.length > 1) {
+      throw new AppError(
+        "Giáo viên chỉ có thể tạo bài kiểm tra cho 1 lớp học cụ thể (ví dụ: kiểm tra 15 phút, 1 tiết).",
+        400,
+        "SINGLE_CLASS_REQUIRED"
+      );
+    }
+
+    const targetClassId = classIds[0];
+
+    // Xác thực phân công giảng dạy (nếu giáo viên đã có phân công trong hệ thống)
+    const totalAssignments = await prisma.teachingAssignment.count({
+      where: { teacherId: teacher.id },
+    });
+
+    if (totalAssignments > 0) {
+      const assignment = await prisma.teachingAssignment.findFirst({
+        where: {
+          teacherId: teacher.id,
+          subjectId: data.subjectId,
+          classId: targetClassId,
+        },
+      });
+      if (!assignment) {
+        throw new AppError(
+          "Bạn chỉ có thể tạo bài kiểm tra cho lớp và môn học mà bạn được phân công giảng dạy.",
+          403,
+          "TEACHING_ASSIGNMENT_REQUIRED"
+        );
+      }
+    }
+  } else if (reqUser.role === "ADMIN") {
+    if (data.teacherId) {
+      teacherId = data.teacherId;
+    } else {
+      const adminTeacher = await prisma.teacher.findUnique({
+        where: { userId: reqUser.id },
+      });
+      teacherId = adminTeacher ? adminTeacher.id : null;
+    }
+  } else {
     throw new AppError(
-      "Chỉ Ban Giám Hiệu (Quản trị viên) mới có quyền khởi tạo đề thi.",
+      "Bạn không có quyền khởi tạo kỳ thi.",
       403,
       "FORBIDDEN"
     );
-  }
-
-  let teacherId = null;
-  if (data.teacherId) {
-    teacherId = data.teacherId;
-  } else {
-    const adminTeacher = await prisma.teacher.findUnique({
-      where: { userId: reqUser.id },
-    });
-    teacherId = adminTeacher ? adminTeacher.id : null;
   }
 
   const subject = await prisma.subject.findUnique({ where: { id: data.subjectId } });
@@ -123,7 +186,7 @@ export async function createExam(data, reqUser) {
       classId: primaryClassId,
       gradeId: data.gradeId ?? null,
       durationMinutes: data.durationMinutes ?? 45,
-      sheetPreset: data.sheetPreset ?? "PRESET_TERM_50Q",
+      sheetPreset: data.sheetPreset ?? "PRESET_45MIN_40Q",
       questionCount: data.questionCount,
       maxScore: data.maxScore,
       scoringType: data.scoringType,
@@ -216,6 +279,7 @@ export async function getExamById(examId, reqUser) {
 
 export async function updateExam(examId, data, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(exam, reqUser);
 
   if (exam.status === "CLOSED") {
     throw new AppError(
@@ -294,6 +358,7 @@ export async function updateExam(examId, data, reqUser) {
 
 export async function deleteExam(examId, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(exam, reqUser);
   if (exam.status !== "DRAFT") {
     throw new AppError(
       "Chỉ có thể xóa vĩnh viễn kỳ thi ở trạng thái Nháp.",
@@ -344,6 +409,7 @@ export async function bulkDeleteExams(examIds = [], reqUser) {
 
 export async function cloneExam(examId, reqUser) {
   const sourceExam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(sourceExam, reqUser);
 
   // Fetch all ExamCodes of source exam with their AnswerKeys
   const sourceCodes = await prisma.examCode.findMany({
@@ -424,6 +490,7 @@ export async function cloneExam(examId, reqUser) {
 
 export async function publishExam(examId, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(exam, reqUser);
 
   if (exam.status !== "DRAFT") {
     throw new AppError(
@@ -497,6 +564,7 @@ export async function publishExam(examId, reqUser) {
 
 export async function closeExam(examId, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(exam, reqUser);
   if (exam.status !== "PUBLISHED") {
     throw new AppError(
       "Chi co the close Exam o trang thai PUBLISHED.",
@@ -509,6 +577,7 @@ export async function closeExam(examId, reqUser) {
 
 export async function archiveExam(examId, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(exam, reqUser);
   if (exam.status !== "CLOSED") {
     throw new AppError(
       "Chi co the archive Exam o trang thai CLOSED.",

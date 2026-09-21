@@ -1,6 +1,6 @@
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
-import { assertExamAccess, assertExamDraft } from "./exam.service.js";
+import { assertExamAccess, assertExamDraft, assertExamManageAccess } from "./exam.service.js";
 import {
   parseAnswerKeyCsv,
   parseAnswerKeyXlsx,
@@ -241,6 +241,7 @@ export function validateImportRows(rows, exam, existingCodes) {
  */
 export async function previewImport(examId, fileBuffer, mimeType, originalName, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(exam, reqUser);
   assertExamDraft(exam);
 
   const format = detectFormat(originalName, mimeType);
@@ -267,6 +268,7 @@ export async function previewImport(examId, fileBuffer, mimeType, originalName, 
  */
 export async function applyImport(examId, fileBuffer, mimeType, originalName, reqUser) {
   const exam = await assertExamAccess(examId, reqUser);
+  await assertExamManageAccess(exam, reqUser);
   assertExamDraft(exam);
 
   const format = detectFormat(originalName, mimeType);

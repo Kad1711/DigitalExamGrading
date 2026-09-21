@@ -26,13 +26,9 @@ async function assertTeacherExamAccess(examId, reqUser) {
     throw new AppError("Ky thi khong ton tai.", 404, "EXAM_NOT_FOUND");
   }
 
-  if (reqUser.role === "ADMIN") {
-    return { exam, teacher: null };
-  }
-
   if (reqUser.role !== "TEACHER") {
     throw new AppError(
-      "Chi giao vien so huu ky thi hoac Quản trị viên moi co quyen xem danh sach bai nop.",
+      "Chi giao vien so huu ky thi moi co quyen xem danh sach bai nop.",
       403,
       "FORBIDDEN"
     );

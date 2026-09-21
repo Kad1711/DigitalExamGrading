@@ -121,3 +121,86 @@ export async function getTeacherDashboard(teacherUserId, userRole = "TEACHER") {
     recentExams,
   };
 }
+
+export async function getTeacherTeachingAssignments(teacherUserId, userRole = "TEACHER") {
+  if (userRole === "ADMIN") {
+    const [allClasses, allSubjects] = await Promise.all([
+      prisma.class.findMany({
+        select: { id: true, name: true, gradeId: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.subject.findMany({
+        select: { id: true, name: true, code: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+
+    return {
+      isAdmin: true,
+      hasAssignments: true,
+      classes: allClasses,
+      subjects: allSubjects,
+      assignments: [],
+    };
+  }
+
+  const teacher = await prisma.teacher.findUnique({
+    where: { userId: teacherUserId },
+  });
+
+  if (!teacher) {
+    throw new AppError("Không tìm thấy hồ sơ giáo viên.", 404, "TEACHER_NOT_FOUND");
+  }
+
+  const rawAssignments = await prisma.teachingAssignment.findMany({
+    where: { teacherId: teacher.id },
+    include: {
+      class: { select: { id: true, name: true, gradeId: true } },
+      subject: { select: { id: true, name: true, code: true } },
+    },
+    orderBy: [{ class: { name: "asc" } }],
+  });
+
+  if (rawAssignments.length > 0) {
+    const uniqueClassesMap = new Map();
+    const uniqueSubjectsMap = new Map();
+
+    for (const a of rawAssignments) {
+      if (a.class) uniqueClassesMap.set(a.class.id, a.class);
+      if (a.subject) uniqueSubjectsMap.set(a.subject.id, a.subject);
+    }
+
+    return {
+      isAdmin: false,
+      hasAssignments: true,
+      classes: Array.from(uniqueClassesMap.values()),
+      subjects: Array.from(uniqueSubjectsMap.values()),
+      assignments: rawAssignments.map((a) => ({
+        classId: a.classId,
+        subjectId: a.subjectId,
+        className: a.class?.name,
+        subjectName: a.subject?.name,
+      })),
+    };
+  }
+
+  // Fallback nếu trường chưa kịp phân công trên hệ thống
+  const [allClasses, allSubjects] = await Promise.all([
+    prisma.class.findMany({
+      select: { id: true, name: true, gradeId: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.subject.findMany({
+      select: { id: true, name: true, code: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  return {
+    isAdmin: false,
+    hasAssignments: false,
+    classes: allClasses,
+    subjects: allSubjects,
+    assignments: [],
+  };
+}

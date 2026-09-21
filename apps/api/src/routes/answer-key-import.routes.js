@@ -20,7 +20,7 @@ router.get("/:examId/answer-key/import-template", denyStudent, getImportTemplate
 // Preview import (validate without writing to DB)
 router.post(
   "/:examId/answer-key/import/preview",
-  adminOnly,
+  denyStudent,
   handleFileUpload,
   previewImportController
 );
@@ -28,7 +28,7 @@ router.post(
 // Apply import (atomic replace in DB)
 router.post(
   "/:examId/answer-key/import",
-  adminOnly,
+  denyStudent,
   handleFileUpload,
   applyImportController
 );

@@ -36,10 +36,9 @@ async function assertExportAccess(examId, user) {
   });
   if (!exam) throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
 
-  if (user.role !== "ADMIN") {
-    if (user.role !== "TEACHER") {
-      throw new AppError("Chỉ giáo viên sở hữu kỳ thi hoặc Quản trị viên mới có quyền xuất kết quả.", 403, "FORBIDDEN");
-    }
+  if (user.role !== "TEACHER") {
+    throw new AppError("Chỉ giáo viên sở hữu kỳ thi mới có quyền xuất kết quả.", 403, "FORBIDDEN");
+  }
     const teacher = await getTeacherProfile(user.id);
     const isDirectOwner = exam.teacherId && exam.teacherId === teacher.id;
     if (!isDirectOwner) {
@@ -66,7 +65,6 @@ async function assertExportAccess(examId, user) {
         throw new AppError("Bạn không có quyền xuất kết quả kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
       }
     }
-  }
   if (!exam.resultsPublishedAt) {
     throw new AppError(
       "Kết quả kỳ thi chưa được công bố. Chỉ có thể xuất sau khi đã công bố.",

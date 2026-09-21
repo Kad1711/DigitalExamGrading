@@ -98,7 +98,7 @@ export default function App() {
           <Route
             path="/exams/new"
             element={
-              <RequireRole roles={["ADMIN"]}>
+              <RequireRole roles={["TEACHER", "ADMIN"]}>
                 <ExamCreatePage />
               </RequireRole>
             }
