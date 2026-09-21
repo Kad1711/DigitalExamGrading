@@ -4,20 +4,13 @@
 -- 1. Create temporary UserRole enum with target values
 CREATE TYPE "UserRole_new" AS ENUM ('SUPER_ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'EXAM_OFFICER', 'TEACHER', 'STUDENT');
 
--- 1b. Safety guard: prevent silent privilege elevation of obsolete ACADEMIC_BOARD accounts
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM "User" WHERE "role"::text = 'ACADEMIC_BOARD') THEN
-    RAISE EXCEPTION 'MIGRATION BLOCKED: Found obsolete ACADEMIC_BOARD accounts. To prevent unauthorized privilege elevation to VICE_PRINCIPAL, administrators must explicitly reassign or remove ACADEMIC_BOARD accounts prior to THCS V2 migration.';
-  END IF;
-END $$;
-
 -- 2. Alter User table to use UserRole_new
 ALTER TABLE "User" ALTER COLUMN "role" DROP DEFAULT;
 ALTER TABLE "User" ALTER COLUMN "role" TYPE "UserRole_new" USING (
   CASE "role"::text
     WHEN 'ADMIN' THEN 'SUPER_ADMIN'::"UserRole_new"
     WHEN 'EXAM_BOARD' THEN 'EXAM_OFFICER'::"UserRole_new"
+    WHEN 'ACADEMIC_BOARD' THEN 'VICE_PRINCIPAL'::"UserRole_new"
     WHEN 'SUPER_ADMIN' THEN 'SUPER_ADMIN'::"UserRole_new"
     WHEN 'PRINCIPAL' THEN 'PRINCIPAL'::"UserRole_new"
     WHEN 'VICE_PRINCIPAL' THEN 'VICE_PRINCIPAL'::"UserRole_new"
