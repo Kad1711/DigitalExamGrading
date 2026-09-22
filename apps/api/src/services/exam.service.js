@@ -169,28 +169,18 @@ export async function createExam(data, reqUser) {
       );
     }
 
-    // 3. Single Class Restriction
+    // 3. Teacher Class Selection (Support Multi-Class for Assigned Classes)
     const classIds = Array.isArray(data.classIds) && data.classIds.length > 0
       ? data.classIds
       : (data.classId ? [data.classId] : []);
 
     if (classIds.length === 0) {
       throw new AppError(
-        "Vui lòng chọn 1 lớp học cụ thể để tạo bài kiểm tra.",
+        "Vui lòng chọn ít nhất một lớp học để tạo bài kiểm tra.",
         400,
-        "SINGLE_CLASS_REQUIRED"
+        "CLASS_REQUIRED"
       );
     }
-
-    if (classIds.length > 1) {
-      throw new AppError(
-        "Giáo viên chỉ có thể tạo bài kiểm tra cho đúng 1 lớp học cụ thể.",
-        400,
-        "SINGLE_CLASS_REQUIRED"
-      );
-    }
-
-    const targetClassId = classIds[0];
 
     // Xác thực phân công giảng dạy (nếu giáo viên đã có phân công trong hệ thống)
     const totalAssignments = await prisma.teachingAssignment.count({
@@ -198,16 +188,19 @@ export async function createExam(data, reqUser) {
     });
 
     if (totalAssignments > 0) {
-      const assignment = await prisma.teachingAssignment.findFirst({
+      const assignments = await prisma.teachingAssignment.findMany({
         where: {
           teacherId: teacher.id,
           subjectId: data.subjectId,
-          classId: targetClassId,
+          classId: { in: classIds },
         },
+        select: { classId: true },
       });
-      if (!assignment) {
+      const assignedClassIds = new Set(assignments.map((a) => a.classId));
+      const unassigned = classIds.filter((cid) => !assignedClassIds.has(cid));
+      if (unassigned.length > 0) {
         throw new AppError(
-          "Bạn chỉ có thể tạo bài kiểm tra cho lớp và môn học mà bạn được phân công giảng dạy.",
+          "Bạn chỉ có thể tạo bài kiểm tra cho các lớp học mà bạn được phân công giảng dạy.",
           403,
           "TEACHING_ASSIGNMENT_REQUIRED"
         );

@@ -27,11 +27,7 @@ import { getInitials } from "../utils/enum-map";
 
 const TEACHER_TITLES = [
   "Giáo viên",
-  "Giáo viên chính",
-  "Giáo viên cao cấp",
-  "Tổ trưởng bộ môn",
-  "Tổ phó bộ môn",
-  "Giáo viên kiêm nhiệm",
+  "Tổ trưởng chuyên môn",
 ];
 
 export default function VicePrincipalTeacherManagementPage() {
@@ -104,8 +100,10 @@ export default function VicePrincipalTeacherManagementPage() {
     try {
       setSavingProf(true);
       setProfError("");
+      const isLeader = profForm.title.includes("Tổ trưởng");
       await api.patch(`/admin/teachers/${profModal.id}`, {
         title: profForm.title.trim(),
+        isSubjectLeader: isLeader,
         primarySubjectId: profForm.primarySubjectId || null,
       });
       setTeachers((prev) =>
@@ -114,6 +112,7 @@ export default function VicePrincipalTeacherManagementPage() {
             ? {
                 ...t,
                 title: profForm.title.trim(),
+                isSubjectLeader: isLeader,
                 primarySubjectId: profForm.primarySubjectId || null,
                 primarySubject: subjects.find(
                   (s) => s.id === profForm.primarySubjectId
@@ -140,17 +139,21 @@ export default function VicePrincipalTeacherManagementPage() {
   const openAssignModal = async (teacher) => {
     setAssignModal(teacher);
     setAssignError("");
+    const subjectIdForTeacher = teacher.primarySubjectId || "";
+    setAssignSubjectId(subjectIdForTeacher);
     try {
       const res = await api.get(`/admin/teachers/${teacher.id}/assignments`);
       const data = res.data.data || {};
-      const existingClassIds = (data.assignments || []).map((a) => a.classId);
-      setAssignedClassIds(existingClassIds);
-      setAssignSubjectId(
-        data.assignments?.[0]?.subjectId || teacher.primarySubjectId || ""
-      );
+      const allAssignments = data.assignments || [];
+      const relevantClassIds = subjectIdForTeacher
+        ? allAssignments.filter((a) => a.subjectId === subjectIdForTeacher).map((a) => a.classId)
+        : allAssignments.map((a) => a.classId);
+      setAssignedClassIds(relevantClassIds);
+      if (!subjectIdForTeacher && allAssignments[0]?.subjectId) {
+        setAssignSubjectId(allAssignments[0].subjectId);
+      }
     } catch {
       setAssignedClassIds([]);
-      setAssignSubjectId(teacher.primarySubjectId || "");
     }
   };
 
@@ -173,6 +176,7 @@ export default function VicePrincipalTeacherManagementPage() {
       await api.put(`/admin/teachers/${assignModal.id}/assignments`, {
         classIds: assignedClassIds,
         subjectId: assignSubjectId,
+        removeOtherSubjects: true,
       });
       // Refresh teacher data
       await fetchAll();
@@ -531,7 +535,7 @@ export default function VicePrincipalTeacherManagementPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 <BookOpen className="inline w-3.5 h-3.5 mr-1 text-slate-500" />
-                Môn học phân công
+                Môn học phân công {assignModal?.primarySubject ? `(Môn chính: ${assignModal.primarySubject.name})` : ""}
               </label>
               <select
                 value={assignSubjectId}
@@ -541,7 +545,7 @@ export default function VicePrincipalTeacherManagementPage() {
                 <option value="">— Chọn môn học —</option>
                 {subjects.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} {s.code ? `(${s.code})` : ""}
+                    {s.name} {s.code ? `(${s.code})` : ""} {s.id === assignModal?.primarySubjectId ? "★ (Môn chuyên môn chính)" : ""}
                   </option>
                 ))}
               </select>

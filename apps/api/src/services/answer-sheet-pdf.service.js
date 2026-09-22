@@ -131,19 +131,21 @@ export async function renderAnswerSheetPdf(layoutJson) {
 
         // 2. Draw Header Text (Vietnamese Unicode Supported)
         doc.save();
-        doc.font(fontBold).fontSize(13).fillColor("#000000");
-        doc.text("PHIẾU TRẢ LỜI TRẮC NGHIỆM", toPt(20), toPt(16), { width: toPt(140) });
+        doc.font(fontBold).fontSize(12.5).fillColor("#000000");
+        doc.text("PHIẾU TRẢ LỜI TRẮC NGHIỆM", toPt(20), toPt(15), { width: toPt(140) });
+        doc.font(fontBold).fontSize(8).fillColor("#1d4ed8");
+        doc.text("CHUẨN HÓA KỲ THI NĂM HỌC 2026 - 2027", toPt(20), toPt(20.5), { width: toPt(140) });
 
-        doc.font(fontRegular).fontSize(9).fillColor("#333333");
-        const titleStr = page.header.examTitle ? `Kỳ thi: ${page.header.examTitle}` : "";
+        doc.font(fontRegular).fontSize(8.5).fillColor("#333333");
+        const titleStr = page.header.examTitle ? `Kỳ thi: ${page.header.examTitle}` : "Kỳ thi: Kiểm tra đánh giá";
         const subStr = page.header.subjectName ? `Môn: ${page.header.subjectName}` : "";
         const clsStr = page.header.className ? ` - Lớp: ${page.header.className}` : "";
-        doc.text(`${titleStr}`, toPt(20), toPt(23), { width: toPt(140) });
-        doc.text(`${subStr}${clsStr}`, toPt(20), toPt(28), { width: toPt(140) });
+        doc.text(`${titleStr}`, toPt(20), toPt(25.5), { width: toPt(140) });
+        doc.text(`${subStr}${clsStr}`, toPt(20), toPt(30.5), { width: toPt(140) });
 
         // Page indicator
-        doc.font(fontBold).fontSize(8).fillColor("#555555");
-        doc.text(`TRANG ${page.pageNumber} / ${page.totalPages}`, toPt(20), toPt(34));
+        doc.font(fontBold).fontSize(7.5).fillColor("#555555");
+        doc.text(`TRANG ${page.pageNumber} / ${page.totalPages}`, toPt(20), toPt(35.5));
         doc.restore();
 
         // 3. Draw QR Code (Identical Geometry & Placement)
@@ -160,20 +162,41 @@ export async function renderAnswerSheetPdf(layoutJson) {
           });
         }
 
-        // 4. Instructions Box (Vietnamese Unicode Supported)
+        // 4. Instructions & Candidate Info Box (Vietnamese Unicode Supported)
         doc.save();
         const instX = toPt(90);
         const instY = toPt(42);
         const instW = toPt(100);
         const instH = toPt(56);
         doc.rect(instX, instY, instW, instH).lineWidth(0.8).strokeColor("#666666").stroke();
-        doc.font(fontBold).fontSize(8).fillColor("#000000");
-        doc.text("HƯỚNG DẪN TÔ PHIẾU:", instX + 6, instY + 5);
-        doc.font(fontRegular).fontSize(7.5).fillColor("#333333");
-        doc.text("1. Dùng bút chì 2B để tô tròn các ô.", instX + 6, instY + 16);
-        doc.text("2. Tô đậm và kín ô, không tô ngoài viền.", instX + 6, instY + 25);
-        doc.text("3. Tẩy sạch bằng gôm nếu sửa đáp án.", instX + 6, instY + 34);
-        doc.text("4. Giữ phiếu phẳng, không gập, không làm rách.", instX + 6, instY + 43);
+
+        // Left Column: Instructions (HƯỚNG DẪN TÔ PHIẾU)
+        doc.font(fontBold).fontSize(7.5).fillColor("#000000");
+        doc.text("HƯỚNG DẪN TÔ PHIẾU:", instX + 5, instY + 5);
+        doc.font(fontRegular).fontSize(7).fillColor("#333333");
+        doc.text("1. Dùng bút chì 2B để tô kín ô tròn.", instX + 5, instY + 14);
+        doc.text("2. Không gạch chéo, không tích V.", instX + 5, instY + 22);
+        doc.text("3. Tẩy thật sạch bằng gôm khi sửa.", instX + 5, instY + 30);
+        doc.text("4. Giữ phiếu phẳng, không gấp/rách.", instX + 5, instY + 38);
+        doc.text("5. Điền và tô đúng SBD & Mã đề.", instX + 5, instY + 46);
+
+        // Divider
+        doc.moveTo(instX + toPt(47), instY)
+          .lineTo(instX + toPt(47), instY + instH)
+          .lineWidth(0.5)
+          .strokeColor("#b0b0b0")
+          .stroke();
+
+        // Right Column: Candidate Info (THÔNG TIN THÍ SINH)
+        const infoX = instX + toPt(49);
+        doc.font(fontBold).fontSize(7.5).fillColor("#000000");
+        doc.text("THÔNG TIN THÍ SINH (KỲ THI 2026):", infoX, instY + 5);
+        doc.font(fontRegular).fontSize(7).fillColor("#222222");
+        doc.text("Họ & tên: .....................................................", infoX, instY + 14);
+        doc.text("Lớp: ..................... SBD: ...........................", infoX, instY + 22);
+        doc.text("Phòng thi: ........... Ngày sinh: .......................", infoX, instY + 30);
+        doc.text("Chữ ký thí sinh: ...........................................", infoX, instY + 38);
+        doc.text("Giám thị 1: ..................... GT2: ....................", infoX, instY + 46);
         doc.restore();
 
         // 5. Draw SBD Grid (Identical Geometry & Placement)

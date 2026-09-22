@@ -313,6 +313,9 @@ export async function updateTeacher(teacherId, data) {
 
   if (data.title !== undefined) {
     teacherUpdates.title = data.title ? data.title.trim() : "Giáo viên";
+    if (data.isSubjectLeader === undefined) {
+      teacherUpdates.isSubjectLeader = teacherUpdates.title.includes("Tổ trưởng");
+    }
   }
 
   if (data.isSubjectLeader !== undefined) {
@@ -665,7 +668,7 @@ export async function getTeacherAssignments(teacherId) {
 /**
  * Cap nhat phan cong giang day cho giao vien (VICE_PRINCIPAL hoac ADMIN)
  */
-export async function updateTeacherAssignments(teacherId, { classIds = [], subjectId }) {
+export async function updateTeacherAssignments(teacherId, { classIds = [], subjectId, removeOtherSubjects = false }) {
   const teacher = await prisma.teacher.findUnique({
     where: { id: teacherId },
     include: { primarySubject: true },
@@ -715,6 +718,15 @@ export async function updateTeacherAssignments(teacherId, { classIds = [], subje
   const toRemove = currentAssignments.filter((a) => !validClassIds.includes(a.classId));
 
   await prisma.$transaction(async (tx) => {
+    if (removeOtherSubjects) {
+      await tx.teachingAssignment.deleteMany({
+        where: {
+          teacherId,
+          subjectId: { not: targetSubjectId },
+        },
+      });
+    }
+
     if (toRemove.length > 0) {
       await tx.teachingAssignment.deleteMany({
         where: {

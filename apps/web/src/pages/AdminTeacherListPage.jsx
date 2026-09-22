@@ -341,6 +341,7 @@ export default function AdminTeacherListPage() {
         email,
         phone: phone || null,
         title: editForm.title?.trim() || "Giáo viên",
+        isSubjectLeader: editForm.title?.includes("Tổ trưởng") ?? false,
         primarySubjectId: editForm.primarySubjectId || null,
       });
 

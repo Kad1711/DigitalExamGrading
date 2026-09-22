@@ -416,11 +416,7 @@ export default function TeacherModals({
               className="block w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all cursor-pointer"
             >
               <option value="Giáo viên">Giáo viên</option>
-              <option value="Giáo viên chính">Giáo viên chính</option>
-              <option value="Giáo viên cao cấp">Giáo viên cao cấp</option>
-              <option value="Tổ trưởng bộ môn">Tổ trưởng bộ môn</option>
-              <option value="Tổ phó bộ môn">Tổ phó bộ môn</option>
-              <option value="Giáo viên kiêm nhiệm">Giáo viên kiêm nhiệm</option>
+              <option value="Tổ trưởng chuyên môn">Tổ trưởng chuyên môn</option>
             </select>
           </div>
 

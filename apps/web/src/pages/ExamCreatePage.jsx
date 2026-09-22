@@ -386,11 +386,6 @@ export default function ExamCreatePage() {
       return;
     }
 
-    if (isTeacher && classIdsToSend.length > 1) {
-      setErrorMsg("Giáo viên chỉ có thể tạo bài kiểm tra cho 1 lớp học cụ thể (ví dụ kiểm tra 15 phút, thường xuyên).");
-      return;
-    }
-
     const qCount = Number(questionCount);
     if (isNaN(qCount) || qCount <= 0 || !Number.isInteger(qCount)) {
       setErrorMsg("Số câu hỏi phải là số nguyên lớn hơn 0.");
@@ -615,22 +610,44 @@ export default function ExamCreatePage() {
                 </div>
               </div>
 
-              {/* Class Selection: Teacher Single-Class vs SuperAdmin/ExamOfficer Multi-Class */}
+              {/* Class Selection: Teacher Multi-Class Selection */}
               {!isMultiClassAllowed ? (
-                /* Teacher Single-Class Selection */
+                /* Teacher Multi-Class Selection */
                 <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                     <div>
                       <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
-                        Lớp học kiểm tra <span className="text-rose-500">*</span>
+                        Lớp học kiểm tra ({selectedClassIds.length} đã chọn) <span className="text-rose-500">*</span>
                       </label>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Chọn đúng 1 lớp cụ thể bạn phụ trách giảng dạy để tạo bài kiểm tra (15 phút, 1 tiết...).
+                        Chọn một hoặc nhiều lớp bạn phụ trách giảng dạy để tạo bài kiểm tra đồng thời (15 phút, 1 tiết...).
                       </p>
                     </div>
-                    <span className="text-[11px] font-semibold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded shrink-0">
-                      Áp dụng 1 lớp cụ thể
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const filtered = classes
+                            .filter((cls) => {
+                              if (!selectedGradeId) return true;
+                              return (cls.gradeId || cls.grade?.id) === selectedGradeId;
+                            })
+                            .map((c) => c.id);
+                          const allSelected = filtered.length > 0 && filtered.every((id) => selectedClassIds.includes(id));
+                          if (allSelected) {
+                            setSelectedClassIds((prev) => prev.filter((id) => !filtered.includes(id)));
+                          } else {
+                            setSelectedClassIds((prev) => Array.from(new Set([...prev, ...filtered])));
+                          }
+                        }}
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                      >
+                        {classes.filter((cls) => !selectedGradeId || (cls.gradeId || cls.grade?.id) === selectedGradeId).length > 0 &&
+                        classes.filter((cls) => !selectedGradeId || (cls.gradeId || cls.grade?.id) === selectedGradeId).every((c) => selectedClassIds.includes(c.id))
+                          ? "Bỏ chọn tất cả"
+                          : "Chọn tất cả các lớp của tôi"}
+                      </button>
+                    </div>
                   </div>
 
                   {classes.length === 0 ? (
@@ -652,7 +669,11 @@ export default function ExamCreatePage() {
                               type="button"
                               disabled={submitting}
                               onClick={() => {
-                                setSelectedClassIds([cls.id]);
+                                setSelectedClassIds((prev) =>
+                                  prev.includes(cls.id)
+                                    ? prev.filter((id) => id !== cls.id)
+                                    : [...prev, cls.id]
+                                );
                                 setClassId(cls.id);
                               }}
                               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
@@ -674,9 +695,14 @@ export default function ExamCreatePage() {
                   )}
 
                   <div className="text-[11px] text-slate-600 font-medium">
-                    Lớp đã chọn:{" "}
+                    Các lớp đã chọn ({selectedClassIds.length}):{" "}
                     <strong className="text-blue-700 font-bold">
-                      {classes.find((c) => selectedClassIds.includes(c.id))?.name || "Chưa chọn lớp nào"}
+                      {selectedClassIds.length > 0
+                        ? classes
+                            .filter((c) => selectedClassIds.includes(c.id))
+                            .map((c) => c.name)
+                            .join(", ")
+                        : "Chưa chọn lớp nào"}
                     </strong>
                   </div>
                 </div>
