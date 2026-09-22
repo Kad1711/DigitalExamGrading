@@ -19,6 +19,7 @@ const StudentResultDetailPage = lazy(() => import("./pages/StudentResultDetailPa
 const ExamAnalyticsPage = lazy(() => import("./pages/ExamAnalyticsPage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const AdminManagementPage = lazy(() => import("./pages/AdminManagementPage"));
+const PrincipalAcademicStructurePage = lazy(() => import("./pages/PrincipalAcademicStructurePage"));
 const VicePrincipalTeacherManagementPage = lazy(() => import("./pages/VicePrincipalTeacherManagementPage"));
 
 // Role groups for route protection
@@ -69,8 +70,16 @@ export default function App() {
           <Route
             path="/admin/management"
             element={
-              <RequireRole roles={["SUPER_ADMIN", "PRINCIPAL"]}>
+              <RequireRole roles={["SUPER_ADMIN"]}>
                 <AdminManagementPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/principal/academic-structure"
+            element={
+              <RequireRole roles={["SUPER_ADMIN", "PRINCIPAL"]}>
+                <PrincipalAcademicStructurePage />
               </RequireRole>
             }
           />

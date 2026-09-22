@@ -97,9 +97,30 @@ export function assertExamDraft(exam) {
 }
 
 export async function assertExamManageAccess(exam, reqUser) {
-  // School leadership (SUPER_ADMIN, PRINCIPAL, VICE_PRINCIPAL, EXAM_OFFICER) can manage exams
-  if (["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"].includes(reqUser.role)) {
+  // SUPER_ADMIN has full management rights
+  if (reqUser.role === "SUPER_ADMIN") {
     return true;
+  }
+
+  // EXAM_OFFICER can ONLY manage official examinations (MIDTERM, FINAL)
+  if (reqUser.role === "EXAM_OFFICER") {
+    if (["MIDTERM", "FINAL"].includes(exam.examType)) {
+      return true;
+    }
+    throw new AppError(
+      "Cán bộ khảo thí chỉ có quyền chỉnh sửa/quản lý kỳ thi tập trung chính quy (Giữa kỳ, Cuối kỳ). Bài kiểm tra thường xuyên và 15 phút do giáo viên bộ môn tự quản lý.",
+      403,
+      "EXAM_MANAGEMENT_DENIED"
+    );
+  }
+
+  // PRINCIPAL & VICE_PRINCIPAL are oversight roles (Read-only for exam configuration)
+  if (["PRINCIPAL", "VICE_PRINCIPAL"].includes(reqUser.role)) {
+    throw new AppError(
+      "Ban Giám hiệu thực hiện quyền giám sát chỉ đọc đối với cấu hình kỳ thi.",
+      403,
+      "EXAM_MANAGEMENT_DENIED"
+    );
   }
 
   // Direct creator check
@@ -115,7 +136,7 @@ export async function assertExamManageAccess(exam, reqUser) {
   }
 
   throw new AppError(
-    "Bạn không có quyền chỉnh sửa kỳ thi này. Chỉ Quản trị viên, Ban Giám hiệu, Ban Khảo thí hoặc Giáo viên trực tiếp tạo đề mới có quyền thay đổi cấu hình kỳ thi.",
+    "Bạn không có quyền chỉnh sửa kỳ thi này. Chỉ Quản trị viên, Ban Khảo thí (kỳ thi chính quy) hoặc Giáo viên trực tiếp tạo đề mới có quyền thay đổi cấu hình kỳ thi.",
     403,
     "EXAM_MANAGEMENT_DENIED"
   );
@@ -198,7 +219,14 @@ export async function createExam(data, reqUser) {
       }
     }
   } else if (reqUser.role === "EXAM_OFFICER") {
-    // EXAM_OFFICER can create examinations of all types for the school
+    // EXAM_OFFICER can ONLY create official examinations (MIDTERM, FINAL)
+    if (!["MIDTERM", "FINAL"].includes(finalExamType)) {
+      throw new AppError(
+        "Cán bộ khảo thí chỉ có quyền khởi tạo các kỳ thi tập trung chính quy (Giữa kỳ, Cuối kỳ). Bài kiểm tra thường xuyên và 15 phút do giáo viên phụ trách.",
+        403,
+        "OFFICIAL_EXAM_TYPE_REQUIRED"
+      );
+    }
     teacherId = null;
   } else if (reqUser.role === "SUPER_ADMIN") {
     if (data.teacherId) {
@@ -636,6 +664,15 @@ export async function publishExam(examId, reqUser) {
       "Ky thi phai co it nhat 1 ma de truoc khi publish.",
       400,
       "EXAM_CODE_REQUIRED"
+    );
+  }
+
+  // Official exams (MIDTERM, FINAL) require Master AnswerKey approval before publish
+  if (["MIDTERM", "FINAL"].includes(exam.examType) && !exam.answerKeyApprovedAt) {
+    throw new AppError(
+      "Kỳ thi chính quy (Giữa kỳ / Cuối kỳ) bắt buộc phải được phê duyệt đáp án gốc trước khi phát hành.",
+      422,
+      "ANSWER_KEY_APPROVAL_REQUIRED"
     );
   }
 

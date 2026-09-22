@@ -671,13 +671,13 @@ export default function ExamDetailPage() {
   const isCreator = Boolean(exam.createdByUserId && exam.createdByUserId === user?.id);
   const isTeacherOwner = Boolean(exam.teacherId && user?.teacher?.id && exam.teacherId === user.teacher.id);
 
-  const canManage = isSchoolLeadership || isCreator || isTeacherOwner;
+  const isOfficialExam = ["MIDTERM", "FINAL"].includes(exam.examType);
   const isSubjectLeader = Boolean(
     user?.role === "TEACHER" &&
     user?.teacher?.isSubjectLeader &&
     user?.teacher?.primarySubjectId === exam.subjectId
   );
-  const canApproveAnswerKey = isSchoolLeadership || isSubjectLeader || isCreator || isTeacherOwner;
+  const canApproveAnswerKey = isOfficialExam && (isSchoolLeadership || isSubjectLeader);
   const canGrade = isSchoolLeadership || isTeacherOwner || isCreator || user?.role === "TEACHER";
 
   // Readiness calculation
@@ -687,7 +687,11 @@ export default function ExamDetailPage() {
     examCodes.every((ec) => (ec._count?.answerKeys || 0) === exam.questionCount);
   const hasTemplate = !!template;
   const isReadyToPublish =
-    isDraft && hasExamCodes && allCodesComplete && hasTemplate;
+    isDraft &&
+    hasExamCodes &&
+    allCodesComplete &&
+    hasTemplate &&
+    (!isOfficialExam || Boolean(exam.answerKeyApprovedAt));
 
   // Running total calculation for CUSTOM
   const currentTotalScore = answers.reduce(
@@ -1098,43 +1102,45 @@ export default function ExamDetailPage() {
                   </Badge>
                 </div>
 
-                {/* Step 3b: Phê duyệt đáp án gốc */}
-                <div
-                  className={`flex items-center justify-between p-2.5 rounded-lg border ${
-                    exam.answerKeyApprovedAt
-                      ? "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
-                      : "bg-slate-50 border-slate-200 text-slate-700"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 font-medium">
+                {/* Step 3b: Phê duyệt đáp án gốc (Chỉ bắt buộc cho kỳ thi chính quy MIDTERM / FINAL) */}
+                {isOfficialExam && (
+                  <div
+                    className={`flex items-center justify-between p-2.5 rounded-lg border ${
+                      exam.answerKeyApprovedAt
+                        ? "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
+                        : "bg-slate-50 border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-medium">
+                      {exam.answerKeyApprovedAt ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
+                      )}
+                      <span>Duyệt đáp án gốc</span>
+                    </div>
                     {exam.answerKeyApprovedAt ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <Badge variant="emerald" size="sm" title={`Duyệt bởi ${exam.answerKeyApprovedByTeacher?.fullName || "Ban Khảo thí / Ban Giám hiệu"}`}>
+                        Đã duyệt
+                      </Badge>
+                    ) : canApproveAnswerKey ? (
+                      <Button
+                        variant="primary"
+                        size="xs"
+                        onClick={handleApproveAnswerKey}
+                        disabled={actionLoading || !allCodesComplete}
+                        title={!allCodesComplete ? "Cần nhập đủ đáp án cho tất cả mã đề trước khi phê duyệt" : "Bấm để phê duyệt đáp án gốc"}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                      >
+                        Duyệt đáp án
+                      </Button>
                     ) : (
-                      <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
+                      <Badge variant="amber" size="sm" title="Chờ Ban Khảo thí, Ban Giám hiệu hoặc Tổ trưởng chuyên môn phê duyệt">
+                        Chờ duyệt
+                      </Badge>
                     )}
-                    <span>Duyệt đáp án gốc</span>
                   </div>
-                  {exam.answerKeyApprovedAt ? (
-                    <Badge variant="emerald" size="sm" title={`Duyệt bởi ${exam.answerKeyApprovedByTeacher?.fullName || "Ban Khảo thí / Ban Giám hiệu"}`}>
-                      Đã duyệt
-                    </Badge>
-                  ) : canApproveAnswerKey ? (
-                    <Button
-                      variant="primary"
-                      size="xs"
-                      onClick={handleApproveAnswerKey}
-                      disabled={actionLoading || !allCodesComplete}
-                      title={!allCodesComplete ? "Cần nhập đủ đáp án cho tất cả mã đề trước khi phê duyệt" : "Bấm để phê duyệt đáp án gốc"}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                    >
-                      Duyệt đáp án
-                    </Button>
-                  ) : (
-                    <Badge variant="amber" size="sm" title="Chờ Ban Khảo thí, Ban Giám hiệu hoặc Tổ trưởng chuyên môn phê duyệt">
-                      Chờ duyệt
-                    </Badge>
-                  )}
-                </div>
+                )}
 
                 {/* Step 4 */}
                 <div

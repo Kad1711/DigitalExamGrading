@@ -14,7 +14,6 @@ const adminOnly = authorizeRoles("SUPER_ADMIN");
 const canViewOversight = authorizeRoles("SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL");
 const canManageTeacherProfessional = authorizeRoles("SUPER_ADMIN", "VICE_PRINCIPAL");
 const canViewTeachers = authorizeRoles("SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL");
-const canViewManagement = authorizeRoles("SUPER_ADMIN", "PRINCIPAL");
 
 /**
  * GET /api/admin/test
@@ -59,7 +58,7 @@ router.post("/teachers/bulk-delete-locked", adminOnly, adminTeacherController.bu
 /**
  * Quan ly tai khoan Ban Giam Hieu & Ban Chuyen Mon / Khao Thi (Chi ADMIN)
  */
-router.get("/management-accounts", canViewManagement, adminManagementController.listManagementAccountsController);
+router.get("/management-accounts", adminOnly, adminManagementController.listManagementAccountsController);
 router.post(
   "/management-accounts/:userId/reset-password",
   adminOnly,

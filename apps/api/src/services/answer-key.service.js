@@ -226,7 +226,16 @@ export async function approveAnswerKey(examId, reqUser) {
     throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
   }
 
-  // 1. Leadership & Exam Officer can approve any exam
+  // 1. Routine exams (REGULAR, MIN_15) do NOT use and are NOT permitted Master AnswerKey approval
+  if (!["MIDTERM", "FINAL"].includes(exam.examType)) {
+    throw new AppError(
+      "Quy trình phê duyệt đáp án gốc chỉ áp dụng cho kỳ thi tập trung chính quy (Giữa kỳ, Cuối kỳ). Bài kiểm tra thường xuyên và 15 phút do giáo viên trực tiếp phụ trách.",
+      400,
+      "APPROVAL_NOT_APPLICABLE_FOR_ROUTINE_EXAM"
+    );
+  }
+
+  // 2. Leadership & Exam Officer can approve official exams
   const isSchoolLeadershipOrOfficer = [
     "SUPER_ADMIN",
     "PRINCIPAL",
@@ -237,24 +246,24 @@ export async function approveAnswerKey(examId, reqUser) {
   let isAuthorized = isSchoolLeadershipOrOfficer;
   let teacher = null;
 
+  // 3. Subject Leader approval: Must be TEACHER + isSubjectLeader === true + primarySubjectId === exam.subjectId
   if (reqUser.role === "TEACHER") {
     teacher = await prisma.teacher.findUnique({ where: { userId: reqUser.id } });
-    const isSubjectLeader =
+    const isSubjectLeader = Boolean(
       teacher &&
       teacher.isSubjectLeader === true &&
-      teacher.primarySubjectId === exam.subjectId;
-    const isCreatorOrOwner =
-      (exam.teacherId && teacher && exam.teacherId === teacher.id) ||
-      exam.createdByUserId === reqUser.id;
+      teacher.primarySubjectId &&
+      teacher.primarySubjectId === exam.subjectId
+    );
 
-    if (isSubjectLeader || isCreatorOrOwner) {
+    if (isSubjectLeader) {
       isAuthorized = true;
     }
   }
 
   if (!isAuthorized) {
     throw new AppError(
-      "Bạn không có quyền phê duyệt đáp án gốc cho kỳ thi này. Quyền phê duyệt thuộc về Ban Khảo thí, Ban Giám hiệu, Quản trị viên hoặc Tổ trưởng chuyên môn.",
+      "Bạn không có quyền phê duyệt đáp án gốc cho kỳ thi này. Quyền phê duyệt thuộc về Tổ trưởng chuyên môn của môn học này, Ban Khảo thí hoặc Ban Giám hiệu.",
       403,
       "FORBIDDEN_NOT_AUTHORIZED_APPROVER"
     );

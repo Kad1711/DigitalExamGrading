@@ -351,7 +351,7 @@ export default function ExamListPage() {
                 onClick={() => navigate("/exams/new")}
                 className="w-full sm:w-auto"
               >
-                {isExamOfficer ? "Tạo kỳ thi mới" : isAdmin ? "Tạo kỳ thi mới" : "Tạo bài kiểm tra"}
+                {isExamOfficer ? "Tạo kỳ thi chính quy" : isAdmin ? "Tạo kỳ thi mới" : "Tạo bài kiểm tra"}
               </Button>
             </div>
           )}

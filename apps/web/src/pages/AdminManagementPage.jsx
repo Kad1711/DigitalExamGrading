@@ -58,9 +58,6 @@ function getRoleBadge(role) {
 }
 
 export default function AdminManagementPage() {
-  const { user } = useAuth();
-  const isPrincipal = user?.role === "PRINCIPAL";
-
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -246,45 +243,26 @@ export default function AdminManagementPage() {
           </Alert>
         )}
 
-        {/* Role-based Information Callout */}
-        {isPrincipal ? (
-          <div className="rounded-2xl border border-purple-200 bg-linear-to-r from-purple-50/80 via-indigo-50/40 to-slate-50 p-4 sm:p-5 flex flex-col sm:flex-row gap-4 items-start shadow-xs">
-            <div className="p-2.5 rounded-xl bg-purple-600 text-white shrink-0 shadow-sm shadow-purple-500/20">
-              <Crown className="w-5 h-5" />
-            </div>
-            <div className="space-y-1.5 text-xs sm:text-sm text-slate-700 leading-relaxed">
-              <div className="font-semibold text-purple-900 flex items-center gap-2">
-                <span>Chế độ Giám sát Cơ cấu Phòng ban (Chỉ xem tổng hợp)</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-purple-100 text-purple-800">
-                  Hiệu trưởng
-                </span>
-              </div>
-              <p>
-                Hiệu trưởng có quyền theo dõi toàn diện cơ cấu bộ máy, danh sách nhân sự lãnh đạo và tỷ lệ phân bổ của trường. Các thao tác kỹ thuật (khóa/mở khóa tài khoản, đặt lại mật khẩu) do Quản trị viên hệ thống phụ trách.
-              </p>
-            </div>
+        {/* Information Callout: Password Security Policy */}
+        <div className="rounded-2xl border border-blue-200 bg-linear-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 p-4 sm:p-5 flex flex-col sm:flex-row gap-4 items-start shadow-xs">
+          <div className="p-2.5 rounded-xl bg-blue-600 text-white shrink-0 shadow-sm shadow-blue-500/20">
+            <Info className="w-5 h-5" />
           </div>
-        ) : (
-          <div className="rounded-2xl border border-blue-200 bg-linear-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 p-4 sm:p-5 flex flex-col sm:flex-row gap-4 items-start shadow-xs">
-            <div className="p-2.5 rounded-xl bg-blue-600 text-white shrink-0 shadow-sm shadow-blue-500/20">
-              <Info className="w-5 h-5" />
+          <div className="space-y-1.5 text-xs sm:text-sm text-slate-700 leading-relaxed">
+            <div className="font-semibold text-slate-900 flex items-center gap-2">
+              <span>Chính sách an toàn mật khẩu một chiều (bcrypt hashing)</span>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                Chuẩn OWASP
+              </span>
             </div>
-            <div className="space-y-1.5 text-xs sm:text-sm text-slate-700 leading-relaxed">
-              <div className="font-semibold text-slate-900 flex items-center gap-2">
-                <span>Chính sách an toàn mật khẩu một chiều (bcrypt hashing)</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-800">
-                  Chuẩn OWASP
-                </span>
-              </div>
-              <p>
-                Toàn bộ mật khẩu người dùng được băm một chiều bằng thuật toán <strong>bcrypt</strong> và không thể khôi phục dạng văn bản gốc. Hệ thống không lưu trữ hay hiển thị mật khẩu cố định sau khi khởi tạo.
-              </p>
-              <p className="text-slate-600 text-xs">
-                Quản trị viên có thể sử dụng nút <strong>"Đặt lại MK"</strong> để tạo mật khẩu mới hoặc sinh mật khẩu ngẫu nhiên an toàn khi cần cấp lại cho nhân sự.
-              </p>
-            </div>
+            <p>
+              Toàn bộ mật khẩu người dùng được băm một chiều bằng thuật toán <strong>bcrypt</strong> và không thể khôi phục dạng văn bản gốc. Hệ thống không lưu trữ hay hiển thị mật khẩu cố định sau khi khởi tạo.
+            </p>
+            <p className="text-slate-600 text-xs">
+              Quản trị viên có thể sử dụng nút <strong>"Đặt lại MK"</strong> để tạo mật khẩu mới hoặc sinh mật khẩu ngẫu nhiên an toàn khi cần cấp lại cho nhân sự.
+            </p>
           </div>
-        )}
+        </div>
 
         {/* Overview Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -422,9 +400,7 @@ export default function AdminManagementPage() {
                     <th className="py-3.5 px-4">Chức vụ hệ thống</th>
                     <th className="py-3.5 px-4">Trạng thái</th>
                     <th className="py-3.5 px-4">Ngày tạo</th>
-                    <th className="py-3.5 px-4 sm:px-6 text-right">
-                      {isPrincipal ? "Quyền hạn" : "Thao tác"}
-                    </th>
+                    <th className="py-3.5 px-4 sm:px-6 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -467,42 +443,36 @@ export default function AdminManagementPage() {
                         </td>
 
                         <td className="py-3.5 px-4 sm:px-6 text-right whitespace-nowrap">
-                          {isPrincipal ? (
-                            <span className="text-xs text-slate-400 italic font-medium px-2 py-1 rounded bg-slate-100">
-                              Chỉ xem
-                            </span>
-                          ) : (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openResetPassword(acc)}
-                                className="gap-1 text-xs py-1 px-2.5 h-8 font-medium"
-                              >
-                                <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-                                <span>Đặt lại MK</span>
-                              </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openResetPassword(acc)}
+                              className="gap-1 text-xs py-1 px-2.5 h-8 font-medium"
+                            >
+                              <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Đặt lại MK</span>
+                            </Button>
 
-                              <Button
-                                variant={isLocked ? "success" : "danger"}
-                                size="sm"
-                                onClick={() => openToggleStatus(acc)}
-                                className="gap-1 text-xs py-1 px-2.5 h-8 font-medium"
-                              >
-                                {isLocked ? (
-                                  <>
-                                    <Unlock className="w-3.5 h-3.5" />
-                                    <span>Mở khóa</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Lock className="w-3.5 h-3.5" />
-                                    <span>Khóa</span>
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          )}
+                            <Button
+                              variant={isLocked ? "success" : "danger"}
+                              size="sm"
+                              onClick={() => openToggleStatus(acc)}
+                              className="gap-1 text-xs py-1 px-2.5 h-8 font-medium"
+                            >
+                              {isLocked ? (
+                                <>
+                                  <Unlock className="w-3.5 h-3.5" />
+                                  <span>Mở khóa</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Lock className="w-3.5 h-3.5" />
+                                  <span>Khóa</span>
+                                </>
+                              )}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );

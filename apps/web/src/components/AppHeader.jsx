@@ -43,6 +43,7 @@ export default function AppHeader() {
   const isGradeActive = location.pathname.startsWith("/grade");
   const isAdminDashboardActive = location.pathname === "/admin/dashboard" || location.pathname === "/admin";
   const isAdminManagementActive = location.pathname.startsWith("/admin/management");
+  const isAcademicStructureActive = location.pathname.startsWith("/principal/academic-structure");
   const isAdminTeachersActive = location.pathname.startsWith("/admin/teachers");
   const isProfileActive = location.pathname.startsWith("/profile");
   const isStudentExamsActive = location.pathname.startsWith("/student/exams");
@@ -161,10 +162,10 @@ export default function AppHeader() {
       active: isApprovalQueueActive,
     },
     {
-      label: "Cơ cấu phòng ban",
-      href: "/admin/management",
-      icon: Landmark,
-      active: isAdminManagementActive,
+      label: "Cơ cấu chuyên môn",
+      href: "/principal/academic-structure",
+      icon: BookOpen,
+      active: isAcademicStructureActive,
     },
     {
       label: "Lớp học & Học sinh",
