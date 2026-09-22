@@ -881,9 +881,15 @@ export default function AdminTeacherListPage() {
 
                         {/* Title */}
                         <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                          <Badge variant="blue" size="sm">
-                            {t.title || "Giáo viên"}
-                          </Badge>
+                          {t.isSubjectLeader || t.title?.includes("Tổ trưởng") ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-300">
+                              ⭐ Tổ trưởng chuyên môn
+                            </span>
+                          ) : (
+                            <Badge variant="blue" size="sm">
+                              Giáo viên
+                            </Badge>
+                          )}
                         </td>
 
                         {/* Primary Subject */}

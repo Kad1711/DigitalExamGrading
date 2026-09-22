@@ -161,6 +161,12 @@ export default function AppHeader() {
       active: isApprovalQueueActive,
     },
     {
+      label: "Cơ cấu phòng ban",
+      href: "/admin/management",
+      icon: Landmark,
+      active: isAdminManagementActive,
+    },
+    {
       label: "Lớp học & Học sinh",
       href: "/classes",
       icon: Users,
@@ -195,7 +201,7 @@ export default function AppHeader() {
       active: isApprovalQueueActive,
     },
     {
-      label: "Chuyên môn GV",
+      label: "Quản lý & Phân công giáo viên",
       href: "/vice-principal/teachers",
       icon: GraduationCap,
       active: isVicePrincipalTeachersActive,
@@ -205,12 +211,6 @@ export default function AppHeader() {
       href: "/classes",
       icon: Users,
       active: isClassesActive,
-    },
-    {
-      label: "Giáo viên",
-      href: "/admin/teachers",
-      icon: UserCheck,
-      active: isAdminTeachersActive,
     },
     {
       label: "Hồ sơ",

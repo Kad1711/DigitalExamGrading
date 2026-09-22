@@ -334,9 +334,15 @@ export default function VicePrincipalTeacherManagementPage() {
 
                         {/* Title */}
                         <td className="py-4 px-4 text-center">
-                          <Badge variant="blue" size="sm">
-                            {teacher.title || "Giáo viên"}
-                          </Badge>
+                          {teacher.isSubjectLeader || teacher.title?.includes("Tổ trưởng") ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-300">
+                              ⭐ Tổ trưởng chuyên môn
+                            </span>
+                          ) : (
+                            <Badge variant="blue" size="sm">
+                              Giáo viên
+                            </Badge>
+                          )}
                         </td>
 
                         {/* Primary Subject */}

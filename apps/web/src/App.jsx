@@ -69,7 +69,7 @@ export default function App() {
           <Route
             path="/admin/management"
             element={
-              <RequireRole roles={["SUPER_ADMIN"]}>
+              <RequireRole roles={["SUPER_ADMIN", "PRINCIPAL"]}>
                 <AdminManagementPage />
               </RequireRole>
             }

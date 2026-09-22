@@ -88,8 +88,6 @@ export default function ExamCreatePage() {
 
   const availableExamTypes = isTeacher
     ? routineExamTypes
-    : isExamOfficer
-    ? officialExamTypes
     : [...routineExamTypes, ...officialExamTypes];
 
   const handleExamTypeChange = (newType) => {
@@ -437,18 +435,18 @@ export default function ExamCreatePage() {
       <AppHeader />
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Breadcrumbs items={[{ label: isExamOfficer ? "Tạo kỳ thi chính quy (Cán bộ khảo thí)" : isAdmin ? "Tạo kỳ thi mới (Quản trị viên)" : "Tạo bài kiểm tra lớp" }]} />
+        <Breadcrumbs items={[{ label: isExamOfficer ? "Tạo kỳ thi mới (Ban Khảo thí)" : isAdmin ? "Tạo kỳ thi mới (Quản trị viên)" : "Tạo bài kiểm tra lớp" }]} />
 
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            {isExamOfficer ? "Tạo Kỳ Thi Chính Quy (Cán bộ khảo thí)" : isAdmin ? "Tạo Kỳ thi Mới (Quản trị viên)" : "Tạo Bài Kiểm Tra Lớp"}
+            {isExamOfficer ? "Tạo Kỳ Thi Mới (Ban Khảo thí)" : isAdmin ? "Tạo Kỳ thi Mới (Quản trị viên)" : "Tạo Bài Kiểm Tra Lớp"}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             {isExamOfficer
-              ? "Khởi tạo kỳ thi chính quy (giữa kỳ, cuối kỳ) áp dụng cho nhiều lớp hoặc toàn khối THCS."
+              ? "Khởi tạo kỳ thi trắc nghiệm (giữa kỳ, cuối kỳ, thường xuyên) áp dụng cho các lớp học hoặc toàn khối THCS."
               : isAdmin
               ? "Kỳ thi chung áp dụng cho nhiều lớp hoặc toàn khối THCS. Đề thi sẽ được tạo ở trạng thái Nháp (DRAFT)."
-              : "Khởi tạo bài kiểm tra 15 phút hoặc thường xuyên cho đúng 1 lớp cụ thể bạn phụ trách."}
+              : "Khởi tạo bài kiểm tra 15 phút hoặc thường xuyên cho các lớp cụ thể bạn phụ trách."}
           </p>
         </div>
 

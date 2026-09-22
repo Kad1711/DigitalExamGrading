@@ -19,11 +19,7 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
   }
 
   let teacherAssignedClassIds = null;
-  const isOversight =
-    ["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"].includes(userRole) ||
-    (userRole === "EXAM_OFFICER" &&
-      (exam.createdByUserId === teacherUserId ||
-        ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType)));
+  const isOversight = ["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"].includes(userRole);
 
   if (!isOversight) {
     const teacher = await prisma.teacher.findUnique({ where: { userId: teacherUserId } });
@@ -32,6 +28,9 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
     }
 
     const isDirectOwner = exam.teacherId && exam.teacherId === teacher.id;
+    const isSubjectLeader =
+      Boolean(teacher.isSubjectLeader && teacher.primarySubjectId && teacher.primarySubjectId === exam.subjectId);
+
     const examClassIds = [
       ...(exam.classId ? [exam.classId] : []),
       ...(exam.examClasses ? exam.examClasses.map((ec) => ec.classId) : []),
@@ -46,11 +45,12 @@ export async function getExamAnalytics(teacherUserId, examId, userRole = "TEACHE
       select: { classId: true },
     });
 
-    if (!isDirectOwner && myAssignments.length === 0) {
+    if (!isDirectOwner && myAssignments.length === 0 && !isSubjectLeader) {
       throw new AppError("Bạn không có quyền truy cập kỳ thi này.", 403, "EXAM_ACCESS_DENIED");
     }
 
-    if (!isDirectOwner || exam.examClasses?.length > 0) {
+    // Subject Leader has school-wide subject analytics across all classes; others are filtered to assigned classes if applicable
+    if (!isSubjectLeader && (!isDirectOwner || exam.examClasses?.length > 0)) {
       teacherAssignedClassIds = myAssignments.map((a) => a.classId);
     }
   }

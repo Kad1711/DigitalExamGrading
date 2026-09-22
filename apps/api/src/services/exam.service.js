@@ -54,6 +54,11 @@ export async function assertExamAccess(examId, reqUser) {
       return exam;
     }
 
+    // 1b. Tổ trưởng chuyên môn có quyền truy cập toàn bộ bài kiểm tra thuộc bộ môn của tổ mình (khối 6-9)
+    if (teacher.isSubjectLeader && teacher.primarySubjectId && teacher.primarySubjectId === exam.subjectId) {
+      return exam;
+    }
+
     // 2. Or teacher teaches this exam's subject in the primary class or any assigned examClasses
     const examClassIds = [
       ...(exam.classId ? [exam.classId] : []),
@@ -193,14 +198,7 @@ export async function createExam(data, reqUser) {
       }
     }
   } else if (reqUser.role === "EXAM_OFFICER") {
-    // EXAM_OFFICER creates official examinations (MIDTERM, FINAL, etc.)
-    if (finalExamType === "REGULAR" || finalExamType === "MIN_15") {
-      throw new AppError(
-        "Cán bộ khảo thí chỉ phụ trách các kỳ thi tập trung chính quy (Giữa kỳ, Cuối kỳ).",
-        400,
-        "OFFICIAL_EXAM_TYPE_REQUIRED"
-      );
-    }
+    // EXAM_OFFICER can create examinations of all types for the school
     teacherId = null;
   } else if (reqUser.role === "SUPER_ADMIN") {
     if (data.teacherId) {
@@ -289,30 +287,32 @@ export async function listExams(query, reqUser) {
     const assignedClassIds = assignments.map((a) => a.classId);
     const assignedSubjectIds = [...new Set(assignments.map((a) => a.subjectId))];
 
+    const teacherOr = [
+      { teacherId: teacher.id },
+      { createdByUserId: reqUser.id },
+      ...(assignedSubjectIds.length > 0 && assignedClassIds.length > 0
+        ? [
+            {
+              subjectId: { in: assignedSubjectIds },
+              OR: [
+                { classId: { in: assignedClassIds } },
+                { examClasses: { some: { classId: { in: assignedClassIds } } } },
+              ],
+            },
+          ]
+        : []),
+    ];
+
+    // Tổ trưởng chuyên môn: xem toàn bộ đề thi của bộ môn mình phụ trách (khối 6-9)
+    if (teacher.isSubjectLeader && teacher.primarySubjectId) {
+      teacherOr.push({ subjectId: teacher.primarySubjectId });
+    }
+
     andClauses.push({
-      OR: [
-        { teacherId: teacher.id },
-        { createdByUserId: reqUser.id },
-        ...(assignedSubjectIds.length > 0 && assignedClassIds.length > 0
-          ? [
-              {
-                subjectId: { in: assignedSubjectIds },
-                OR: [
-                  { classId: { in: assignedClassIds } },
-                  { examClasses: { some: { classId: { in: assignedClassIds } } } },
-                ],
-              },
-            ]
-          : []),
-      ],
+      OR: teacherOr,
     });
   } else if (reqUser.role === "EXAM_OFFICER") {
-    andClauses.push({
-      OR: [
-        { createdByUserId: reqUser.id },
-        { examType: { in: ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"] } },
-      ],
-    });
+    // Ban Khảo thí: Được xem tất cả các bài kiểm tra/kỳ thi của trường (cả định kỳ, thường xuyên 15p) để tổng hợp số liệu khảo thí
   }
 
   if (status) where.status = status;
