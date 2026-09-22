@@ -678,6 +678,7 @@ export default function ExamDetailPage() {
     user?.teacher?.primarySubjectId === exam.subjectId
   );
   const canApproveAnswerKey = isSchoolLeadership || isSubjectLeader || isCreator || isTeacherOwner;
+  const canGrade = isSchoolLeadership || isTeacherOwner || isCreator || user?.role === "TEACHER";
 
   // Readiness calculation
   const hasExamCodes = examCodes.length > 0;
