@@ -728,7 +728,7 @@ export default function ExamSubmissionsPage() {
                   >
                     Xuất CSV
                   </Button>
-                  {((isOfficial && isExamBoardOrAdmin) || (!isOfficial && isStaffManager)) && (
+                  {((isOfficial && isExamOfficerOrAdmin) || (!isOfficial && isStaffManager)) && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -792,7 +792,7 @@ export default function ExamSubmissionsPage() {
                   {(publication?.publicationApprovalStatus === "NOT_REQUESTED" ||
                     publication?.publicationApprovalStatus === "REJECTED" ||
                     !publication?.publicationApprovalStatus) && (
-                    isExamBoardOrAdmin ? (
+                    isExamOfficerOrAdmin ? (
                       <Button
                         variant="primary"
                         size="sm"
@@ -804,7 +804,7 @@ export default function ExamSubmissionsPage() {
                       </Button>
                     ) : (
                       <span className="text-xs text-slate-500 italic">
-                        Kỳ thi chính quy: Chờ Ban khảo thí gửi duyệt công bố.
+                        Kỳ thi chính quy: Chờ Cán bộ khảo thí gửi duyệt công bố.
                       </span>
                     )
                   )}

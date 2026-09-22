@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 import prisma from "../src/config/prisma.js";
@@ -48,7 +48,7 @@ async function cleanDevData() {
   try {
     // 4. Counts BEFORE deletion
     console.log("\n--- RECORD COUNTS BEFORE CLEANUP ---");
-    const beforeAdmin = await prisma.user.count({ where: { role: "ADMIN" } });
+    const beforeAdmin = await prisma.user.count({ where: { role: "SUPER_ADMIN" } });
     const beforeTeacherUser = await prisma.user.count({ where: { role: "TEACHER" } });
     const beforeStudentUser = await prisma.user.count({ where: { role: "STUDENT" } });
     const beforeTeacher = await prisma.teacher.count();
@@ -64,7 +64,7 @@ async function cleanDevData() {
     const beforeTemplate = await prisma.answerSheetTemplate.count();
     const beforeRefreshTokens = await prisma.refreshToken.count();
 
-    console.log(`- ADMIN users: ${beforeAdmin}`);
+    console.log(`- SUPER_ADMIN users: ${beforeAdmin}`);
     console.log(`- TEACHER users: ${beforeTeacherUser}`);
     console.log(`- STUDENT users: ${beforeStudentUser}`);
     console.log(`- Teacher profiles: ${beforeTeacher}`);
@@ -80,9 +80,9 @@ async function cleanDevData() {
     console.log(`- Answer Sheet Templates: ${beforeTemplate}`);
     console.log(`- Refresh Tokens: ${beforeRefreshTokens}`);
 
-    // Verify ADMIN account exists
+    // Verify SUPER_ADMIN account exists
     const adminUser = await prisma.user.findFirst({
-      where: { email: "admin@digitalexam.local", role: "ADMIN" },
+      where: { email: "admin@digitalexam.local", role: "SUPER_ADMIN" },
     });
     if (!adminUser) {
       console.error('ERROR: Required admin account "admin@digitalexam.local" was not found in DB! Aborting.');
@@ -117,10 +117,10 @@ async function cleanDevData() {
 
       // Step E: Clean up non-admin refresh tokens and users
       await tx.refreshToken.deleteMany({
-        where: { user: { role: { not: "ADMIN" } } },
+        where: { user: { role: { not: "SUPER_ADMIN" } } },
       });
       await tx.user.deleteMany({
-        where: { role: { not: "ADMIN" } },
+        where: { role: { not: "SUPER_ADMIN" } },
       });
 
       // Step F: Clean duplicate unaccented semesters ("Hoc ky 1", "Hoc ky 2") if any
@@ -148,7 +148,7 @@ async function cleanDevData() {
 
     // 7. Counts AFTER cleanup
     console.log("\n--- RECORD COUNTS AFTER CLEANUP ---");
-    const afterAdmin = await prisma.user.count({ where: { role: "ADMIN" } });
+    const afterAdmin = await prisma.user.count({ where: { role: "SUPER_ADMIN" } });
     const afterTeacherUser = await prisma.user.count({ where: { role: "TEACHER" } });
     const afterStudentUser = await prisma.user.count({ where: { role: "STUDENT" } });
     const afterTeacher = await prisma.teacher.count();
@@ -169,7 +169,7 @@ async function cleanDevData() {
     const classes = await prisma.class.count();
     const subjects = await prisma.subject.count();
 
-    console.log(`- ADMIN users: ${afterAdmin}`);
+    console.log(`- SUPER_ADMIN users: ${afterAdmin}`);
     console.log(`- TEACHER users: ${afterTeacherUser}`);
     console.log(`- STUDENT users: ${afterStudentUser}`);
     console.log(`- Teacher profiles: ${afterTeacher}`);

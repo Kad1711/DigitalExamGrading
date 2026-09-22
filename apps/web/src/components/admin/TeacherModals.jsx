@@ -171,9 +171,21 @@ export default function TeacherModals({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Mã giáo viên <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  Mã giáo viên <span className="text-rose-500">*</span>
+                </label>
+                {createForm.subject && (
+                  <button
+                    type="button"
+                    onClick={() => handleSubjectChange && handleSubjectChange(createForm.subject)}
+                    className="text-[11px] text-blue-600 hover:text-blue-700 font-medium cursor-pointer hover:underline"
+                    title="Lấy lại mã tăng tiến tự động mới nhất theo môn"
+                  >
+                    Lấy mã tự động
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
                 required
@@ -185,11 +197,11 @@ export default function TeacherModals({
                     teacherCode: e.target.value.toUpperCase(),
                   })
                 }
-                placeholder="GV001"
+                placeholder="GVHOA01"
                 className="block w-full px-3.5 py-2 text-sm font-mono bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
               />
               <span className="text-[11px] text-slate-400 mt-1 block">
-                Mã tăng tiến tự động (GVVAN01, GVVAN02...)
+                Mã tăng tiến tự động (GVHOA01, GVHOA02...)
               </span>
             </div>
 

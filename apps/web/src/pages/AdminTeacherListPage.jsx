@@ -183,12 +183,26 @@ export default function AdminTeacherListPage() {
     setIsCreateOpen(true);
   };
 
-  const handleSubjectChange = (subjectCode) => {
+  const handleSubjectChange = async (subjectCode) => {
     setCreateForm((prev) => ({
       ...prev,
       subject: subjectCode,
-      teacherCode: subjectCode ? `GV${subjectCode}` : prev.teacherCode,
     }));
+
+    if (subjectCode) {
+      try {
+        const res = await api.get(`/auth/next-teacher-code?subject=${encodeURIComponent(subjectCode)}`);
+        if (res.data?.data?.nextTeacherCode) {
+          setCreateForm((prev) => ({
+            ...prev,
+            subject: subjectCode,
+            teacherCode: res.data.data.nextTeacherCode,
+          }));
+        }
+      } catch (err) {
+        console.warn("Could not fetch next teacher code:", err);
+      }
+    }
   };
 
   // Submit Create Teacher

@@ -64,36 +64,43 @@ export function getSubjectPrefix(subjectInput) {
 
   const clean = removeVietnameseTones(subjectInput).toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-  // Kiểm tra nếu đã bắt đầu bằng GV
-  if (clean.startsWith("GV") && clean.length > 2) {
-    return clean;
+  // Bỏ tiền tố GV nếu có để chuẩn hóa so khớp (ví dụ GVHOAHOC -> HOAHOC, GVTOAN -> TOAN)
+  const withoutGV = clean.startsWith("GV") ? clean.slice(2) : clean;
+
+  if (SUBJECT_PREFIX_MAP[withoutGV]) {
+    return SUBJECT_PREFIX_MAP[withoutGV];
   }
 
-  // Tìm trong map
   if (SUBJECT_PREFIX_MAP[clean]) {
     return SUBJECT_PREFIX_MAP[clean];
   }
 
   // Tìm theo partial match
-  if (clean.includes("VAN")) return "GVVAN";
-  if (clean.includes("TOAN")) return "GVTOAN";
-  if (clean.includes("ANH")) return "GVANH";
-  if (clean.includes("LY") || clean.includes("VAT")) return "GVLY";
-  if (clean.includes("HOA")) return "GVHOA";
-  if (clean.includes("SINH")) return "GVSINH";
-  if (clean.includes("SU") || clean.includes("LICH")) return "GVSU";
-  if (clean.includes("DIA")) return "GVDIA";
-  if (clean.includes("TIN")) return "GVTIN";
-  if (clean.includes("CONGNGHE") || clean.includes("CN")) return "GVCN";
-  if (clean.includes("PHAPLUAT") || clean.includes("GDKT") || clean.includes("GDCD")) return "GVGDCD";
+  if (withoutGV.includes("VAN")) return "GVVAN";
+  if (withoutGV.includes("TOAN")) return "GVTOAN";
+  if (withoutGV.includes("ANH")) return "GVANH";
+  if (withoutGV.includes("LY") || withoutGV.includes("VAT")) return "GVLY";
+  if (withoutGV.includes("HOA")) return "GVHOA";
+  if (withoutGV.includes("SINH")) return "GVSINH";
+  if (withoutGV.includes("SU") || withoutGV.includes("LICH")) return "GVSU";
+  if (withoutGV.includes("DIA")) return "GVDIA";
+  if (withoutGV.includes("TIN")) return "GVTIN";
+  if (withoutGV.includes("CONGNGHE") || withoutGV.includes("CN")) return "GVCN";
+  if (withoutGV.includes("PHAPLUAT") || withoutGV.includes("GDKT") || withoutGV.includes("GDCD")) return "GVGDCD";
 
-  return `GV${clean.slice(0, 4)}`;
+  // Nếu chuỗi bắt đầu bằng GV và có nội dung môn hợp lệ
+  if (clean.startsWith("GV") && clean.length > 2) {
+    return clean;
+  }
+
+  return `GV${withoutGV.slice(0, 4) || "01"}`;
 }
 
 /**
  * Tự động sinh mã giáo viên tiếp theo theo môn học
  * Logic tăng tiến: tìm số lớn nhất của tiền tố hiện có + 1, định dạng 2 chữ số (01, 02, ...)
- * Khi giáo viên cũ (ví dụ GVVAN01) bị xóa, hệ thống cứ tiếp tục tiến lên (GVVAN02, GVVAN03, ...)
+ * Khi trường có nhiều giáo viên cùng bộ môn (ví dụ GVHOA01, GVHOA02, GVHOA03...),
+ * hệ thống tự động sinh số tăng tiến kế tiếp không bao giờ trùng lặp.
  */
 export async function getNextTeacherCode(subjectInput, tx = prisma) {
   const prefix = getSubjectPrefix(subjectInput);
@@ -121,8 +128,14 @@ export async function getNextTeacherCode(subjectInput, tx = prisma) {
   }
 
   const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
-  const nextNum = maxNum + 1;
-  const padded = String(nextNum).padStart(2, "0");
+  let nextNum = maxNum + 1;
+  let candidate = `${prefix}${String(nextNum).padStart(2, "0")}`;
 
-  return `${prefix}${padded}`;
+  // Kiểm tra an toàn tuyệt đối: lặp tăng dần nếu candidate đã tồn tại trong DB
+  while (await tx.teacher.findUnique({ where: { teacherCode: candidate } })) {
+    nextNum++;
+    candidate = `${prefix}${String(nextNum).padStart(2, "0")}`;
+  }
+
+  return candidate;
 }

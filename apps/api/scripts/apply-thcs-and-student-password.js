@@ -46,9 +46,6 @@ async function applyToDb(url) {
       { level: 7, name: "Khối 7" },
       { level: 8, name: "Khối 8" },
       { level: 9, name: "Khối 9" },
-      { level: 10, name: "Khối 10" },
-      { level: 11, name: "Khối 11" },
-      { level: 12, name: "Khối 12" },
     ];
 
     for (const g of thcsGrades) {
@@ -70,7 +67,7 @@ async function applyToDb(url) {
         );
       }
     }
-    console.log("✓ Grades 6-12 verified.");
+    console.log("✓ Grades 6-9 verified.");
 
     // 3. Update existing student accounts to format: className_sbd@digitalexam.edu.vn
     const enrollments = await client.query(`

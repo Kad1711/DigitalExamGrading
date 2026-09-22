@@ -82,12 +82,8 @@ export default function ExamCreatePage() {
   ];
 
   const officialExamTypes = [
-    { value: "MIN_45", label: "Kiểm tra 45 phút (1 tiết)" },
-    { value: "MIN_60", label: "Kiểm tra 60 phút" },
-    { value: "MIN_90", label: "Kiểm tra 90 phút" },
     { value: "MIDTERM", label: "Kiểm tra giữa kỳ" },
     { value: "FINAL", label: "Kiểm tra cuối kỳ" },
-    { value: "OTHER", label: "Kỳ thi khác" },
   ];
 
   const availableExamTypes = isTeacher
@@ -102,22 +98,14 @@ export default function ExamCreatePage() {
       setDurationMinutes(15);
       setQuestionCount(20);
       setSheetPreset("PRESET_15MIN_20Q");
-    } else if (newType === "MIN_45") {
+    } else if (newType === "REGULAR") {
       setDurationMinutes(45);
       setQuestionCount(40);
       setSheetPreset("PRESET_45MIN_40Q");
-    } else if (newType === "MIN_60") {
-      setDurationMinutes(60);
-      setQuestionCount(50);
-      setSheetPreset("PRESET_60MIN_50Q");
-    } else if (newType === "MIN_90") {
-      setDurationMinutes(90);
-      setQuestionCount(50);
-      setSheetPreset("PRESET_90MIN_50Q");
     } else if (newType === "MIDTERM" || newType === "FINAL") {
-      setDurationMinutes(90);
-      setQuestionCount(50);
-      setSheetPreset("PRESET_TERM_50Q");
+      setDurationMinutes(60);
+      setQuestionCount(40);
+      setSheetPreset("PRESET_45MIN_40Q");
     }
   };
 
@@ -454,17 +442,17 @@ export default function ExamCreatePage() {
       <AppHeader />
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Breadcrumbs items={[{ label: isExamBoard ? "Tạo kỳ thi chính quy (Ban Khảo Thí)" : isAdmin ? "Tạo kỳ thi mới (Quản trị viên)" : "Tạo bài kiểm tra lớp" }]} />
+        <Breadcrumbs items={[{ label: isExamOfficer ? "Tạo kỳ thi chính quy (Cán bộ khảo thí)" : isAdmin ? "Tạo kỳ thi mới (Quản trị viên)" : "Tạo bài kiểm tra lớp" }]} />
 
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            {isExamBoard ? "Tạo Kỳ Thi Chính Quy (Ban Khảo Thí)" : isAdmin ? "Tạo Kỳ thi Mới (Quản trị viên)" : "Tạo Bài Kiểm Tra Lớp"}
+            {isExamOfficer ? "Tạo Kỳ Thi Chính Quy (Cán bộ khảo thí)" : isAdmin ? "Tạo Kỳ thi Mới (Quản trị viên)" : "Tạo Bài Kiểm Tra Lớp"}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            {isExamBoard
-              ? "Khởi tạo kỳ thi chính quy (giữa kỳ, cuối kỳ, 45-90 phút) áp dụng cho nhiều lớp hoặc toàn khối."
+            {isExamOfficer
+              ? "Khởi tạo kỳ thi chính quy (giữa kỳ, cuối kỳ) áp dụng cho nhiều lớp hoặc toàn khối THCS."
               : isAdmin
-              ? "Kỳ thi chung áp dụng cho nhiều lớp hoặc toàn khối. Đề thi sẽ được tạo ở trạng thái Nháp (DRAFT)."
+              ? "Kỳ thi chung áp dụng cho nhiều lớp hoặc toàn khối THCS. Đề thi sẽ được tạo ở trạng thái Nháp (DRAFT)."
               : "Khởi tạo bài kiểm tra 15 phút hoặc thường xuyên cho đúng 1 lớp cụ thể bạn phụ trách."}
           </p>
         </div>
@@ -504,7 +492,7 @@ export default function ExamCreatePage() {
                   disabled={submitting}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder={isExamBoard ? "Ví dụ: Kiểm tra học kỳ 1 môn Toán khối 12" : isAdmin ? "Ví dụ: Khảo sát chất lượng Toán 11 - Học kỳ 2" : "Ví dụ: Kiểm tra 15 phút Toán 11A1 - Chương 3"}
+                  placeholder={isExamOfficer ? "Ví dụ: Kiểm tra học kỳ 1 môn Toán khối 9" : isAdmin ? "Ví dụ: Khảo sát chất lượng Toán 8 - Học kỳ 2" : "Ví dụ: Kiểm tra 15 phút Toán 6A1 - Chương 1"}
                   className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-all"
                 />
               </div>
@@ -540,8 +528,8 @@ export default function ExamCreatePage() {
                   <span className="text-[11px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0">
                     {isTeacher
                       ? "Giáo viên: Chỉ tạo kiểm tra thường xuyên / 15 phút"
-                      : isExamBoard
-                      ? "Ban khảo thí: Kỳ thi chính quy (tối thiểu 45 phút)"
+                      : isExamOfficer
+                      ? "Cán bộ khảo thí: Kỳ thi chính quy (Giữa kỳ / Cuối kỳ)"
                       : "Quản trị viên: Toàn quyền"}
                   </span>
                 </div>

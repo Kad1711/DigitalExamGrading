@@ -62,7 +62,7 @@ async function createAdmin() {
       data: {
         email,
         passwordHash,
-        role: "ADMIN",
+        role: "SUPER_ADMIN",
         status: "ACTIVE",
       },
       select: {
@@ -74,7 +74,7 @@ async function createAdmin() {
       },
     });
 
-    console.log(`Successfully created production ADMIN account:`);
+    console.log(`Successfully created production SUPER_ADMIN account:`);
     console.log(`- ID: ${newAdmin.id}`);
     console.log(`- Email: ${newAdmin.email}`);
     console.log(`- Role: ${newAdmin.role}`);

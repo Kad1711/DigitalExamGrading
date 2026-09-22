@@ -63,11 +63,12 @@ const SUBJECT_LOCALIZATION_MAP = {
   CONGNGHE: "Công nghệ",
 };
 
-// Known seeded grades
+// Known seeded grades (THCS V2)
 const GRADE_LOCALIZATION_MAP = {
-  10: "Khối 10",
-  11: "Khối 11",
-  12: "Khối 12",
+  6: "Khối 6",
+  7: "Khối 7",
+  8: "Khối 8",
+  9: "Khối 9",
 };
 
 // Known development teachers

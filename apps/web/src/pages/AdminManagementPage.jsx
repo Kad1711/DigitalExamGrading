@@ -212,11 +212,11 @@ export default function AdminManagementPage() {
                 <Landmark className="w-5 h-5" />
               </span>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Quản lý Ban Giám Hiệu & Phòng Ban Chuyên Môn
+                Quản lý Ban Giám Hiệu & Cán Bộ Khảo Thí
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Quản lý tài khoản Ban Giám hiệu (Hiệu trưởng, Hiệu phó) và các Phòng ban chuyên môn (Ban Khảo thí, Ban Chuyên môn).
+              Quản lý tài khoản Ban Giám hiệu (Hiệu trưởng, Hiệu phó) và Cán bộ khảo thí.
             </p>
           </div>
           <Button
@@ -334,7 +334,7 @@ export default function AdminManagementPage() {
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            Bộ phận chuyên môn ({countAcademicBoard + countExamBoard})
+            Cán bộ khảo thí ({countExamOfficer})
           </button>
         </div>
 
