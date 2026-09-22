@@ -36,19 +36,9 @@ export async function assertExamAccess(examId, reqUser) {
     throw new AppError("Ky thi khong ton tai.", 404, "EXAM_NOT_FOUND");
   }
 
-  // School oversight and Management can view all exams
-  if (["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"].includes(reqUser.role)) {
+  // School oversight, Management, and Exam Officers can view all exams
+  if (["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"].includes(reqUser.role)) {
     return exam;
-  }
-
-  // Exam Officer can view all official exams or exams created by them
-  if (reqUser.role === "EXAM_OFFICER") {
-    if (
-      exam.createdByUserId === reqUser.id ||
-      ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType)
-    ) {
-      return exam;
-    }
   }
 
   // Direct creator check
@@ -102,18 +92,14 @@ export function assertExamDraft(exam) {
 }
 
 export async function assertExamManageAccess(exam, reqUser) {
-  if (reqUser.role === "SUPER_ADMIN") {
+  // School leadership (SUPER_ADMIN, PRINCIPAL, VICE_PRINCIPAL, EXAM_OFFICER) can manage exams
+  if (["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"].includes(reqUser.role)) {
     return true;
   }
 
-  if (reqUser.role === "EXAM_OFFICER") {
-    // EXAM_OFFICER can manage official exams they created or all official exams not owned by a normal teacher
-    if (
-      exam.createdByUserId === reqUser.id ||
-      (!exam.teacherId && ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType))
-    ) {
-      return true;
-    }
+  // Direct creator check
+  if (exam.createdByUserId && exam.createdByUserId === reqUser.id) {
+    return true;
   }
 
   if (reqUser.role === "TEACHER") {
@@ -124,7 +110,7 @@ export async function assertExamManageAccess(exam, reqUser) {
   }
 
   throw new AppError(
-    "Bạn không có quyền chỉnh sửa kỳ thi này. Chỉ Quản trị viên, Ban khảo thí hoặc Giáo viên trực tiếp tạo đề mới có quyền thay đổi cấu hình kỳ thi.",
+    "Bạn không có quyền chỉnh sửa kỳ thi này. Chỉ Quản trị viên, Ban Giám hiệu, Ban Khảo thí hoặc Giáo viên trực tiếp tạo đề mới có quyền thay đổi cấu hình kỳ thi.",
     403,
     "EXAM_MANAGEMENT_DENIED"
   );

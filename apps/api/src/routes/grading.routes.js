@@ -10,7 +10,7 @@ import { gradingUploadLimiter } from "../config/rate-limit.config.js";
 const router = Router({ mergeParams: true });
 
 router.use(authenticate);
-const canGrade = authorizeRoles("TEACHER", "EXAM_OFFICER", "SUPER_ADMIN");
+const canGrade = authorizeRoles("TEACHER", "EXAM_OFFICER", "SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL");
 
 const storage = multer.memoryStorage();
 export const uploadImage = multer({

@@ -663,19 +663,21 @@ export default function ExamDetailPage() {
   const isLocked = !isDraft;
 
   const isAdmin = user?.role === "SUPER_ADMIN";
+  const isPrincipal = user?.role === "PRINCIPAL";
+  const isVicePrincipal = user?.role === "VICE_PRINCIPAL";
+  const isExamOfficer = user?.role === "EXAM_OFFICER";
+  const isSchoolLeadership = isAdmin || isPrincipal || isVicePrincipal || isExamOfficer;
+
   const isCreator = Boolean(exam.createdByUserId && exam.createdByUserId === user?.id);
   const isTeacherOwner = Boolean(exam.teacherId && user?.teacher?.id && exam.teacherId === user.teacher.id);
-  const isExamOfficer = user?.role === "EXAM_OFFICER";
-  const isExamBoardOfficial =
-    isExamOfficer &&
-    ["MIN_45", "MIN_60", "MIN_90", "MIDTERM", "FINAL", "OTHER"].includes(exam.examType);
-  const canManage = isAdmin || isCreator || isTeacherOwner || isExamBoardOfficial;
+
+  const canManage = isSchoolLeadership || isCreator || isTeacherOwner;
   const isSubjectLeader = Boolean(
     user?.role === "TEACHER" &&
     user?.teacher?.isSubjectLeader &&
     user?.teacher?.primarySubjectId === exam.subjectId
   );
-  const canApproveAnswerKey = isSubjectLeader;
+  const canApproveAnswerKey = isSchoolLeadership || isSubjectLeader || isCreator || isTeacherOwner;
 
   // Readiness calculation
   const hasExamCodes = examCodes.length > 0;
@@ -1112,7 +1114,7 @@ export default function ExamDetailPage() {
                     <span>Duyệt đáp án gốc</span>
                   </div>
                   {exam.answerKeyApprovedAt ? (
-                    <Badge variant="emerald" size="sm" title={`Duyệt bởi ${exam.answerKeyApprovedByTeacher?.fullName || "Tổ trưởng"}`}>
+                    <Badge variant="emerald" size="sm" title={`Duyệt bởi ${exam.answerKeyApprovedByTeacher?.fullName || "Ban Khảo thí / Ban Giám hiệu"}`}>
                       Đã duyệt
                     </Badge>
                   ) : canApproveAnswerKey ? (
@@ -1121,12 +1123,13 @@ export default function ExamDetailPage() {
                       size="xs"
                       onClick={handleApproveAnswerKey}
                       disabled={actionLoading || !allCodesComplete}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      title={!allCodesComplete ? "Cần nhập đủ đáp án cho tất cả mã đề trước khi phê duyệt" : "Bấm để phê duyệt đáp án gốc"}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                     >
-                      Phê duyệt
+                      Duyệt đáp án
                     </Button>
                   ) : (
-                    <Badge variant="amber" size="sm">
+                    <Badge variant="amber" size="sm" title="Chờ Ban Khảo thí, Ban Giám hiệu hoặc Tổ trưởng chuyên môn phê duyệt">
                       Chờ duyệt
                     </Badge>
                   )}

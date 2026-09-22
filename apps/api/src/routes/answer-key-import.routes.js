@@ -11,7 +11,7 @@ import {
 const router = Router({ mergeParams: true });
 
 router.use(authenticate);
-const staffRoles = authorizeRoles("SUPER_ADMIN", "TEACHER", "EXAM_OFFICER");
+const staffRoles = authorizeRoles("SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER", "TEACHER");
 
 // Template download (xlsx or csv)
 router.get("/:examId/answer-key/import-template", staffRoles, getImportTemplateController);

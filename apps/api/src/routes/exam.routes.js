@@ -38,33 +38,39 @@ const allStaffRoles = authorizeRoles(
   "VICE_PRINCIPAL",
   "EXAM_OFFICER"
 );
-const examCreators = authorizeRoles("SUPER_ADMIN", "TEACHER", "EXAM_OFFICER");
+const examManagers = authorizeRoles(
+  "SUPER_ADMIN",
+  "PRINCIPAL",
+  "VICE_PRINCIPAL",
+  "EXAM_OFFICER",
+  "TEACHER"
+);
 const adminOnly = authorizeRoles("SUPER_ADMIN");
 
 // Exam CRUD
-router.post("/", examCreators, createExamController);
+router.post("/", examManagers, createExamController);
 router.get("/", allStaffRoles, listExamsController);
 router.post("/bulk-delete", adminOnly, bulkDeleteExamsController);
 router.get("/:examId", allStaffRoles, getExamController);
-router.patch("/:examId", examCreators, updateExamController);
-router.delete("/:examId", examCreators, deleteExamController);
-router.post("/:examId/clone", examCreators, cloneExamController);
+router.patch("/:examId", examManagers, updateExamController);
+router.delete("/:examId", examManagers, deleteExamController);
+router.post("/:examId/clone", examManagers, cloneExamController);
 
 // Exam lifecycle
-router.post("/:examId/publish", examCreators, publishExamController);
-router.post("/:examId/close", examCreators, closeExamController);
-router.post("/:examId/archive", examCreators, archiveExamController);
+router.post("/:examId/publish", examManagers, publishExamController);
+router.post("/:examId/close", examManagers, closeExamController);
+router.post("/:examId/archive", examManagers, archiveExamController);
 
 // ExamCode
-router.post("/:examId/codes", examCreators, createExamCodeController);
+router.post("/:examId/codes", examManagers, createExamCodeController);
 router.get("/:examId/codes", allStaffRoles, listExamCodesController);
-router.delete("/:examId/codes/:codeId", examCreators, deleteExamCodeController);
+router.delete("/:examId/codes/:codeId", examManagers, deleteExamCodeController);
 
 // AnswerKey
-router.put("/:examId/codes/:codeId/answer-key", examCreators, putAnswerKeyController);
+router.put("/:examId/codes/:codeId/answer-key", examManagers, putAnswerKeyController);
 router.get("/:examId/codes/:codeId/answer-key", allStaffRoles, getAnswerKeyController);
-router.post("/:examId/answer-key/approve", approveAnswerKeyController);
-router.post("/:examId/answer-keys/approve", approveAnswerKeyController);
+router.post("/:examId/answer-key/approve", examManagers, approveAnswerKeyController);
+router.post("/:examId/answer-keys/approve", examManagers, approveAnswerKeyController);
 
 // Sub-modules: Answer Key Import, OMR Answer Sheet Template, & Grading
 router.use("/", answerKeyImportRoutes);

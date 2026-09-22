@@ -30,7 +30,7 @@ const oversightRoles = authorizeRoles(
 const examOfficerOrAdmin = authorizeRoles("SUPER_ADMIN", "EXAM_OFFICER");
 const vicePrincipalOrAdmin = authorizeRoles("SUPER_ADMIN", "VICE_PRINCIPAL");
 const principalOrAdmin = authorizeRoles("SUPER_ADMIN", "PRINCIPAL");
-const canPublishOrUnpublish = authorizeRoles("SUPER_ADMIN", "TEACHER", "EXAM_OFFICER");
+const canPublishOrUnpublish = authorizeRoles("SUPER_ADMIN", "TEACHER", "EXAM_OFFICER", "PRINCIPAL", "VICE_PRINCIPAL");
 
 // Approval queue for Vice Principal, Principal & School Management
 router.get("/publication/approval-queue", oversightRoles, getPublicationApprovalQueueController);

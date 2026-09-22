@@ -44,8 +44,8 @@ export default function ExamListPage() {
   const isExamOfficer = user?.role === "EXAM_OFFICER";
   const isPrincipal = user?.role === "PRINCIPAL";
   const isVicePrincipal = user?.role === "VICE_PRINCIPAL";
-  const canCreateExam = isAdmin || isTeacher || isExamOfficer;
-  const canApprove = isAdmin || isVicePrincipal || isPrincipal;
+  const canCreateExam = isAdmin || isTeacher || isExamOfficer || isPrincipal || isVicePrincipal;
+  const canApprove = isAdmin || isVicePrincipal || isPrincipal || isExamOfficer;
 
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();

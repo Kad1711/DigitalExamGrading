@@ -202,8 +202,13 @@ export async function getAnswerKey(examId, codeId, reqUser) {
 }
 
 /**
- * Phê duyệt đáp án gốc kỳ thi bởi Tổ trưởng chuyên môn (Subject Leader).
- * Áp dụng cho kỳ thi tập trung MIDTERM / FINAL.
+ * Phê duyệt đáp án gốc kỳ thi.
+ * Áp dụng cho:
+ * - Ban Khảo thí (EXAM_OFFICER)
+ * - Ban Giám hiệu (PRINCIPAL, VICE_PRINCIPAL)
+ * - Quản trị viên (SUPER_ADMIN)
+ * - Tổ trưởng chuyên môn (TEACHER có isSubjectLeader=true và cùng primarySubjectId)
+ * - Giáo viên tạo đề / phụ trách đề
  */
 export async function approveAnswerKey(examId, reqUser) {
   const exam = await prisma.exam.findUnique({
@@ -221,26 +226,37 @@ export async function approveAnswerKey(examId, reqUser) {
     throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
   }
 
-  if (reqUser.role !== "TEACHER") {
-    throw new AppError(
-      "Chỉ Tổ trưởng chuyên môn phụ trách đúng môn học của kỳ thi mới có quyền phê duyệt đáp án gốc.",
-      403,
-      "FORBIDDEN_NOT_SUBJECT_LEADER"
-    );
+  // 1. Leadership & Exam Officer can approve any exam
+  const isSchoolLeadershipOrOfficer = [
+    "SUPER_ADMIN",
+    "PRINCIPAL",
+    "VICE_PRINCIPAL",
+    "EXAM_OFFICER",
+  ].includes(reqUser.role);
+
+  let isAuthorized = isSchoolLeadershipOrOfficer;
+  let teacher = null;
+
+  if (reqUser.role === "TEACHER") {
+    teacher = await prisma.teacher.findUnique({ where: { userId: reqUser.id } });
+    const isSubjectLeader =
+      teacher &&
+      teacher.isSubjectLeader === true &&
+      teacher.primarySubjectId === exam.subjectId;
+    const isCreatorOrOwner =
+      (exam.teacherId && teacher && exam.teacherId === teacher.id) ||
+      exam.createdByUserId === reqUser.id;
+
+    if (isSubjectLeader || isCreatorOrOwner) {
+      isAuthorized = true;
+    }
   }
 
-  const teacher = await prisma.teacher.findUnique({ where: { userId: reqUser.id } });
-
-  const isAuthorizedSubjectLeader =
-    teacher &&
-    teacher.isSubjectLeader === true &&
-    teacher.primarySubjectId === exam.subjectId;
-
-  if (!isAuthorizedSubjectLeader) {
+  if (!isAuthorized) {
     throw new AppError(
-      "Chỉ Tổ trưởng chuyên môn phụ trách đúng môn học của kỳ thi mới có quyền phê duyệt đáp án gốc.",
+      "Bạn không có quyền phê duyệt đáp án gốc cho kỳ thi này. Quyền phê duyệt thuộc về Ban Khảo thí, Ban Giám hiệu, Quản trị viên hoặc Tổ trưởng chuyên môn.",
       403,
-      "FORBIDDEN_NOT_SUBJECT_LEADER"
+      "FORBIDDEN_NOT_AUTHORIZED_APPROVER"
     );
   }
 
@@ -255,7 +271,7 @@ export async function approveAnswerKey(examId, reqUser) {
   for (const code of exam.examCodes) {
     if (code._count.answerKeys !== exam.questionCount) {
       throw new AppError(
-        `Mã đề "${code.code}" chưa có đủ ${exam.questionCount} đáp án (hiện có ${code._count.answerKeys}).`,
+        `Mã đề "${code.code}" chưa có đủ ${exam.questionCount} đáp án (hiện có ${code._count.answerKeys}). Vui lòng nhập đủ đáp án trước khi duyệt.`,
         422,
         "INCOMPLETE_ANSWER_KEYS"
       );
