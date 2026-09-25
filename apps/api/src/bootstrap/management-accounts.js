@@ -54,12 +54,18 @@ export async function bootstrapManagementAccounts() {
           },
         });
         console.log(`[BOOTSTRAP] Successfully initialized ${acc.role} account: ${acc.email}`);
-      } else if (existing.role !== acc.role) {
-        await prisma.user.update({
-          where: { id: existing.id },
-          data: { role: acc.role, fullName: acc.fullName || existing.fullName },
-        });
-        console.log(`[BOOTSTRAP] Updated existing account ${acc.email} to role ${acc.role}`);
+      } else {
+        const updateData = {};
+        if (existing.role !== acc.role) updateData.role = acc.role;
+        if (existing.status !== "ACTIVE") updateData.status = "ACTIVE";
+        if (acc.fullName && !existing.fullName) updateData.fullName = acc.fullName;
+        if (Object.keys(updateData).length > 0) {
+          await prisma.user.update({
+            where: { id: existing.id },
+            data: updateData,
+          });
+          console.log(`[BOOTSTRAP] Ensured active management account ${acc.email}:`, updateData);
+        }
       }
     } catch (err) {
       console.warn(`[BOOTSTRAP] Could not ensure management account ${acc.email}:`, err.message);

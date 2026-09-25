@@ -97,27 +97,18 @@ export function assertExamDraft(exam) {
 }
 
 export async function assertExamManageAccess(exam, reqUser) {
-  // SUPER_ADMIN has full management rights
-  if (reqUser.role === "SUPER_ADMIN") {
+  // SUPER_ADMIN, PRINCIPAL, and VICE_PRINCIPAL have institutional management rights
+  if (["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"].includes(reqUser.role)) {
     return true;
   }
 
-  // EXAM_OFFICER can ONLY manage official examinations (MIDTERM, FINAL)
+  // EXAM_OFFICER can manage official examinations (MIDTERM, FINAL)
   if (reqUser.role === "EXAM_OFFICER") {
     if (["MIDTERM", "FINAL"].includes(exam.examType)) {
       return true;
     }
     throw new AppError(
       "Cán bộ khảo thí chỉ có quyền chỉnh sửa/quản lý kỳ thi tập trung chính quy (Giữa kỳ, Cuối kỳ). Bài kiểm tra thường xuyên và 15 phút do giáo viên bộ môn tự quản lý.",
-      403,
-      "EXAM_MANAGEMENT_DENIED"
-    );
-  }
-
-  // PRINCIPAL & VICE_PRINCIPAL are oversight roles (Read-only for exam configuration)
-  if (["PRINCIPAL", "VICE_PRINCIPAL"].includes(reqUser.role)) {
-    throw new AppError(
-      "Ban Giám hiệu thực hiện quyền giám sát chỉ đọc đối với cấu hình kỳ thi.",
       403,
       "EXAM_MANAGEMENT_DENIED"
     );
@@ -228,7 +219,7 @@ export async function createExam(data, reqUser) {
       );
     }
     teacherId = null;
-  } else if (reqUser.role === "SUPER_ADMIN") {
+  } else if (["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"].includes(reqUser.role)) {
     if (data.teacherId) {
       teacherId = data.teacherId;
     } else {

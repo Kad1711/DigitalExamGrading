@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import RequireRole from "./components/RequireRole";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterTeacherPage = lazy(() => import("./pages/RegisterTeacherPage"));
@@ -53,8 +54,9 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Suspense fallback={<PageLoading />}>
-          <Routes>
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoading />}>
+            <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register-teacher" element={<RegisterTeacherPage />} />
 
@@ -216,6 +218,7 @@ export default function App() {
           <Route path="*" element={<RootRedirect />} />
         </Routes>
         </Suspense>
+        </ErrorBoundary>
       </BrowserRouter>
     </AuthProvider>
   );

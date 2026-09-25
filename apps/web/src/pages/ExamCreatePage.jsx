@@ -5,6 +5,7 @@ import AppHeader from "../components/AppHeader";
 import { getErrorMessage } from "../utils/error-map";
 import { examDetailPath } from "../utils/slug";
 import {
+  AlertCircle,
   ArrowLeft,
   BookOpen,
   Users,
@@ -68,11 +69,16 @@ export default function ExamCreatePage() {
   const isAdmin = user?.role === "SUPER_ADMIN";
   const isTeacher = user?.role === "TEACHER";
   const isExamOfficer = user?.role === "EXAM_OFFICER";
-  const isMultiClassAllowed = isAdmin || isExamOfficer;
-  const canCreateClass = isAdmin;
+  const isPrincipal = user?.role === "PRINCIPAL";
+  const isVicePrincipal = user?.role === "VICE_PRINCIPAL";
+  const isManagement = isAdmin || isPrincipal || isVicePrincipal;
+  const isMultiClassAllowed = isAdmin || isExamOfficer || isPrincipal || isVicePrincipal;
+  const canCreateClass = isAdmin || isVicePrincipal;
 
   const [examType, setExamType] = useState(() => {
-    if (user?.role === "EXAM_OFFICER") return "MIDTERM";
+    if (user?.role === "EXAM_OFFICER" || user?.role === "PRINCIPAL" || user?.role === "VICE_PRINCIPAL") {
+      return "MIDTERM";
+    }
     return "REGULAR";
   });
 
@@ -224,7 +230,11 @@ export default function ExamCreatePage() {
 
   const existingClassNamesSet = React.useMemo(() => {
     const set = new Set();
-    classes.forEach((c) => set.add(c.name.trim().toLowerCase()));
+    (classes || []).forEach((c) => {
+      if (c && typeof c.name === "string") {
+        set.add(c.name.trim().toLowerCase());
+      }
+    });
     return set;
   }, [classes]);
 
@@ -437,15 +447,25 @@ export default function ExamCreatePage() {
       <AppHeader />
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Breadcrumbs items={[{ label: isExamOfficer ? "Tạo kỳ thi chính quy (Ban Khảo thí)" : isAdmin ? "Tạo kỳ thi mới (Quản trị viên)" : "Tạo bài kiểm tra lớp" }]} />
+        <Breadcrumbs items={[{ label: isExamOfficer ? "Tạo kỳ thi chính quy (Ban Khảo thí)" : isPrincipal ? "Tạo kỳ thi tập trung (Hiệu trưởng)" : isVicePrincipal ? "Tạo kỳ thi tập trung (Hiệu phó)" : isAdmin ? "Tạo kỳ thi mới (Quản trị viên)" : "Tạo bài kiểm tra lớp" }]} />
 
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            {isExamOfficer ? "Tạo Kỳ Thi Chính Quy (Ban Khảo thí)" : isAdmin ? "Tạo Kỳ thi Mới (Quản trị viên)" : "Tạo Bài Kiểm Tra Lớp"}
+            {isExamOfficer
+              ? "Tạo Kỳ Thi Chính Quy (Ban Khảo thí)"
+              : isPrincipal
+              ? "Tạo Kỳ Thi Tập Trung (Hiệu trưởng)"
+              : isVicePrincipal
+              ? "Tạo Kỳ Thi Tập Trung (Hiệu phó)"
+              : isAdmin
+              ? "Tạo Kỳ thi Mới (Quản trị viên)"
+              : "Tạo Bài Kiểm Tra Lớp"}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             {isExamOfficer
               ? "Khởi tạo kỳ thi tập trung chính quy (giữa kỳ, cuối kỳ) áp dụng cho các lớp học hoặc toàn khối THCS."
+              : isPrincipal || isVicePrincipal
+              ? "Khởi tạo kỳ thi chung áp dụng cho các lớp học hoặc toàn khối THCS theo kế hoạch giáo dục nhà trường."
               : isAdmin
               ? "Kỳ thi chung áp dụng cho nhiều lớp hoặc toàn khối THCS. Đề thi sẽ được tạo ở trạng thái Nháp (DRAFT)."
               : "Khởi tạo bài kiểm tra 15 phút hoặc thường xuyên cho các lớp cụ thể bạn phụ trách."}
@@ -525,6 +545,8 @@ export default function ExamCreatePage() {
                       ? "Giáo viên: Chỉ tạo kiểm tra thường xuyên / 15 phút"
                       : isExamOfficer
                       ? "Cán bộ khảo thí: Kỳ thi chính quy (Giữa kỳ / Cuối kỳ)"
+                      : isPrincipal || isVicePrincipal
+                      ? "Ban Giám hiệu: Toàn quyền tổ chức thi các khối THCS"
                       : "Quản trị viên: Toàn quyền"}
                   </span>
                 </div>
@@ -698,9 +720,9 @@ export default function ExamCreatePage() {
                     Các lớp đã chọn ({selectedClassIds.length}):{" "}
                     <strong className="text-blue-700 font-bold">
                       {selectedClassIds.length > 0
-                        ? classes
-                            .filter((c) => selectedClassIds.includes(c.id))
-                            .map((c) => c.name)
+                        ? (classes || [])
+                            .filter((c) => c && selectedClassIds.includes(c.id))
+                            .map((c) => c.name || "Lớp")
                             .join(", ")
                         : "Chưa chọn lớp nào"}
                     </strong>
@@ -831,7 +853,7 @@ export default function ExamCreatePage() {
                     <strong className="text-blue-700 font-bold">
                       {selectedClassIds.length}
                     </strong>{" "}
-                    lớp ({classes.filter((c) => selectedClassIds.includes(c.id)).map((c) => c.name).join(", ") || "Chưa chọn lớp nào"})
+                    lớp ({(classes || []).filter((c) => c && selectedClassIds.includes(c.id)).map((c) => c.name || "Lớp").join(", ") || "Chưa chọn lớp nào"})
                   </div>
                 </div>
               )}
