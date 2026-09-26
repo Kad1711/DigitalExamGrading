@@ -311,7 +311,7 @@ export default function AdminManagementPage() {
   const countTeacher = accounts.filter((a) => a.role === "TEACHER").length;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:pl-64">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       <AppHeader />
 
       {/* Main container without mx-auto max-w-7xl to prevent detached empty space */}

@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import { LocalStorageService } from "./local-storage.service.js";
 import { AppError } from "../../middlewares/error.middleware.js";
+import { isCloudinaryConfigured } from "../../config/cloudinary.config.js";
+import { uploadBufferToCloudinary } from "./cloudinary-storage.service.js";
 
 // Singleton storage provider
 const defaultLocalStorage = new LocalStorageService();
@@ -36,12 +38,13 @@ export function getSafeExtensionFromMime(mimeType) {
 
 /**
  * Saves original exam submission image into controlled storage namespace.
+ * Also uploads to Cloudinary when configured.
  *
  * @param {object} params
  * @param {string} params.namespace - Pre-generated UUID or identifier
  * @param {Buffer} params.buffer - Original image binary buffer
  * @param {string} params.mimeType - Verified MIME type
- * @returns {Promise<{ storageKey: string, size: number, sha256: string }>}
+ * @returns {Promise<{ storageKey: string, size: number, sha256: string, cloudinaryUrl?: string }>}
  */
 export async function saveOriginalSubmissionImage({ namespace, buffer, mimeType }) {
   if (!buffer || !Buffer.isBuffer(buffer)) {
@@ -54,10 +57,25 @@ export async function saveOriginalSubmissionImage({ namespace, buffer, mimeType 
   const hash = crypto.createHash("sha256").update(buffer).digest("hex");
   const result = await storageService.saveFile(storageKey, buffer);
 
+  let cloudinaryUrl = null;
+  if (isCloudinaryConfigured()) {
+    try {
+      const cRes = await uploadBufferToCloudinary(buffer, {
+        folder: `digitalexam/submissions/${namespace}`,
+        publicId: `original_${namespace}`,
+        resourceType: "image",
+      });
+      cloudinaryUrl = cRes.secureUrl;
+    } catch (cErr) {
+      console.warn(`[STORAGE] Cloudinary upload notice: ${cErr.message}`);
+    }
+  }
+
   return {
     storageKey: result.storageKey,
     size: result.size,
     sha256: hash,
+    cloudinaryUrl,
   };
 }
 

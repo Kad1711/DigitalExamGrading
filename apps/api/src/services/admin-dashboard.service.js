@@ -263,8 +263,8 @@ export async function getAdminSystemDashboard() {
         locked: lockedTeachers,
       },
       students: {
-        total: totalStudents,
-        enrolled: totalEnrollments,
+        total: thcsStudents,
+        enrolled: thcsStudents,
       },
       classes: {
         total: totalClasses,
