@@ -31,8 +31,14 @@ export async function getAdminSystemDashboard() {
     prisma.user.count({ where: { role: "TEACHER", status: "ACTIVE" } }),
     prisma.user.count({ where: { role: "TEACHER", status: "LOCKED" } }),
 
-    // Students
-    prisma.student.count(),
+    // Students: Chi thong ke thuc te hoc sinh da duoc xep vao lop
+    prisma.student.count({
+      where: {
+        enrollments: {
+          some: {},
+        },
+      },
+    }),
     prisma.studentEnrollment.count(),
 
     // Classes

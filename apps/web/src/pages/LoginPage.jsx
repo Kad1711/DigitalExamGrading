@@ -93,7 +93,7 @@ export default function LoginPage() {
             Digital Exam Grading
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Hệ thống chấm thi trắc nghiệm OMR & Quản lý kỳ thi
+            Hệ thống quản lý kỳ thi và chấm thi trắc nghiệm Digital Exam Granding
           </p>
         </div>
 
@@ -209,7 +209,7 @@ export default function LoginPage() {
 
         {/* Footer info */}
         <div className="text-center mt-6 text-xs text-slate-400">
-          Digital Exam Grading System &bull; Khóa luận tốt nghiệp
+          Digital Exam Grading System
         </div>
       </div>
     </div>

@@ -3,6 +3,8 @@ import bcrypt from "bcrypt";
 import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 import { storageService, getSafeExtensionFromMime } from "./storage/storage.service.js";
+import { uploadBufferToCloudinary } from "./storage/cloudinary-storage.service.js";
+import { isCloudinaryConfigured } from "../config/cloudinary.config.js";
 
 const SALT_ROUNDS = 12;
 
@@ -280,6 +282,24 @@ export async function updateAvatar(userId, { buffer, mimeType }) {
 
   if (!buffer || !Buffer.isBuffer(buffer)) {
     throw new AppError("Dữ liệu ảnh không hợp lệ.", 400, "INVALID_AVATAR_BUFFER");
+  }
+
+  // Nếu Cloudinary đã được cấu hình với API Key và Secret, tải thẳng lên Cloudinary
+  if (isCloudinaryConfigured()) {
+    const uploadRes = await uploadBufferToCloudinary(buffer, {
+      folder: "digitalexam/avatars",
+      publicId: `avatar_${userId}_${Date.now()}`,
+      resourceType: "image",
+    });
+
+    const publicAvatarUrl = uploadRes.secureUrl;
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl: publicAvatarUrl },
+    });
+
+    return { avatarUrl: publicAvatarUrl };
   }
 
   const ext = getSafeExtensionFromMime(mimeType);

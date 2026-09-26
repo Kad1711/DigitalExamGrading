@@ -60,6 +60,16 @@ router.post("/teachers/bulk-delete-locked", adminOnly, adminTeacherController.bu
  */
 router.get("/management-accounts", adminOnly, adminManagementController.listManagementAccountsController);
 router.post(
+  "/management-accounts",
+  adminOnly,
+  adminManagementController.createManagementAccountController
+);
+router.delete(
+  "/management-accounts/:userId",
+  adminOnly,
+  adminManagementController.deleteManagementAccountController
+);
+router.post(
   "/management-accounts/:userId/reset-password",
   adminOnly,
   adminManagementController.resetManagementPasswordController

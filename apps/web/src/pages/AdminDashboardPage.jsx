@@ -238,9 +238,9 @@ export default function AdminDashboardPage() {
                   </div>
                   <div className="mt-2 text-xs text-slate-500">
                     <span className="font-semibold text-slate-700">
-                      {overview?.students.enrolled || 0}
+                      {overview?.students.total || 0}
                     </span>{" "}
-                    đã xếp lớp
+                    thực có trong các lớp
                   </div>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />

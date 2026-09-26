@@ -807,8 +807,8 @@ export default function AdminTeacherListPage() {
         ) : (
           <>
             {/* Desktop Table (Visible on md and up) */}
-            <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-              <table className="w-full text-left border-collapse">
+            <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-xs overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[1200px]">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-3.5 pl-4 pr-1 w-10 text-center">
