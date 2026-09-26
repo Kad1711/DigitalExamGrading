@@ -636,6 +636,10 @@ export async function getTeacherAssignments(teacherId) {
   });
   if (!teacher) throw new AppError("Không tìm thấy giáo viên.", 404, "TEACHER_NOT_FOUND");
 
+  const academicYear = await prisma.academicYear.findFirst({
+    orderBy: { createdAt: "desc" },
+  });
+
   const assignments = await prisma.teachingAssignment.findMany({
     where: { teacherId },
     include: {
@@ -656,19 +660,44 @@ export async function getTeacherAssignments(teacherId) {
     ],
   });
 
+  // Lay them danh sach phan cong cua mon nay trong toan truong (nam hoc hien tai)
+  // giup Frontend biet truoc lop nao dang co GV khac phu trach
+  const subjectAssignments = teacher.primarySubjectId && academicYear
+    ? await prisma.teachingAssignment.findMany({
+        where: {
+          academicYearId: academicYear.id,
+          subjectId: teacher.primarySubjectId,
+        },
+        select: {
+          classId: true,
+          teacherId: true,
+          teacher: { select: { id: true, fullName: true, teacherCode: true } },
+        },
+      })
+    : [];
+
   return {
     teacherId: teacher.id,
     fullName: teacher.fullName,
     title: teacher.title || "Giáo viên",
     primarySubject: teacher.primarySubject,
     assignments,
+    subjectAssignments,
   };
 }
 
 /**
  * Cap nhat phan cong giang day cho giao vien (VICE_PRINCIPAL hoac ADMIN)
  */
-export async function updateTeacherAssignments(teacherId, { classIds = [], subjectId, removeOtherSubjects = false }) {
+export async function updateTeacherAssignments(
+  teacherId,
+  {
+    classIds = [],
+    subjectId,
+    removeOtherSubjects = false,
+    confirmOverride = false,
+  } = {}
+) {
   const teacher = await prisma.teacher.findUnique({
     where: { id: teacherId },
     include: { primarySubject: true },
@@ -716,6 +745,43 @@ export async function updateTeacherAssignments(teacherId, { classIds = [], subje
   // Tinh toan them va bo phan cong an toan
   const toAdd = validClassIds.filter((cid) => !currentClassIds.includes(cid));
   const toRemove = currentAssignments.filter((a) => !validClassIds.includes(a.classId));
+
+  // Kiem tra xung dot: Lop trong toAdd da co giao vien khac phu trach mon nay hay chua
+  if (toAdd.length > 0) {
+    const conflictingAssignments = await prisma.teachingAssignment.findMany({
+      where: {
+        classId: { in: toAdd },
+        subjectId: targetSubjectId,
+        academicYearId: academicYear.id,
+        teacherId: { not: teacherId },
+      },
+      include: {
+        class: { select: { id: true, name: true } },
+        teacher: { select: { id: true, fullName: true, teacherCode: true } },
+        subject: { select: { id: true, name: true } },
+      },
+    });
+
+    if (conflictingAssignments.length > 0 && !confirmOverride) {
+      const conflicts = conflictingAssignments.map((a) => ({
+        classId: a.class.id,
+        className: a.class.name,
+        subjectName: a.subject.name,
+        currentTeacherId: a.teacher.id,
+        currentTeacherName: a.teacher.fullName,
+        currentTeacherCode: a.teacher.teacherCode,
+      }));
+      const descriptions = conflicts
+        .map((c) => `Lớp ${c.className} đang do ${c.currentTeacherName} (${c.currentTeacherCode}) phụ trách môn ${c.subjectName}`)
+        .join("; ");
+      throw new AppError(
+        `Phát hiện xung đột phân công: ${descriptions}. Vui lòng xác nhận chuyển quyền phụ trách sang cho giáo viên này.`,
+        409,
+        "ASSIGNMENT_CONFLICT",
+        { conflicts }
+      );
+    }
+  }
 
   await prisma.$transaction(async (tx) => {
     if (removeOtherSubjects) {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import ExcelJS from "exceljs";
 import prisma from "../src/config/prisma.js";
 import * as classService from "../src/services/class.service.js";
+import * as adminTeacherService from "../src/services/admin-teacher.service.js";
 
 async function setupClassTestFixture() {
   const ts = Date.now();
@@ -501,6 +502,111 @@ test("Class & Student Management Suite", async (t) => {
       await classService.deleteClass(classA.id).catch(() => {});
       await classService.deleteClass(classB.id).catch(() => {});
       await prisma.user.delete({ where: { id: teacher2User.id } }).catch(() => {});
+    }
+  });
+
+  await t.test("19. Guard against accidental assignment overwrite: throws 409 ASSIGNMENT_CONFLICT unless confirmOverride is true", async () => {
+    const ts = Date.now();
+    const mathSubject = await prisma.subject.findFirst();
+    assert.ok(mathSubject, "Need at least 1 subject");
+
+    const teacherAUser = await prisma.user.create({
+      data: {
+        email: `teacherA_${ts}@digitalexam.local`,
+        passwordHash: "dummy",
+        role: "TEACHER",
+        teacher: {
+          create: {
+            teacherCode: `TA_${ts.toString().slice(-6)}`,
+            fullName: "Teacher Alpha",
+            primarySubjectId: mathSubject.id,
+          },
+        },
+      },
+      include: { teacher: true },
+    });
+
+    const teacherBUser = await prisma.user.create({
+      data: {
+        email: `teacherB_${ts}@digitalexam.local`,
+        passwordHash: "dummy",
+        role: "TEACHER",
+        teacher: {
+          create: {
+            teacherCode: `TB_${ts.toString().slice(-6)}`,
+            fullName: "Teacher Beta",
+            primarySubjectId: mathSubject.id,
+          },
+        },
+      },
+      include: { teacher: true },
+    });
+
+    const classConflict = await classService.createClass({
+      name: `9_CONF_${ts.toString().slice(-4)}`,
+      gradeId: ctx.grade9.id,
+    });
+
+    try {
+      // 1. Assign Teacher Alpha to classConflict
+      await adminTeacherService.updateTeacherAssignments(teacherAUser.teacher.id, {
+        classIds: [classConflict.id],
+        subjectId: mathSubject.id,
+      });
+
+      // 2. Check getTeacherAssignments returns subjectAssignments containing Teacher Alpha
+      const alphaAssignments = await adminTeacherService.getTeacherAssignments(teacherAUser.teacher.id);
+      assert.equal(alphaAssignments.assignments.length, 1);
+      assert.ok(Array.isArray(alphaAssignments.subjectAssignments));
+      const foundInSubject = alphaAssignments.subjectAssignments.find(
+        (a) => a.classId === classConflict.id
+      );
+      assert.ok(foundInSubject);
+      assert.equal(foundInSubject.teacherId, teacherAUser.teacher.id);
+
+      // 3. Accidentally assign Teacher Beta to classConflict WITHOUT confirmOverride -> Must throw 409 ASSIGNMENT_CONFLICT
+      await assert.rejects(
+        adminTeacherService.updateTeacherAssignments(teacherBUser.teacher.id, {
+          classIds: [classConflict.id],
+          subjectId: mathSubject.id,
+          confirmOverride: false,
+        }),
+        (err) => {
+          assert.equal(err.statusCode, 409);
+          assert.equal(err.code, "ASSIGNMENT_CONFLICT");
+          assert.ok(Array.isArray(err.conflicts));
+          assert.equal(err.conflicts.length, 1);
+          assert.equal(err.conflicts[0].className, classConflict.name);
+          assert.equal(err.conflicts[0].currentTeacherName, "Teacher Alpha");
+          return true;
+        }
+      );
+
+      // 4. Verify Teacher Alpha is STILL assigned (not overwritten)
+      const checkAlpha = await prisma.teachingAssignment.findFirst({
+        where: { classId: classConflict.id, subjectId: mathSubject.id },
+      });
+      assert.equal(checkAlpha.teacherId, teacherAUser.teacher.id);
+
+      // 5. Assign Teacher Beta WITH confirmOverride: true -> Must succeed and transfer ownership
+      const updatedBeta = await adminTeacherService.updateTeacherAssignments(teacherBUser.teacher.id, {
+        classIds: [classConflict.id],
+        subjectId: mathSubject.id,
+        confirmOverride: true,
+      });
+      assert.equal(updatedBeta.assignments.length, 1);
+      assert.equal(updatedBeta.assignments[0].class.id, classConflict.id);
+
+      // 6. Verify Teacher Alpha NO LONGER has classConflict
+      const alphaAfter = await adminTeacherService.getTeacherAssignments(teacherAUser.teacher.id);
+      assert.equal(alphaAfter.assignments.length, 0);
+    } finally {
+      await prisma.teachingAssignment.deleteMany({
+        where: { classId: classConflict.id },
+      }).catch(() => {});
+      await classService.deleteClass(classConflict.id).catch(() => {});
+      await prisma.user.delete({ where: { id: teacherAUser.id } }).catch(() => {});
+      await prisma.user.delete({ where: { id: teacherBUser.id } }).catch(() => {});
     }
   });
 });
