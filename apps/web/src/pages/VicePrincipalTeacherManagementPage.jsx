@@ -22,6 +22,7 @@ import {
   Info,
   Award,
   UserCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { getInitials } from "../utils/enum-map";
 
@@ -54,6 +55,7 @@ export default function VicePrincipalTeacherManagementPage() {
   const [assignSubjectId, setAssignSubjectId] = useState("");
   const [savingAssign, setSavingAssign] = useState(false);
   const [assignError, setAssignError] = useState("");
+  const [assignConflict, setAssignConflict] = useState(null);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -148,6 +150,7 @@ export default function VicePrincipalTeacherManagementPage() {
   const openAssignModal = async (teacher) => {
     setAssignModal(teacher);
     setAssignError("");
+    setAssignConflict(null);
     const subjectIdForTeacher = teacher.primarySubjectId || "";
     setAssignSubjectId(subjectIdForTeacher);
     try {
@@ -167,6 +170,7 @@ export default function VicePrincipalTeacherManagementPage() {
   };
 
   const toggleClass = (classId) => {
+    setAssignConflict(null);
     setAssignedClassIds((prev) =>
       prev.includes(classId)
         ? prev.filter((id) => id !== classId)
@@ -174,7 +178,7 @@ export default function VicePrincipalTeacherManagementPage() {
     );
   };
 
-  const handleSaveAssignments = async () => {
+  const handleSaveAssignments = async (confirmOverride = false) => {
     if (!assignSubjectId) {
       setAssignError("Vui lòng chọn môn học cho phân công.");
       return;
@@ -182,10 +186,12 @@ export default function VicePrincipalTeacherManagementPage() {
     try {
       setSavingAssign(true);
       setAssignError("");
+      setAssignConflict(null);
       await api.put(`/admin/teachers/${assignModal.id}/assignments`, {
         classIds: assignedClassIds,
         subjectId: assignSubjectId,
         removeOtherSubjects: true,
+        confirmOverride,
       });
       // Refresh teacher data
       await fetchAll();
@@ -195,9 +201,14 @@ export default function VicePrincipalTeacherManagementPage() {
       });
       setAssignModal(null);
     } catch (err) {
-      setAssignError(
-        err.response?.data?.error?.message || "Không thể cập nhật phân công."
-      );
+      const errData = err.response?.data?.error;
+      if (errData?.code === "ASSIGNMENT_CONFLICT") {
+        setAssignConflict(errData);
+      } else {
+        setAssignError(
+          errData?.message || "Không thể cập nhật phân công."
+        );
+      }
     } finally {
       setSavingAssign(false);
     }
@@ -540,14 +551,47 @@ export default function VicePrincipalTeacherManagementPage() {
           size="lg"
         >
           <div className="space-y-5 py-1">
-            {assignError && (
+            {assignConflict ? (
+              <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-200">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <p className="font-semibold text-amber-950 text-xs uppercase tracking-wide">
+                      Xác nhận chuyển giao phân công
+                    </p>
+                    <p className="text-xs text-amber-900 leading-relaxed">
+                      {assignConflict.message}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2.5 mt-2.5 border-t border-amber-200">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAssignConflict(null)}
+                    disabled={savingAssign}
+                  >
+                    Giữ nguyên (Hủy)
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm cursor-pointer"
+                    loading={savingAssign}
+                    onClick={() => handleSaveAssignments(true)}
+                  >
+                    Xác nhận chuyển giao
+                  </Button>
+                </div>
+              </div>
+            ) : assignError ? (
               <Alert
                 variant="danger"
                 onClose={() => setAssignError("")}
               >
                 {assignError}
               </Alert>
-            )}
+            ) : null}
 
             {/* Subject for assignment */}
             <div>

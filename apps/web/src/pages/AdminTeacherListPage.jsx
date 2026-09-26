@@ -65,6 +65,7 @@ export default function AdminTeacherListPage() {
   const [assignSubjectId, setAssignSubjectId] = useState("");
   const [savingAssign, setSavingAssign] = useState(false);
   const [assignError, setAssignError] = useState("");
+  const [assignConflict, setAssignConflict] = useState(null);
 
   // Masked contact info states
   const [visibleEmails, setVisibleEmails] = useState({});
@@ -365,6 +366,7 @@ export default function AdminTeacherListPage() {
   const handleOpenAssign = async (t) => {
     setAssignTeacher(t);
     setAssignError("");
+    setAssignConflict(null);
     try {
       const res = await api.get(`/admin/teachers/${t.id}/assignments`);
       const data = res.data.data || {};
@@ -380,6 +382,7 @@ export default function AdminTeacherListPage() {
   };
 
   const toggleAssignClass = (classId) => {
+    setAssignConflict(null);
     setAssignedClassIds((prev) =>
       prev.includes(classId)
         ? prev.filter((id) => id !== classId)
@@ -387,7 +390,7 @@ export default function AdminTeacherListPage() {
     );
   };
 
-  const handleSaveAssignments = async () => {
+  const handleSaveAssignments = async (confirmOverride = false) => {
     if (!assignSubjectId) {
       setAssignError("Vui lòng chọn môn học cho phân công.");
       return;
@@ -395,9 +398,11 @@ export default function AdminTeacherListPage() {
     try {
       setSavingAssign(true);
       setAssignError("");
+      setAssignConflict(null);
       await api.put(`/admin/teachers/${assignTeacher.id}/assignments`, {
         classIds: assignedClassIds,
         subjectId: assignSubjectId,
+        confirmOverride,
       });
       setAlert({
         type: "success",
@@ -406,9 +411,14 @@ export default function AdminTeacherListPage() {
       setAssignTeacher(null);
       fetchTeachers();
     } catch (err) {
-      setAssignError(
-        err.response?.data?.error?.message || "Không thể cập nhật phân công."
-      );
+      const errData = err.response?.data?.error;
+      if (errData?.code === "ASSIGNMENT_CONFLICT") {
+        setAssignConflict(errData);
+      } else {
+        setAssignError(
+          errData?.message || "Không thể cập nhật phân công."
+        );
+      }
     } finally {
       setSavingAssign(false);
     }
@@ -1317,11 +1327,44 @@ export default function AdminTeacherListPage() {
           </>
         }
       >
-        {assignError && (
-          <Alert variant="danger" className="mb-4">
+        {assignConflict ? (
+          <div className="mb-4 bg-amber-50 border border-amber-300 rounded-xl p-3.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-200">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <p className="font-semibold text-amber-950 text-xs uppercase tracking-wide">
+                  Xác nhận chuyển giao phân công
+                </p>
+                <p className="text-xs text-amber-900 leading-relaxed">
+                  {assignConflict.message}
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2.5 mt-2.5 border-t border-amber-200">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setAssignConflict(null)}
+                disabled={savingAssign}
+              >
+                Giữ nguyên (Hủy)
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm cursor-pointer"
+                loading={savingAssign}
+                onClick={() => handleSaveAssignments(true)}
+              >
+                Xác nhận chuyển giao
+              </Button>
+            </div>
+          </div>
+        ) : assignError ? (
+          <Alert variant="danger" className="mb-4" onClose={() => setAssignError("")}>
             {assignError}
           </Alert>
-        )}
+        ) : null}
 
         <div className="space-y-4">
           <div>
