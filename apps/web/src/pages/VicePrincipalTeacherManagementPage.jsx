@@ -179,6 +179,7 @@ export default function VicePrincipalTeacherManagementPage() {
   };
 
   const handleSaveAssignments = async (confirmOverride = false) => {
+    const isOverride = confirmOverride === true;
     if (!assignSubjectId) {
       setAssignError("Vui lòng chọn môn học cho phân công.");
       return;
@@ -191,7 +192,7 @@ export default function VicePrincipalTeacherManagementPage() {
         classIds: assignedClassIds,
         subjectId: assignSubjectId,
         removeOtherSubjects: true,
-        confirmOverride,
+        confirmOverride: isOverride,
       });
       // Refresh teacher data
       await fetchAll();
@@ -691,7 +692,7 @@ export default function VicePrincipalTeacherManagementPage() {
                 size="sm"
                 icon={Save}
                 loading={savingAssign}
-                onClick={handleSaveAssignments}
+                onClick={() => handleSaveAssignments(false)}
                 className="bg-indigo-600 hover:bg-indigo-700"
               >
                 Lưu phân công

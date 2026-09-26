@@ -391,6 +391,7 @@ export default function AdminTeacherListPage() {
   };
 
   const handleSaveAssignments = async (confirmOverride = false) => {
+    const isOverride = confirmOverride === true;
     if (!assignSubjectId) {
       setAssignError("Vui lòng chọn môn học cho phân công.");
       return;
@@ -402,7 +403,7 @@ export default function AdminTeacherListPage() {
       await api.put(`/admin/teachers/${assignTeacher.id}/assignments`, {
         classIds: assignedClassIds,
         subjectId: assignSubjectId,
-        confirmOverride,
+        confirmOverride: isOverride,
       });
       setAlert({
         type: "success",
@@ -1325,7 +1326,7 @@ export default function AdminTeacherListPage() {
               variant="primary"
               icon={Save}
               loading={savingAssign}
-              onClick={handleSaveAssignments}
+              onClick={() => handleSaveAssignments(false)}
             >
               Lưu phân công
             </Button>
