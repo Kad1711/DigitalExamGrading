@@ -62,7 +62,6 @@ export async function getAdminSystemDashboard(filters = {}, user = null) {
       whereExam.OR = [{ classId }, { examClasses: { some: { classId } } }];
       whereClass.id = classId;
       whereStudent.enrollments = { some: { classId } };
-      whereSubmission.student = { enrollments: { some: { classId } } };
     } else {
       whereExam.OR = [
         { classId: { in: scopedClassIds } },
@@ -71,7 +70,6 @@ export async function getAdminSystemDashboard(filters = {}, user = null) {
       ];
       whereClass.id = { in: scopedClassIds };
       whereStudent.enrollments = { some: { classId: { in: scopedClassIds } } };
-      whereSubmission.student = { enrollments: { some: { classId: { in: scopedClassIds } } } };
     }
 
     if (subjectId && subjectId !== "ALL") whereExam.subjectId = subjectId;
@@ -88,11 +86,9 @@ export async function getAdminSystemDashboard(filters = {}, user = null) {
     if (classId && classId !== "ALL") {
       whereExam.OR = [{ classId }, { examClasses: { some: { classId } } }];
       whereClass.id = classId;
-      whereSubmission.student = { enrollments: { some: { classId } } };
       whereStudent.enrollments = { some: { classId } };
     } else if (gradeId && gradeId !== "ALL") {
       whereClass.gradeId = gradeId;
-      whereSubmission.student = { enrollments: { some: { class: { gradeId } } } };
       whereStudent.enrollments = { some: { class: { gradeId } } };
     }
     if (teacherId && teacherId !== "ALL") whereExam.teacherId = teacherId;

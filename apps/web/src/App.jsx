@@ -105,7 +105,7 @@ export default function App() {
           <Route
             path="/principal/academic-structure"
             element={
-              <RequireRole roles={["SUPER_ADMIN", "PRINCIPAL"]}>
+              <RequireRole roles={["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"]}>
                 <PrincipalAcademicStructurePage />
               </RequireRole>
             }

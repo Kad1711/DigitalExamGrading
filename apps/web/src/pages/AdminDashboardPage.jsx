@@ -662,13 +662,11 @@ function AdminDashboardView() {
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              {isAdmin
-                ? "Tổng quan & Thống kê hệ thống"
-                : isTeacher && isSubjectLeader
+              {isTeacher && isSubjectLeader
                 ? `Thống kê Chuyên môn Môn ${subjectName || ""}`
                 : isTeacher
                 ? "Thống kê Kết quả Lớp phụ trách"
-                : "Trung tâm Thống kê & Báo cáo kết quả"}
+                : "Tổng quan & Thống kê hệ thống"}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
               {isTeacher && isSubjectLeader

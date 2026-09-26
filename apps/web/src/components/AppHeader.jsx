@@ -131,6 +131,12 @@ export default function AppHeader() {
       active: isAdminManagementActive,
     },
     {
+      label: "Cơ cấu chuyên môn",
+      href: "/principal/academic-structure",
+      icon: BookOpen,
+      active: isAcademicStructureActive,
+    },
+    {
       label: "Quản lý giáo viên",
       href: "/admin/teachers",
       icon: UserCheck,
@@ -189,7 +195,7 @@ export default function AppHeader() {
       active: isAdminTeachersActive,
     },
     {
-      label: "Thống kê",
+      label: "Tổng quan & Thống kê",
       href: "/admin/dashboard",
       icon: BarChart3,
       active: isStatisticsActive,
@@ -223,13 +229,19 @@ export default function AppHeader() {
       active: isVicePrincipalTeachersActive,
     },
     {
+      label: "Cơ cấu chuyên môn",
+      href: "/principal/academic-structure",
+      icon: BookOpen,
+      active: isAcademicStructureActive,
+    },
+    {
       label: "Lớp học & Học sinh",
       href: "/classes",
       icon: Users,
       active: isClassesActive,
     },
     {
-      label: "Thống kê",
+      label: "Tổng quan & Thống kê",
       href: "/admin/dashboard",
       icon: BarChart3,
       active: isStatisticsActive,
@@ -263,7 +275,7 @@ export default function AppHeader() {
       active: isClassesActive,
     },
     {
-      label: "Thống kê",
+      label: "Tổng quan & Thống kê",
       href: "/admin/dashboard",
       icon: BarChart3,
       active: isStatisticsActive,

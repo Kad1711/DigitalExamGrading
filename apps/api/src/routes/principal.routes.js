@@ -8,7 +8,7 @@ const router = Router();
 // All principal routes require authentication
 router.use(authenticate);
 
-const canViewAcademicStructure = authorizeRoles("SUPER_ADMIN", "PRINCIPAL");
+const canViewAcademicStructure = authorizeRoles("SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL");
 
 /**
  * GET /api/principal/academic-structure

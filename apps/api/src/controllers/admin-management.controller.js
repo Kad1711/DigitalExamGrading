@@ -3,8 +3,8 @@ import prisma from "../config/prisma.js";
 import { AppError } from "../middlewares/error.middleware.js";
 
 const SALT_ROUNDS = 12;
-const MANAGEMENT_ROLES = ["PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"];
-const ALL_STAFF_ROLES = ["PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER", "TEACHER"];
+const MANAGEMENT_ROLES = ["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"];
+const ALL_STAFF_ROLES = ["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER", "TEACHER"];
 
 /**
  * GET /api/admin/management-accounts
@@ -76,7 +76,7 @@ export async function createManagementAccountController(req, res, next) {
     if (!role || !MANAGEMENT_ROLES.includes(role)) {
       return next(
         new AppError(
-          "Vai trò không hợp lệ. Vui lòng chọn: Hiệu trưởng, Hiệu phó hoặc Cán bộ khảo thí.",
+          "Vai trò không hợp lệ. Vui lòng chọn: Quản trị viên, Hiệu trưởng, Hiệu phó hoặc Cán bộ khảo thí.",
           422,
           "INVALID_ROLE"
         )
@@ -102,7 +102,7 @@ export async function createManagementAccountController(req, res, next) {
     const cleanFullName = (fullName || "").trim() || "Nhân sự mới";
     const passwordHash = await bcrypt.hash(password.trim(), SALT_ROUNDS);
 
-    // PRINCIPAL, VICE_PRINCIPAL, EXAM_OFFICER
+    // SUPER_ADMIN, PRINCIPAL, VICE_PRINCIPAL, EXAM_OFFICER
     const user = await prisma.user.create({
       data: {
         email: cleanEmail,
@@ -124,6 +124,7 @@ export async function createManagementAccountController(req, res, next) {
     });
 
     const roleNameMap = {
+      SUPER_ADMIN: "Quản trị viên",
       PRINCIPAL: "Hiệu trưởng",
       VICE_PRINCIPAL: "Hiệu phó chuyên môn",
       EXAM_OFFICER: "Cán bộ khảo thí",
