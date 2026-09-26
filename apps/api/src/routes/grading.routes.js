@@ -64,11 +64,41 @@ export function handleImageUpload(req, res, next) {
   });
 }
 
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
+import { storageService, cleanupStagedBatch } from "../services/storage/storage.service.js";
+import { checkRedisHealth } from "../config/redis.config.js";
+import {
+  BATCH_MAX_FILES,
+  BATCH_MAX_FILE_BYTES,
+} from "../config/batch-upload.config.js";
+
+const batchStagingStorage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    try {
+      if (!req.stagingBatchId) {
+        req.stagingBatchId = `batch_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+      }
+      const stagingDir = path.join(storageService.getStorageRoot(), "staging", req.stagingBatchId);
+      await fs.promises.mkdir(stagingDir, { recursive: true });
+      cb(null, stagingDir);
+    } catch (err) {
+      cb(err);
+    }
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
+    const unique = `${Date.now()}_${crypto.randomBytes(4).toString("hex")}${ext}`;
+    cb(null, unique);
+  },
+});
+
 export const uploadBatchImages = multer({
-  storage,
+  storage: batchStagingStorage,
   limits: {
-    fileSize: 15 * 1024 * 1024, // 15MB per file
-    files: 50, // Max 50 files per batch
+    fileSize: BATCH_MAX_FILE_BYTES,
+    files: BATCH_MAX_FILES,
   },
   fileFilter: (req, file, cb) => {
     const name = (file.originalname || "").toLowerCase();
@@ -91,11 +121,26 @@ export const uploadBatchImages = multer({
       );
     }
   },
-}).array("images", 50);
+}).array("images", BATCH_MAX_FILES);
 
-export function handleBatchImageUpload(req, res, next) {
-  uploadBatchImages(req, res, (err) => {
+export async function handleBatchImageUpload(req, res, next) {
+  // Pre-upload check: verify Redis is available BEFORE accepting or staging large files (FINDING-003)
+  const isHealthy = await checkRedisHealth();
+  if (!isHealthy) {
+    return next(
+      new AppError(
+        "Hệ thống hàng đợi chấm thi tự động (Redis) không khả dụng. Vui lòng thử lại sau.",
+        503,
+        "GRADING_QUEUE_UNAVAILABLE"
+      )
+    );
+  }
+
+  uploadBatchImages(req, res, async (err) => {
     if (err) {
+      if (req.stagingBatchId) {
+        await cleanupStagedBatch(req.stagingBatchId).catch(() => {});
+      }
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
           return next(

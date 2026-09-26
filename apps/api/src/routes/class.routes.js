@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/role.middleware.js";
-import { requireClassStudentManagement } from "../middlewares/class-access.middleware.js";
+import {
+  requireClassStudentManagement,
+  requireClassStudentAccess,
+} from "../middlewares/class-access.middleware.js";
 import {
   getGrades,
   getClasses,
@@ -57,7 +60,7 @@ router.patch("/:classId", canManageClasses, updateClass);
 router.delete("/:classId", canManageClasses, deleteClass);
 
 // Class Students Read
-router.get("/:classId/students", canReadClasses, getClassStudents);
+router.get("/:classId/students", requireClassStudentAccess, getClassStudents);
 
 // Class Students Mutations (VICE_PRINCIPAL, SUPER_ADMIN, or TEACHER of assigned class)
 router.post("/:classId/students", ...canManageStudents, addStudent);

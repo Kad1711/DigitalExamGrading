@@ -60,7 +60,7 @@ export async function listStudentExams(userId) {
 
     let submission = null;
     if (studentNumber) {
-      submission = await prisma.examSubmission.findFirst({
+      const candidateSubmissions = await prisma.examSubmission.findMany({
         where: {
           examId: exam.id,
           resolvedStudentNumber: studentNumber,
@@ -76,7 +76,17 @@ export async function listStudentExams(userId) {
           blankCount: true,
           createdAt: true,
         },
+        take: 2,
       });
+
+      if (candidateSubmissions.length === 1) {
+        submission = candidateSubmissions[0];
+      } else if (candidateSubmissions.length > 1) {
+        console.warn(
+          `[STUDENT_RESULT] Conflict: Multiple FINAL submissions for SBD ${studentNumber} in exam ${exam.id}`
+        );
+        submission = null;
+      }
     }
 
     const isResultsPublished = exam.resultsPublishedAt !== null;
@@ -97,8 +107,11 @@ export async function listStudentExams(userId) {
       isResultsPublished,
       studentNumber,
       hasSubmitted: !!submission,
-      score: isResultsPublished && submission?.finalScore !== null ? Number(submission.finalScore) : null,
-      correctCount: isResultsPublished ? submission?.correctCount : null,
+      score:
+        isResultsPublished && submission?.finalScore != null
+          ? Number(submission.finalScore)
+          : null,
+      correctCount: isResultsPublished ? (submission?.correctCount ?? null) : null,
       totalQuestions: exam.questionCount,
     });
   }
@@ -142,10 +155,7 @@ export async function listStudentResults(userId) {
             examId: unExam.id,
             status: "FINAL",
             identityNeedsReview: false,
-            OR: [
-              ...(cleanCode ? [{ resolvedStudentNumber: cleanCode }] : []),
-              ...(cleanCode.length >= 4 ? [{ resolvedStudentNumber: { endsWith: cleanCode } }] : []),
-            ],
+            resolvedStudentNumber: cleanCode,
           },
           select: { resolvedStudentNumber: true },
         });
@@ -278,10 +288,7 @@ export async function getStudentResultDetail(userId, examId) {
         examId,
         status: "FINAL",
         identityNeedsReview: false,
-        OR: [
-          ...(cleanCode ? [{ resolvedStudentNumber: cleanCode }] : []),
-          ...(cleanCode.length >= 4 ? [{ resolvedStudentNumber: { endsWith: cleanCode } }] : []),
-        ],
+        resolvedStudentNumber: cleanCode,
       },
       select: { resolvedStudentNumber: true },
     });

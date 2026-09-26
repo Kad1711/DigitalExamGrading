@@ -205,13 +205,22 @@ def classify_bubble_group(fill_ratios: dict, is_digit: bool = False) -> tuple[st
         return status, val_str, candidate_str, confidence
 
     # len(strong_candidates) == 0
-    # A faint mark must stand out from other unfilled options by a noticeable margin (>= 0.07).
-    # If all bubbles have similar baseline fill (margin < 0.07), it is simply printed glyph / paper shadow noise.
-    if top1_val >= MIN_UNCERTAIN_FILL_RATIO and margin >= 0.07:
-        status = "UNCERTAIN"
-        val_str = None
-        confidence = round(0.30 + 0.30 * (top1_val / max(0.001, MIN_FILL_RATIO)), 2)
+    # Invariant (FINDING-007): A group MUST NOT be classified BLANK if >= 2 bubbles
+    # show substantial mark evidence (>= MIN_UNCERTAIN_FILL_RATIO).
+    if top1_val >= MIN_UNCERTAIN_FILL_RATIO and (top2_val >= MIN_UNCERTAIN_FILL_RATIO or margin >= 0.07):
+        if top1_val >= 0.30 and top2_val >= 0.30 and margin < MIN_SELECTION_MARGIN:
+            # Both bubbles have substantial mark evidence close to threshold: MULTIPLE
+            status = "MULTIPLE"
+            val_str = None
+            candidate_str = None
+            confidence = round(max(0.20, 1.0 - margin), 2)
+        else:
+            # Single faint mark standing out or incomplete erasure / ambiguous evidence: UNCERTAIN
+            status = "UNCERTAIN"
+            val_str = None
+            confidence = round(0.30 + 0.30 * (top1_val / max(0.001, MIN_FILL_RATIO)), 2)
     else:
+        # All bubbles are below uncertain threshold or baseline noise without clear separation
         status = "BLANK"
         val_str = None
         candidate_str = None

@@ -270,7 +270,7 @@ test("Class & Student Management Suite", async (t) => {
     assert.equal(list[0].fullName, "Trần Bảo An");
     assert.equal(list[1].fullName, "Huỳnh Ngọc Thúy Hoanh");
     assert.equal(list[2].fullName, "Lê Quang Khải");
-    assert.equal(list[0].initialPassword, "123456");
+    assert.equal(list[0].initialPassword, undefined);
 
     // Test updating password
     const updated = await classService.updateStudent(cls.id, s2.studentId, {

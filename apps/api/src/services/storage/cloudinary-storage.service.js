@@ -84,3 +84,22 @@ export async function deleteFromCloudinary(publicId, { resourceType = "image" } 
     console.warn(`[CLOUDINARY DELETE] Could not delete ${publicId}:`, err.message);
   }
 }
+
+/**
+ * Delete all Cloudinary resources matching a folder/prefix (compensating cleanup).
+ *
+ * @param {string} prefix - Cloudinary resource prefix (e.g. digitalexam/submissions/<namespace>)
+ */
+export async function deletePrefixFromCloudinary(prefix) {
+  if (!isCloudinaryConfigured() || !prefix) return;
+
+  // Enforce folder boundary by ensuring prefix ends with a slash if not already
+  const safePrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
+  try {
+    const result = await cloudinary.api.delete_resources_by_prefix(safePrefix);
+    return result;
+  } catch (err) {
+    console.warn(`[CLOUDINARY DELETE PREFIX] Could not delete prefix ${safePrefix}:`, err.message);
+  }
+}
+

@@ -36,6 +36,14 @@ const server = app.listen(PORT, async () => {
   } catch (err) {
     console.warn("[SERVER] BullMQ worker initialization skipped:", err.message);
   }
+
+  // Safe startup cleanup of stale temporary staging files older than 24 hours
+  try {
+    const { cleanupStaleStaging } = await import("./services/storage/storage.service.js");
+    await cleanupStaleStaging(24 * 60 * 60 * 1000);
+  } catch (stagingErr) {
+    console.warn("[SERVER] Startup staging cleaner notice:", stagingErr.message);
+  }
 });
 
 // =====================================================

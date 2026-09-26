@@ -1,26 +1,83 @@
+import fs from "node:fs";
 import { Worker } from "bullmq";
 import { redisConnectionOptions, isRedisConfigured } from "../config/redis.config.js";
 import { GRADING_QUEUE_NAME, getBatchRecord, saveBatchRecord } from "./grading.queue.js";
 import { createSubmission } from "../services/submission.service.js";
+import {
+  storageService,
+  cleanupStagedFile,
+  cleanupStagedBatch,
+} from "../services/storage/storage.service.js";
 
 let worker = null;
 
 /**
- * Process a single OMR exam sheet from the BullMQ queue
+ * Process a single OMR exam sheet from the BullMQ queue using storage reference (FINDING-005)
  */
 async function processGradingJob(job) {
-  const { batchId, examId, user, fileBufferBase64, filename, mimeType, itemIndex } = job.data;
+  const {
+    batchId,
+    examId,
+    user,
+    storageKey,
+    stagingPath,
+    originalFilename,
+    filename,
+    mimeType,
+    itemIndex,
+  } = job.data;
 
-  console.log(`[QUEUE] Processing batch ${batchId} - item ${itemIndex + 1}: ${filename}`);
+  const targetFilename = originalFilename || filename || `sheet_${itemIndex + 1}.jpg`;
+  console.log(`[QUEUE] Processing batch ${batchId} - item ${itemIndex + 1}: ${targetFilename}`);
 
-  const imageBuffer = Buffer.from(fileBufferBase64, "base64");
+  // Retrieve image buffer from staging storage reference
+  let imageBuffer = null;
+  try {
+    if (storageKey && (await storageService.fileExists(storageKey))) {
+      imageBuffer = await storageService.getFileBuffer(storageKey);
+    } else if (stagingPath && fs.existsSync(stagingPath)) {
+      imageBuffer = await fs.promises.readFile(stagingPath);
+    }
+  } catch (readErr) {
+    console.error(
+      `[QUEUE] Failed to read staged image for batch ${batchId} item ${itemIndex + 1}:`,
+      readErr.message
+    );
+  }
+
+  if (!imageBuffer) {
+    const record = (await getBatchRecord(batchId).catch(() => null)) || {
+      batchId,
+      examId,
+      total: 1,
+      completed: 0,
+      failed: 0,
+      results: [],
+    };
+    record.failed = (record.failed || 0) + 1;
+    record.results.push({
+      itemIndex,
+      filename: targetFilename,
+      status: "failed",
+      error: "Không tìm thấy file ảnh tạm trên hệ thống lưu trữ.",
+      code: "STAGED_FILE_NOT_FOUND",
+      processedAt: new Date().toISOString(),
+    });
+    if ((record.completed || 0) + record.failed >= record.total) {
+      record.status = record.completed > 0 ? "completed_with_errors" : "failed";
+      record.finishedAt = new Date().toISOString();
+      await cleanupStagedBatch(batchId).catch(() => {});
+    }
+    await saveBatchRecord(batchId, record).catch(() => {});
+    return { success: false, error: "STAGED_FILE_NOT_FOUND" };
+  }
 
   try {
     const result = await createSubmission({
       examId,
       imageBuffer,
-      originalFilename: filename,
-      mimeType,
+      originalFilename: targetFilename,
+      mimeType: mimeType || "image/jpeg",
       user,
     });
 
@@ -37,7 +94,7 @@ async function processGradingJob(job) {
     record.completed = (record.completed || 0) + 1;
     record.results.push({
       itemIndex,
-      filename,
+      filename: targetFilename,
       status: "success",
       submissionId: result.submission?.id,
       studentName: result.student?.fullName || null,
@@ -49,13 +106,18 @@ async function processGradingJob(job) {
     if (record.completed + (record.failed || 0) >= record.total) {
       record.status = (record.failed || 0) > 0 ? "completed_with_errors" : "completed";
       record.finishedAt = new Date().toISOString();
+      // Clean up entire staging directory once batch completes
+      await cleanupStagedBatch(batchId).catch(() => {});
     }
 
     await saveBatchRecord(batchId, record);
 
     return { success: true, submissionId: result.submission?.id };
   } catch (err) {
-    console.error(`[QUEUE] Failed batch ${batchId} - item ${itemIndex + 1} (${filename}):`, err.message);
+    console.error(
+      `[QUEUE] Failed batch ${batchId} - item ${itemIndex + 1} (${targetFilename}):`,
+      err.message
+    );
 
     const record = (await getBatchRecord(batchId)) || {
       batchId,
@@ -69,7 +131,7 @@ async function processGradingJob(job) {
     record.failed = (record.failed || 0) + 1;
     record.results.push({
       itemIndex,
-      filename,
+      filename: targetFilename,
       status: "failed",
       error: err.message || "Lỗi không xác định khi chấm phiếu thi.",
       code: err.code || "GRADING_FAILED",
@@ -79,12 +141,17 @@ async function processGradingJob(job) {
     if ((record.completed || 0) + record.failed >= record.total) {
       record.status = record.completed > 0 ? "completed_with_errors" : "failed";
       record.finishedAt = new Date().toISOString();
+      await cleanupStagedBatch(batchId).catch(() => {});
     }
 
     await saveBatchRecord(batchId, record);
 
-    // Let BullMQ know this attempt failed
     throw err;
+  } finally {
+    // Delete individual staging file reference after job execution attempt (success or max retry)
+    if (storageKey) {
+      await cleanupStagedFile(storageKey).catch(() => {});
+    }
   }
 }
 

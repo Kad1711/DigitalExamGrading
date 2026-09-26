@@ -13,6 +13,9 @@ import {
   getSubmissionAuditLogs,
   deleteSubmission,
 } from "../services/submission.service.js";
+import { validateImageBuffer, validateImageFile } from "../utils/image-validation.js";
+import { BATCH_MAX_TOTAL_BYTES } from "../config/batch-upload.config.js";
+import { cleanupStagedBatch } from "../services/storage/storage.service.js";
 
 /**
  * POST /api/exams/:examId/submissions
@@ -30,6 +33,18 @@ export async function createSubmissionController(req, res, next) {
           "Vui lòng tải lên file ảnh bài thi (.jpg, .jpeg, .png).",
           400,
           "IMAGE_FILE_REQUIRED"
+        )
+      );
+    }
+
+    // Binary magic bytes validation (FINDING-005)
+    const imgValidation = validateImageBuffer(req.file.buffer);
+    if (!imgValidation.valid) {
+      return next(
+        new AppError(
+          imgValidation.error || "File ảnh không hợp lệ.",
+          400,
+          "IMAGE_INVALID_BINARY"
         )
       );
     }
@@ -186,10 +201,16 @@ export async function createBatchSubmissionController(req, res, next) {
   try {
     const { examId } = req.params;
     if (!examId) {
+      if (req.stagingBatchId) {
+        await cleanupStagedBatch(req.stagingBatchId);
+      }
       return next(new AppError("Thiếu mã kỳ thi (examId).", 400, "EXAM_ID_REQUIRED"));
     }
 
     if (!req.files || req.files.length === 0) {
+      if (req.stagingBatchId) {
+        await cleanupStagedBatch(req.stagingBatchId);
+      }
       return next(
         new AppError(
           "Vui lòng tải lên ít nhất một file ảnh bài thi (tối đa 50 file).",
@@ -199,11 +220,50 @@ export async function createBatchSubmissionController(req, res, next) {
       );
     }
 
+    // 1. Enforce aggregate batch size limit (FINDING-005)
+    let totalBatchBytes = 0;
+    for (const file of req.files) {
+      totalBatchBytes += file.size || 0;
+    }
+    if (totalBatchBytes > BATCH_MAX_TOTAL_BYTES) {
+      if (req.stagingBatchId) {
+        await cleanupStagedBatch(req.stagingBatchId);
+      }
+      const mbTotal = Math.round(totalBatchBytes / (1024 * 1024));
+      const mbMax = Math.round(BATCH_MAX_TOTAL_BYTES / (1024 * 1024));
+      return next(
+        new AppError(
+          `Tổng dung lượng đợt tải lên (${mbTotal}MB) vượt quá giới hạn tối đa (${mbMax}MB).`,
+          400,
+          "BATCH_SIZE_EXCEEDED"
+        )
+      );
+    }
+
+    // 2. Validate binary magic bytes of each staged file on disk (FINDING-005)
+    for (const file of req.files) {
+      const validation = await validateImageFile(file.path);
+      if (!validation.valid) {
+        if (req.stagingBatchId) {
+          await cleanupStagedBatch(req.stagingBatchId);
+        }
+        return next(
+          new AppError(
+            `File '${file.originalname}' không hợp lệ: ${validation.error}`,
+            400,
+            "IMAGE_INVALID_BINARY"
+          )
+        );
+      }
+    }
+
+    // 3. Enqueue into BullMQ with storage references only
     const { enqueueBatchGrading } = await import("../queue/grading.queue.js");
     const { batchId, total } = await enqueueBatchGrading({
       examId,
       user: req.user,
       files: req.files,
+      batchId: req.stagingBatchId,
     });
 
     return res.status(202).json({
@@ -216,6 +276,9 @@ export async function createBatchSubmissionController(req, res, next) {
       },
     });
   } catch (err) {
+    if (req.stagingBatchId) {
+      await cleanupStagedBatch(req.stagingBatchId).catch(() => {});
+    }
     next(err);
   }
 }

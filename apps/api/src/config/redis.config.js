@@ -79,3 +79,26 @@ export function getRedisClient() {
 
   return redisClient;
 }
+
+/**
+ * Asynchronously verifies that Redis connection is active and responsive.
+ * Used for fail-fast readiness checks before accepting or staging bulk uploads.
+ *
+ * @returns {Promise<boolean>}
+ */
+export async function checkRedisHealth() {
+  if (!isRedisConfigured()) {
+    return false;
+  }
+  try {
+    const client = getRedisClient();
+    if (client.status === "wait" || client.status === "close") {
+      await client.connect().catch(() => {});
+    }
+    const pong = await client.ping();
+    return pong === "PONG";
+  } catch {
+    return false;
+  }
+}
+

@@ -102,6 +102,11 @@ export async function getAdminSystemDashboard(filters = {}, user = null) {
     }
   }
 
+  // Ensure total student count only reflects enrolled students in classes
+  if (!whereStudent.enrollments) {
+    whereStudent.enrollments = { some: {} };
+  }
+
   const [
     filterGrades,
     filterClasses,

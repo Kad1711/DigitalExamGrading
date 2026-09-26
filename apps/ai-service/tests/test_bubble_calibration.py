@@ -265,3 +265,113 @@ def test_local_alignment_drift_recovery():
     res = read_answer_question(img, q_layout)
     assert res["status"] == "MARKED"
     assert res["answer"] == "A"
+
+
+# =========================================================================
+# FINDING-007: OMR Bubble Ambiguity & Invariant Verification (Phase 2)
+# =========================================================================
+
+def test_f007_1_ambiguous_two_bubbles_must_not_be_blank():
+    """
+    F007.1: A=0.34, B=0.33, C=0.05, D=0.05
+    Invariant: Two bubbles exceed uncertain threshold and are close in fill.
+    MUST NOT BE BLANK (must be UNCERTAIN or MULTIPLE).
+    """
+    fill_ratios = {"A": 0.34, "B": 0.33, "C": 0.05, "D": 0.05}
+    status, val, cand, conf = classify_bubble_group(fill_ratios, is_digit=False)
+    assert status != "BLANK", f"F007.1 violation: Ambiguous bubbles 0.34/0.33 was classified as {status}"
+    assert status in ("MULTIPLE", "UNCERTAIN")
+    assert val is None
+
+
+def test_f007_2_true_blank_remains_blank():
+    """
+    F007.2: Unfilled question remains BLANK.
+    """
+    fill_ratios = {"A": 0.05, "B": 0.06, "C": 0.04, "D": 0.05}
+    status, val, cand, conf = classify_bubble_group(fill_ratios, is_digit=False)
+    assert status == "BLANK"
+    assert val is None
+    assert cand is None
+
+
+def test_f007_3_clear_single_mark_remains_marked():
+    """
+    F007.3: Clear single mark remains MARKED.
+    """
+    fill_ratios = {"A": 0.88, "B": 0.10, "C": 0.08, "D": 0.07}
+    status, val, cand, conf = classify_bubble_group(fill_ratios, is_digit=False)
+    assert status == "MARKED"
+    assert val == "A"
+    assert cand == "A"
+    assert conf >= 0.90
+
+
+def test_f007_4_clear_multiple_remains_multiple():
+    """
+    F007.4: Two heavily marked bubbles remain MULTIPLE.
+    """
+    fill_ratios = {"A": 0.85, "B": 0.82, "C": 0.10, "D": 0.08}
+    status, val, cand, conf = classify_bubble_group(fill_ratios, is_digit=False)
+    assert status == "MULTIPLE"
+    assert val is None
+
+
+def test_f007_5_ambiguous_sbd_digit_not_ok():
+    """
+    F007.5: Ambiguous digit column for SBD must have status != 'OK'.
+    """
+    fill_ratios = {0: 0.10, 1: 0.34, 2: 0.33, 3: 0.08, 4: 0.09, 5: 0.11, 6: 0.07, 7: 0.10, 8: 0.09, 9: 0.10}
+    status, val, cand, conf = classify_bubble_group(fill_ratios, is_digit=True)
+    assert status != "OK", f"Ambiguous digit should not be OK, got {status}"
+    assert status in ("MULTIPLE", "UNCERTAIN")
+    assert val is None
+
+
+def test_f007_6_ambiguous_exam_code_digit_not_ok():
+    """
+    F007.6: Ambiguous digit column for Exam Code must have status != 'OK'.
+    """
+    fill_ratios = {0: 0.34, 1: 0.33, 2: 0.08, 3: 0.09, 4: 0.07, 5: 0.09, 6: 0.06, 7: 0.08, 8: 0.08, 9: 0.07}
+    status, val, cand, conf = classify_bubble_group(fill_ratios, is_digit=True)
+    assert status != "OK", f"Ambiguous exam code digit should not be OK, got {status}"
+    assert status in ("MULTIPLE", "UNCERTAIN")
+    assert val is None
+
+
+@pytest.mark.parametrize(
+    "fill_ratios,expected_status,expected_val,is_digit",
+    [
+        # 1. A=.00 B=.00 C=.00 D=.00
+        ({"A": 0.00, "B": 0.00, "C": 0.00, "D": 0.00}, "BLANK", None, False),
+        # 2. A=.19 B=.18
+        ({"A": 0.19, "B": 0.18, "C": 0.05, "D": 0.05}, "BLANK", None, False),
+        # 3. A=.20 B=.05
+        ({"A": 0.20, "B": 0.05, "C": 0.04, "D": 0.03}, "UNCERTAIN", None, False),
+        # 4. A=.34 B=.05
+        ({"A": 0.34, "B": 0.05, "C": 0.04, "D": 0.03}, "UNCERTAIN", None, False),
+        # 5. A=.34 B=.33 -> MUST NOT BE BLANK
+        ({"A": 0.34, "B": 0.33, "C": 0.05, "D": 0.05}, "MULTIPLE", None, False),
+        # 6. A=.34 B=.21
+        ({"A": 0.34, "B": 0.21, "C": 0.05, "D": 0.05}, "UNCERTAIN", None, False),
+        # 7. A=.35 B=.20
+        ({"A": 0.35, "B": 0.20, "C": 0.05, "D": 0.05}, "MARKED", "A", False),
+        # 8. A=.35 B=.23
+        ({"A": 0.35, "B": 0.23, "C": 0.05, "D": 0.05}, "MARKED", "A", False),
+        # 9. A=.36 B=.22
+        ({"A": 0.36, "B": 0.22, "C": 0.05, "D": 0.05}, "MARKED", "A", False),
+        # 10. A=.50 B=.36
+        ({"A": 0.50, "B": 0.36, "C": 0.05, "D": 0.05}, "MULTIPLE", None, False),
+        # 11. A=.50 B=.35
+        ({"A": 0.50, "B": 0.35, "C": 0.05, "D": 0.05}, "MULTIPLE", None, False),
+        # 12. A=.64 B=.35 (dominant over glyph baseline)
+        ({"A": 0.64, "B": 0.35, "C": 0.05, "D": 0.05}, "MARKED", "A", False),
+    ]
+)
+def test_f007_boundary_matrix(fill_ratios, expected_status, expected_val, is_digit):
+    status, val, cand, conf = classify_bubble_group(fill_ratios, is_digit=is_digit)
+    assert status == expected_status, f"Expected {expected_status} for fills {fill_ratios}, got {status}"
+    assert val == expected_val
+    assert isinstance(conf, float)
+    assert 0.0 <= conf <= 1.0
+

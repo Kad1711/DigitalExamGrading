@@ -76,7 +76,6 @@ export async function listClassStudents(classId) {
     fullName: en.student.fullName,
     dateOfBirth: en.student.dateOfBirth,
     email: en.student.user?.email || null,
-    initialPassword: en.student.initialPassword || DEFAULT_STUDENT_PASSWORD,
     status: en.student.user?.status || "ACTIVE",
     enrolledAt: en.createdAt,
   }));
@@ -230,6 +229,9 @@ export async function removeStudentFromClass(classId, studentId) {
       classId,
       studentId,
     },
+    include: {
+      student: { select: { id: true, userId: true } },
+    },
   });
 
   if (!enrollment) {
@@ -240,8 +242,24 @@ export async function removeStudentFromClass(classId, studentId) {
     );
   }
 
-  await prisma.studentEnrollment.delete({
-    where: { id: enrollment.id },
+  await prisma.$transaction(async (tx) => {
+    await tx.studentEnrollment.delete({
+      where: { id: enrollment.id },
+    });
+
+    const otherEnrollmentsCount = await tx.studentEnrollment.count({
+      where: { studentId },
+    });
+    const candidateCount = await tx.examCandidate.count({
+      where: { studentId },
+    });
+
+    if (otherEnrollmentsCount === 0 && candidateCount === 0) {
+      await tx.student.delete({ where: { id: studentId } });
+      if (enrollment.student?.userId) {
+        await tx.user.delete({ where: { id: enrollment.student.userId } });
+      }
+    }
   });
 
   return { message: "Đã xóa học sinh khỏi lớp học thành công." };

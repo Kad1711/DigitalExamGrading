@@ -134,6 +134,9 @@ export function formatSubmissionResponse(sub, answers = [], auditLogs = []) {
     status: sub.status,
     examId: sub.examId,
     examTitle: sub.exam?.title || null,
+    identityNeedsReview: sub.identityNeedsReview,
+    finalScore: sub.finalScore !== null ? Number(sub.finalScore) : null,
+    provisionalScore: sub.provisionalScore !== null ? Number(sub.provisionalScore) : null,
     identity: {
       detectedStudentNumber: sub.detectedStudentNumber,
       candidateStudentNumber: sub.candidateStudentNumber,
@@ -353,12 +356,72 @@ export async function createSubmission({
   const gradingTimeMs = Math.round(performance.now() - gradingStart);
   const totalTimeMs = Math.round(performance.now() - t0);
 
-  // 9. Identity observation
+  // 8b. Exam code confidence observation (Fail-closed: missing/invalid confidence forces PROVISIONAL)
+  const examCodeOmrStatus = omrData.examCode?.status || "UNKNOWN";
+  const hasValidExamCodeConfidence =
+    typeof omrData.examCode?.confidence === "number" &&
+    Number.isFinite(omrData.examCode.confidence);
+  const examCodeConfidence = hasValidExamCodeConfidence
+    ? omrData.examCode.confidence
+    : 0;
+  const examCodeNeedsReview =
+    examCodeOmrStatus !== "OK" ||
+    !hasValidExamCodeConfidence ||
+    examCodeConfidence < 0.90;
+
+  // 9. Identity observation & Roster-based verification (Fail-closed: missing/invalid confidence forces PROVISIONAL)
   const detectedStudentNumber = omrData.studentNumber?.value || null;
   const candidateStudentNumber = omrData.studentNumber?.candidateValue || null;
   const studentNumberOmrStatus = omrData.studentNumber?.status || "UNKNOWN";
-  const identityNeedsReview = !detectedStudentNumber;
+  const hasValidStudentNumberConfidence =
+    typeof omrData.studentNumber?.confidence === "number" &&
+    Number.isFinite(omrData.studentNumber.confidence);
+  const studentNumberConfidence = hasValidStudentNumberConfidence
+    ? omrData.studentNumber.confidence
+    : 0;
   const resolvedStudentNumber = detectedStudentNumber;
+
+  let isRosterCandidate = false;
+  if (resolvedStudentNumber) {
+    const candidateRecord = await prisma.examCandidate.findFirst({
+      where: {
+        examId,
+        studentNumber: resolvedStudentNumber,
+      },
+      select: { id: true },
+    });
+    if (candidateRecord) {
+      isRosterCandidate = true;
+    }
+  }
+
+  const identityNeedsReview =
+    !resolvedStudentNumber ||
+    studentNumberOmrStatus !== "OK" ||
+    !hasValidStudentNumberConfidence ||
+    studentNumberConfidence < 0.85 ||
+    !isRosterCandidate;
+
+  // 9b. Duplicate candidate guard (Invariant: 1 candidate <= 1 ACTIVE/FINAL submission)
+  if (resolvedStudentNumber) {
+    const existingCandidateSubmission = await prisma.examSubmission.findFirst({
+      where: {
+        examId,
+        resolvedStudentNumber,
+        status: "FINAL",
+      },
+      select: { id: true },
+    });
+
+    if (existingCandidateSubmission) {
+      throw new AppError(
+        `Thí sinh với SBD '${resolvedStudentNumber}' đã có bài nộp hợp lệ (FINAL) trong kỳ thi này.`,
+        409,
+        "DUPLICATE_CANDIDATE_SUBMISSION",
+        { existingSubmissionId: existingCandidateSubmission.id }
+      );
+    }
+  }
 
   // 10. Sanitized raw OMR snapshot (Zero base64)
   const rawOmrSnapshot = {
@@ -418,8 +481,48 @@ export async function createSubmission({
   let createdAnswers = [];
   let createdAudit = null;
 
+  const isFinalEligible =
+    grading.unresolvedCount === 0 &&
+    !identityNeedsReview &&
+    !examCodeNeedsReview;
+
+  const submissionStatus = isFinalEligible ? "FINAL" : "PROVISIONAL";
+  const calculatedScoreDecimal =
+    grading.finalScore !== null
+      ? new Prisma.Decimal(grading.finalScore)
+      : grading.provisionalScore !== null
+      ? new Prisma.Decimal(grading.provisionalScore)
+      : null;
+
+  const subFinalScore = isFinalEligible ? calculatedScoreDecimal : null;
+  const subProvisionalScore = isFinalEligible ? null : calculatedScoreDecimal;
+  const subFinalizedAt = isFinalEligible ? new Date() : null;
+
   try {
     const result = await prisma.$transaction(async (tx) => {
+      // Concurrency guard: Serialize candidate submissions for this exam to prevent TOCTOU race (FINDING-006)
+      if (resolvedStudentNumber) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${exam.id}), hashtext(${resolvedStudentNumber}))`;
+
+        const existingCandidateSubmission = await tx.examSubmission.findFirst({
+          where: {
+            examId: exam.id,
+            resolvedStudentNumber,
+            status: "FINAL",
+          },
+          select: { id: true },
+        });
+
+        if (existingCandidateSubmission) {
+          throw new AppError(
+            `Thí sinh với SBD '${resolvedStudentNumber}' đã có bài nộp hợp lệ (FINAL) trong kỳ thi này.`,
+            409,
+            "DUPLICATE_CANDIDATE_SUBMISSION",
+            { existingSubmissionId: existingCandidateSubmission.id }
+          );
+        }
+      }
+
       // 12a. Insert ExamSubmission
       const sub = await tx.examSubmission.create({
         data: {
@@ -427,7 +530,7 @@ export async function createSubmission({
           examCodeId: examCode.id,
           answerSheetTemplateId: template.id,
           gradedByUserId: user.id,
-          status: grading.status,
+          status: submissionStatus,
 
           detectedStudentNumber,
           candidateStudentNumber,
@@ -458,10 +561,9 @@ export async function createSubmission({
           incorrectCount: grading.incorrectCount,
           blankCount: grading.blankCount,
           unresolvedCount: grading.unresolvedCount,
-          provisionalScore:
-            grading.provisionalScore !== null ? new Prisma.Decimal(grading.provisionalScore) : null,
-          finalScore: grading.finalScore !== null ? new Prisma.Decimal(grading.finalScore) : null,
-          finalizedAt: grading.status === "FINAL" ? new Date() : null,
+          provisionalScore: subProvisionalScore,
+          finalScore: subFinalScore,
+          finalizedAt: subFinalizedAt,
         },
       });
 
@@ -522,16 +624,17 @@ export async function createSubmission({
           actorUserId: user.id,
           eventType: "SUBMISSION_CREATED",
           afterState: {
-            status: grading.status,
-            finalScore: grading.finalScore !== null ? String(grading.finalScore) : null,
+            status: submissionStatus,
+            finalScore: subFinalScore !== null ? String(subFinalScore) : null,
             provisionalScore:
-              grading.provisionalScore !== null ? String(grading.provisionalScore) : null,
+              subProvisionalScore !== null ? String(subProvisionalScore) : null,
             correctCount: grading.correctCount,
             incorrectCount: grading.incorrectCount,
             blankCount: grading.blankCount,
             unresolvedCount: grading.unresolvedCount,
             examCode: examCode.code,
             identityNeedsReview,
+            examCodeNeedsReview,
           },
         },
       });
@@ -542,8 +645,12 @@ export async function createSubmission({
     createdSubmission = result.sub;
     createdAudit = result.audit;
   } catch (dbErr) {
-    // Clean up newly created storage files on DB transaction failure
-    await cleanupSubmissionStorage(namespace);
+    // Clean up newly created storage files (local & Cloudinary) on DB transaction failure
+    try {
+      await cleanupSubmissionStorage(namespace, savedOriginal?.cloudinaryPublicId);
+    } catch (cleanupErr) {
+      console.warn(`[SUBMISSION CLEANUP WARNING] Compensating storage cleanup notice: ${cleanupErr.message}`);
+    }
 
     // Race-safe handling of exact duplicate upload (Prisma unique violation P2002)
     if (
@@ -569,55 +676,6 @@ export async function createSubmission({
     }
 
     throw dbErr;
-  }
-
-  // Tự động liên kết học sinh trong lớp với SBD nếu chưa được gán
-  const allExamClassIds = [
-    ...(exam.classId ? [exam.classId] : []),
-    ...(exam.examClasses ? exam.examClasses.map((ec) => ec.classId) : []),
-  ];
-  if (resolvedStudentNumber && allExamClassIds.length > 0 && !identityNeedsReview) {
-    try {
-      const existingCandidate = await prisma.examCandidate.findFirst({
-        where: { examId, studentNumber: resolvedStudentNumber },
-      });
-      if (!existingCandidate) {
-        const enrollments = await prisma.studentEnrollment.findMany({
-          where: { classId: { in: allExamClassIds } },
-          include: {
-            student: {
-              include: { user: { select: { email: true } } },
-            },
-          },
-        });
-        const matched = enrollments.map((e) => e.student).find((st) => {
-          const code = (st.studentCode || "").trim();
-          const emailPrefix = (st.user?.email || "").split("@")[0];
-          return (
-            code === resolvedStudentNumber ||
-            code.endsWith(resolvedStudentNumber) ||
-            emailPrefix.includes(resolvedStudentNumber) ||
-            (resolvedStudentNumber.length >= 4 && code.includes(resolvedStudentNumber))
-          );
-        });
-        if (matched) {
-          const alreadyLinked = await prisma.examCandidate.findUnique({
-            where: { examId_studentId: { examId, studentId: matched.id } },
-          });
-          if (!alreadyLinked) {
-            await prisma.examCandidate.create({
-              data: {
-                examId,
-                studentId: matched.id,
-                studentNumber: resolvedStudentNumber,
-              },
-            });
-          }
-        }
-      }
-    } catch {
-      // Non-blocking auto-link
-    }
   }
 
   // Load created answers to return full response

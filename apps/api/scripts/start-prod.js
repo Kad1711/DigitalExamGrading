@@ -26,6 +26,34 @@ async function releaseAdvisoryLocks(dbUrl) {
   }
 }
 
+async function cleanupOrphanedStudents(dbUrl) {
+  try {
+    const directUrl = dbUrl.replace("-pooler.", ".");
+    const client = new pg.Client({
+      connectionString: directUrl,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 8000,
+    });
+    await client.connect();
+    const res = await client.query(`
+      DELETE FROM "User"
+      WHERE id IN (
+        SELECT s."userId"
+        FROM "Student" s
+        LEFT JOIN "StudentEnrollment" se ON se."studentId" = s.id
+        LEFT JOIN "ExamCandidate" ec ON ec."studentId" = s.id
+        WHERE se.id IS NULL AND ec.id IS NULL
+      )
+    `);
+    if (res.rowCount > 0) {
+      console.log(`[CLEANUP] Deleted ${res.rowCount} orphaned student accounts with no class enrollment.`);
+    }
+    await client.end();
+  } catch (err) {
+    console.warn("[CLEANUP] Orphaned student cleanup note:", err.message);
+  }
+}
+
 async function runMigrateAndStart() {
   const dbUrl = process.env.DATABASE_URL;
 
@@ -56,6 +84,9 @@ async function runMigrateAndStart() {
       // Try releasing locks again just in case
       await releaseAdvisoryLocks(dbUrl);
     }
+
+    // 3b. Clean up any orphaned student accounts with zero enrollments
+    await cleanupOrphanedStudents(dbUrl);
   }
 
   // 4. Start the Express API server
