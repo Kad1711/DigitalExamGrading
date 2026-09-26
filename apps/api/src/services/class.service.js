@@ -171,12 +171,16 @@ export async function createClass({ name, gradeId, teacherUserId }) {
     });
 
     if (teacher) {
-      const subject = await prisma.subject.findFirst();
-      if (subject) {
+      let subjectId = teacher.primarySubjectId;
+      if (!subjectId) {
+        const defaultSubject = await prisma.subject.findFirst();
+        subjectId = defaultSubject?.id;
+      }
+      if (subjectId) {
         await prisma.teachingAssignment.create({
           data: {
             teacherId: teacher.id,
-            subjectId: subject.id,
+            subjectId,
             classId: newClass.id,
             academicYearId: academicYear.id,
           },
@@ -227,11 +231,15 @@ export async function createBatchClasses({ names, gradeId, teacherUserId }) {
   const skippedNames = [];
 
   let teacher = null;
-  let subject = null;
+  let subjectId = null;
   if (teacherUserId) {
     teacher = await prisma.teacher.findUnique({ where: { userId: teacherUserId } });
     if (teacher) {
-      subject = await prisma.subject.findFirst();
+      subjectId = teacher.primarySubjectId;
+      if (!subjectId) {
+        const defaultSubject = await prisma.subject.findFirst();
+        subjectId = defaultSubject?.id;
+      }
     }
   }
 
@@ -263,11 +271,11 @@ export async function createBatchClasses({ names, gradeId, teacherUserId }) {
       },
     });
 
-    if (teacher && subject) {
+    if (teacher && subjectId) {
       await prisma.teachingAssignment.create({
         data: {
           teacherId: teacher.id,
-          subjectId: subject.id,
+          subjectId,
           classId: newClass.id,
           academicYearId: academicYear.id,
         },

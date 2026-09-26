@@ -17,6 +17,8 @@ debug/
 temp/
 /storage/
 /apps/api/storage/
+storage-test/
+/apps/api/storage-test/
 
 *.log
 logs/

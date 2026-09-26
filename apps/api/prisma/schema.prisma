@@ -321,7 +321,7 @@ model TeachingAssignment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([teacherId, classId, subjectId, academicYearId])
+  @@unique([classId, subjectId, academicYearId])
   @@index([teacherId])
   @@index([classId])
   @@index([subjectId])

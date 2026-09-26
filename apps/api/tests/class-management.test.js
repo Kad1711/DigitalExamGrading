@@ -410,4 +410,97 @@ test("Class & Student Management Suite", async (t) => {
       await classService.deleteClass(stdClass.id).catch(() => {});
     }
   });
+
+  await t.test("18. Invariant: 1 teacher can teach multiple classes, but 1 class + 1 subject in an academic year has only 1 teacher", async () => {
+    const ts = Date.now();
+    const subjects = await prisma.subject.findMany({ take: 2 });
+    assert.ok(subjects.length >= 2, "Need at least 2 subjects");
+    const [mathSubject, engSubject] = subjects;
+
+    const academicYear = await prisma.academicYear.findFirst({
+      orderBy: { createdAt: "desc" },
+    });
+
+    const teacher2User = await prisma.user.create({
+      data: {
+        email: `teacher2_${ts}@digitalexam.local`,
+        passwordHash: "dummy",
+        role: "TEACHER",
+        teacher: {
+          create: {
+            teacherCode: `T2_${ts.toString().slice(-6)}`,
+            fullName: "Teacher Two",
+            primarySubjectId: mathSubject.id,
+          },
+        },
+      },
+      include: { teacher: true },
+    });
+
+    const classA = await classService.createClass({
+      name: `9_INV_A_${ts.toString().slice(-4)}`,
+      gradeId: ctx.grade9.id,
+    });
+    const classB = await classService.createClass({
+      name: `9_INV_B_${ts.toString().slice(-4)}`,
+      gradeId: ctx.grade9.id,
+    });
+
+    try {
+      // 1. One teacher can teach multiple classes for the same subject
+      const assignA = await prisma.teachingAssignment.create({
+        data: {
+          teacherId: ctx.teacher.teacher.id,
+          classId: classA.id,
+          subjectId: mathSubject.id,
+          academicYearId: academicYear.id,
+        },
+      });
+      assert.ok(assignA.id);
+
+      const assignB = await prisma.teachingAssignment.create({
+        data: {
+          teacherId: ctx.teacher.teacher.id,
+          classId: classB.id,
+          subjectId: mathSubject.id,
+          academicYearId: academicYear.id,
+        },
+      });
+      assert.ok(assignB.id);
+
+      // 2. Same class can have another teacher for a DIFFERENT subject
+      const assignEng = await prisma.teachingAssignment.create({
+        data: {
+          teacherId: teacher2User.teacher.id,
+          classId: classA.id,
+          subjectId: engSubject.id,
+          academicYearId: academicYear.id,
+        },
+      });
+      assert.ok(assignEng.id);
+
+      // 3. Invariant check: In the same class, assigning teacher2 to mathSubject MUST throw unique constraint violation (P2002)
+      await assert.rejects(
+        prisma.teachingAssignment.create({
+          data: {
+            teacherId: teacher2User.teacher.id,
+            classId: classA.id,
+            subjectId: mathSubject.id,
+            academicYearId: academicYear.id,
+          },
+        }),
+        (err) => {
+          assert.equal(err.code, "P2002");
+          return true;
+        }
+      );
+    } finally {
+      await prisma.teachingAssignment.deleteMany({
+        where: { classId: { in: [classA.id, classB.id] } },
+      }).catch(() => {});
+      await classService.deleteClass(classA.id).catch(() => {});
+      await classService.deleteClass(classB.id).catch(() => {});
+      await prisma.user.delete({ where: { id: teacher2User.id } }).catch(() => {});
+    }
+  });
 });
