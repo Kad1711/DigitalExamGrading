@@ -306,18 +306,75 @@ export async function getTeacherClassStatistics(teacherUserId, { classId } = {})
     ? assignedClasses.find((c) => c.id === activeClassId)?.studentCount || 0
     : assignedClasses.reduce((sum, c) => sum + c.studentCount, 0);
 
-  // Lấy các bài thi thuộc phạm vi giáo viên này (tạo bởi giáo viên hoặc gán cho lớp)
-  const whereExam = {
-    OR: [
-      { teacherId: teacher.id },
-      ...(targetClassIds.length > 0
-        ? [
-            { classId: { in: targetClassIds } },
-            { examClasses: { some: { classId: { in: targetClassIds } } } },
-          ]
-        : []),
-    ],
-  };
+  // Lấy danh sách ID các môn học mà giáo viên được phân công giảng dạy (hoặc môn chính)
+  const rawTeacherAssignments = await prisma.teachingAssignment.findMany({
+    where: { teacherId: teacher.id },
+    select: { classId: true, subjectId: true },
+  });
+
+  const assignedSubjectIds = new Set(
+    rawTeacherAssignments
+      .map((a) => a.subjectId)
+      .concat(teacher.primarySubjectId ? [teacher.primarySubjectId] : [])
+      .filter(Boolean)
+  );
+
+  for (const cls of assignedClassesRaw) {
+    for (const a of cls.assignments || []) {
+      if (a.subject?.id) {
+        assignedSubjectIds.add(a.subject.id);
+      }
+    }
+  }
+
+  const teacherSubjectIds = Array.from(assignedSubjectIds);
+
+  // Lọc bài thi thuộc đúng phạm vi chuyên môn & phân công của giáo viên:
+  // - Nếu chọn một lớp cụ thể: bài thi PHẢI thuộc lớp đó, VÀ (do giáo viên tạo HOẶC thuộc môn giáo viên phụ trách)
+  // - Nếu xem tất cả lớp: bài thi do giáo viên tạo HOẶC (thuộc môn giáo viên phụ trách VÀ gán cho các lớp phụ trách)
+  let whereExam;
+
+  if (activeClassId) {
+    const classFilter = {
+      OR: [
+        { classId: activeClassId },
+        { examClasses: { some: { classId: activeClassId } } },
+      ],
+    };
+
+    whereExam = {
+      AND: [
+        classFilter,
+        {
+          OR: [
+            { teacherId: teacher.id },
+            ...(teacherSubjectIds.length > 0
+              ? [{ subjectId: { in: teacherSubjectIds } }]
+              : []),
+          ],
+        },
+      ],
+    };
+  } else {
+    whereExam = {
+      OR: [
+        // 1. Kì thi do chính giáo viên này tạo
+        { teacherId: teacher.id },
+        // 2. Kì thi thuộc đúng môn học giáo viên phụ trách VÀ được gán cho các lớp phụ trách
+        ...(targetClassIds.length > 0 && teacherSubjectIds.length > 0
+          ? [
+              {
+                subjectId: { in: teacherSubjectIds },
+                OR: [
+                  { classId: { in: targetClassIds } },
+                  { examClasses: { some: { classId: { in: targetClassIds } } } },
+                ],
+              },
+            ]
+          : []),
+      ],
+    };
+  }
 
   const exams = await prisma.exam.findMany({
     where: whereExam,
