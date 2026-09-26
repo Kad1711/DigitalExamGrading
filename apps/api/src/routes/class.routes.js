@@ -23,6 +23,8 @@ import {
   previewExcelImport,
   executeExcelImport,
   standardizeClassSbd,
+  getClassTeachingHistory,
+  assignClassTeacher,
 } from "../controllers/class.controller.js";
 
 const router = Router();
@@ -58,6 +60,10 @@ router.post("/batch", canManageClasses, createBatchClasses);
 router.post("/bulk-delete", canManageClasses, bulkDeleteClasses);
 router.patch("/:classId", canManageClasses, updateClass);
 router.delete("/:classId", canManageClasses, deleteClass);
+
+// Teaching Assignment & History for Class
+router.get("/:classId/teaching-history", canReadClasses, getClassTeachingHistory);
+router.put("/:classId/assign-teacher", canManageClasses, assignClassTeacher);
 
 // Class Students Read
 router.get("/:classId/students", requireClassStudentAccess, getClassStudents);

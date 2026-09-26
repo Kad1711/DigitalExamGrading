@@ -215,12 +215,14 @@ export async function getTeacherAssignmentsController(req, res, next) {
 export async function updateTeacherAssignmentsController(req, res, next) {
   try {
     const { teacherId } = req.params;
-    const { classIds, subjectId, removeOtherSubjects, confirmOverride } = req.body || {};
+    const { classIds, subjectId, removeOtherSubjects, confirmOverride, reason } = req.body || {};
     const result = await adminTeacherService.updateTeacherAssignments(teacherId, {
       classIds,
       subjectId,
       removeOtherSubjects,
       confirmOverride: Boolean(confirmOverride),
+      actorUserId: req.user?.id,
+      reason,
     });
     return res.status(200).json({
       success: true,

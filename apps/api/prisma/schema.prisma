@@ -68,6 +68,12 @@ enum AnswerOption {
   D
 }
 
+enum TeachingAssignmentAction {
+  ASSIGNED
+  REASSIGNED
+  UNASSIGNED
+}
+
 // =====================================================
 // ENUMS - Submission
 // =====================================================
@@ -147,6 +153,7 @@ model User {
   examsAcademicReviewed       Exam[]                   @relation("ExamAcademicReviewer")
   examsPrincipalApproved      Exam[]                   @relation("ExamPrincipalApprover")
   resultPublicationLogs       ExamResultPublicationLog[] @relation("PublicationLogActor")
+  teachingAssignmentHistories TeachingAssignmentHistory[] @relation("TeachingHistoryActor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -185,6 +192,8 @@ model Teacher {
   assignments            TeachingAssignment[]
   exams                  Exam[]
   examsAnswerKeyApproved Exam[]               @relation("ExamAnswerKeyApprover")
+  previousTeachingHistories TeachingAssignmentHistory[] @relation("TeachingHistoryPreviousTeacher")
+  newTeachingHistories      TeachingAssignmentHistory[] @relation("TeachingHistoryNewTeacher")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -218,6 +227,7 @@ model AcademicYear {
   classes     Class[]
   enrollments StudentEnrollment[]
   assignments TeachingAssignment[]
+  teachingAssignmentHistories TeachingAssignmentHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -263,6 +273,7 @@ model Class {
 
   enrollments StudentEnrollment[]
   assignments TeachingAssignment[]
+  assignmentHistories TeachingAssignmentHistory[]
   exams       Exam[]
   examClasses ExamClass[]
 
@@ -300,6 +311,7 @@ model Subject {
 
   primaryTeachers Teacher[]            @relation("TeacherPrimarySubject")
   assignments     TeachingAssignment[]
+  assignmentHistories TeachingAssignmentHistory[]
   exams           Exam[]
 
   createdAt DateTime @default(now())
@@ -326,6 +338,32 @@ model TeachingAssignment {
   @@index([classId])
   @@index([subjectId])
   @@index([academicYearId])
+}
+
+model TeachingAssignmentHistory {
+  id                String                   @id @default(cuid())
+  classId           String
+  subjectId         String
+  academicYearId    String
+  action            TeachingAssignmentAction @default(ASSIGNED)
+  previousTeacherId String?
+  newTeacherId      String?
+  actorUserId       String?
+  reason            String?
+  createdAt         DateTime                 @default(now())
+
+  class           Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject         Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  academicYear    AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  previousTeacher Teacher?     @relation("TeachingHistoryPreviousTeacher", fields: [previousTeacherId], references: [id], onDelete: SetNull)
+  newTeacher      Teacher?     @relation("TeachingHistoryNewTeacher", fields: [newTeacherId], references: [id], onDelete: SetNull)
+  actorUser       User?        @relation("TeachingHistoryActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([classId, subjectId, academicYearId])
+  @@index([previousTeacherId])
+  @@index([newTeacherId])
+  @@index([actorUserId])
+  @@index([createdAt])
 }
 
 // =====================================================

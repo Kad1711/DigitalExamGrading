@@ -609,4 +609,254 @@ test("Class & Student Management Suite", async (t) => {
       await prisma.user.delete({ where: { id: teacherBUser.id } }).catch(() => {});
     }
   });
+
+  await t.test("20. Invariants 1-4: Teaching Assignment History tracks previous/new teacher, actor, reason, timestamp in transaction", async () => {
+    const ts = Date.now();
+    const mathSubject = await prisma.subject.findFirst();
+    assert.ok(mathSubject, "Need at least 1 subject");
+
+    const teacherXUser = await prisma.user.create({
+      data: {
+        email: `teacherX_${ts}@digitalexam.local`,
+        passwordHash: "dummy",
+        role: "TEACHER",
+        teacher: {
+          create: {
+            teacherCode: `TX_${ts.toString().slice(-6)}`,
+            fullName: "Teacher X",
+            primarySubjectId: mathSubject.id,
+          },
+        },
+      },
+      include: { teacher: true },
+    });
+
+    const teacherYUser = await prisma.user.create({
+      data: {
+        email: `teacherY_${ts}@digitalexam.local`,
+        passwordHash: "dummy",
+        role: "TEACHER",
+        teacher: {
+          create: {
+            teacherCode: `TY_${ts.toString().slice(-6)}`,
+            fullName: "Teacher Y",
+            primarySubjectId: mathSubject.id,
+          },
+        },
+      },
+      include: { teacher: true },
+    });
+
+    const testClass = await classService.createClass({
+      name: `9_HIST_${ts.toString().slice(-4)}`,
+      gradeId: ctx.grade9.id,
+    });
+
+    try {
+      // 1. Assign Teacher X (initial assignment)
+      await adminTeacherService.assignClassSubjectTeacher({
+        classId: testClass.id,
+        subjectId: mathSubject.id,
+        teacherId: teacherXUser.teacher.id,
+        actorUserId: ctx.teacher.id,
+        reason: "Phân công đầu năm",
+      });
+
+      // Verify current assignment
+      let current = await prisma.teachingAssignment.findFirst({
+        where: { classId: testClass.id, subjectId: mathSubject.id },
+      });
+      assert.equal(current.teacherId, teacherXUser.teacher.id);
+
+      // Verify history has 1 record
+      let history = await adminTeacherService.getClassTeachingHistory(testClass.id, {
+        subjectId: mathSubject.id,
+      });
+      assert.equal(history.length, 1);
+      assert.equal(history[0].action, "ASSIGNED");
+      assert.equal(history[0].previousTeacherId, null);
+      assert.equal(history[0].newTeacherId, teacherXUser.teacher.id);
+      assert.equal(history[0].newTeacher.fullName, "Teacher X");
+      assert.equal(history[0].actorUserId, ctx.teacher.id);
+      assert.equal(history[0].reason, "Phân công đầu năm");
+      assert.ok(history[0].createdAt);
+
+      // 2. Reassign to Teacher Y with confirmOverride: true
+      await adminTeacherService.assignClassSubjectTeacher({
+        classId: testClass.id,
+        subjectId: mathSubject.id,
+        teacherId: teacherYUser.teacher.id,
+        actorUserId: ctx.teacher.id,
+        reason: "Chuyển giao giữa kỳ",
+        confirmOverride: true,
+      });
+
+      // Verify current assignment is now Teacher Y
+      current = await prisma.teachingAssignment.findFirst({
+        where: { classId: testClass.id, subjectId: mathSubject.id },
+      });
+      assert.equal(current.teacherId, teacherYUser.teacher.id);
+
+      // Verify DB enforces only 1 current assignment
+      const allActive = await prisma.teachingAssignment.findMany({
+        where: { classId: testClass.id, subjectId: mathSubject.id },
+      });
+      assert.equal(allActive.length, 1);
+
+      // Verify history has 2 records in reverse chronological order
+      history = await adminTeacherService.getClassTeachingHistory(testClass.id, {
+        subjectId: mathSubject.id,
+      });
+      assert.equal(history.length, 2);
+      assert.equal(history[0].action, "REASSIGNED");
+      assert.equal(history[0].previousTeacherId, teacherXUser.teacher.id);
+      assert.equal(history[0].previousTeacher.fullName, "Teacher X");
+      assert.equal(history[0].newTeacherId, teacherYUser.teacher.id);
+      assert.equal(history[0].newTeacher.fullName, "Teacher Y");
+      assert.equal(history[0].reason, "Chuyển giao giữa kỳ");
+
+      // 3. Unassign teacher
+      await adminTeacherService.assignClassSubjectTeacher({
+        classId: testClass.id,
+        subjectId: mathSubject.id,
+        teacherId: null,
+        actorUserId: ctx.teacher.id,
+        reason: "Tạm thời chưa có GV phụ trách",
+      });
+
+      current = await prisma.teachingAssignment.findFirst({
+        where: { classId: testClass.id, subjectId: mathSubject.id },
+      });
+      assert.equal(current, null);
+
+      history = await adminTeacherService.getClassTeachingHistory(testClass.id, {
+        subjectId: mathSubject.id,
+      });
+      assert.equal(history.length, 3);
+      assert.equal(history[0].action, "UNASSIGNED");
+      assert.equal(history[0].previousTeacherId, teacherYUser.teacher.id);
+      assert.equal(history[0].newTeacherId, null);
+    } finally {
+      await prisma.teachingAssignmentHistory.deleteMany({
+        where: { classId: testClass.id },
+      }).catch(() => {});
+      await prisma.teachingAssignment.deleteMany({
+        where: { classId: testClass.id },
+      }).catch(() => {});
+      await classService.deleteClass(testClass.id).catch(() => {});
+      await prisma.user.delete({ where: { id: teacherXUser.id } }).catch(() => {});
+      await prisma.user.delete({ where: { id: teacherYUser.id } }).catch(() => {});
+    }
+  });
+
+  await t.test("21. Invariant 5: Changing teaching assignment strictly preserves existing exam ownership & submissions", async () => {
+    const ts = Date.now();
+    const mathSubject = await prisma.subject.findFirst();
+    assert.ok(mathSubject, "Need at least 1 subject");
+
+    const teacherOriginal = await prisma.user.create({
+      data: {
+        email: `teacherOrig_${ts}@digitalexam.local`,
+        passwordHash: "dummy",
+        role: "TEACHER",
+        teacher: {
+          create: {
+            teacherCode: `TORIG_${ts.toString().slice(-6)}`,
+            fullName: "Original Teacher",
+            primarySubjectId: mathSubject.id,
+          },
+        },
+      },
+      include: { teacher: true },
+    });
+
+    const teacherReplacement = await prisma.user.create({
+      data: {
+        email: `teacherRepl_${ts}@digitalexam.local`,
+        passwordHash: "dummy",
+        role: "TEACHER",
+        teacher: {
+          create: {
+            teacherCode: `TREPL_${ts.toString().slice(-6)}`,
+            fullName: "Replacement Teacher",
+            primarySubjectId: mathSubject.id,
+          },
+        },
+      },
+      include: { teacher: true },
+    });
+
+    const examClass = await classService.createClass({
+      name: `9_EXAM_${ts.toString().slice(-4)}`,
+      gradeId: ctx.grade9.id,
+    });
+
+    let exam = null;
+    try {
+      // 1. Assign Original Teacher to class
+      await adminTeacherService.assignClassSubjectTeacher({
+        classId: examClass.id,
+        subjectId: mathSubject.id,
+        teacherId: teacherOriginal.teacher.id,
+      });
+
+      // 2. Original Teacher creates an Exam for this class
+      exam = await prisma.exam.create({
+        data: {
+          title: `Exam by Original Teacher ${ts}`,
+          teacherId: teacherOriginal.teacher.id,
+          createdByUserId: teacherOriginal.id,
+          subjectId: mathSubject.id,
+          gradeId: ctx.grade9.id,
+          questionCount: 20,
+          maxScore: 10,
+          status: "PUBLISHED",
+          examClasses: {
+            create: {
+              classId: examClass.id,
+            },
+          },
+        },
+      });
+      assert.equal(exam.teacherId, teacherOriginal.teacher.id);
+
+      // 3. Reassign Class to Replacement Teacher with confirmOverride
+      await adminTeacherService.assignClassSubjectTeacher({
+        classId: examClass.id,
+        subjectId: mathSubject.id,
+        teacherId: teacherReplacement.teacher.id,
+        confirmOverride: true,
+        reason: "Bàn giao lớp",
+      });
+
+      // 4. Invariant 5 Verification:
+      // - Exam author / owner MUST STILL BE teacherOriginal!
+      const examAfterReassign = await prisma.exam.findUnique({
+        where: { id: exam.id },
+      });
+      assert.equal(examAfterReassign.teacherId, teacherOriginal.teacher.id);
+      assert.equal(examAfterReassign.createdByUserId, teacherOriginal.id);
+      assert.notEqual(examAfterReassign.teacherId, teacherReplacement.teacher.id);
+
+      // - History records the transition accurately
+      const history = await adminTeacherService.getClassTeachingHistory(examClass.id);
+      assert.equal(history.length, 2);
+      assert.equal(history[0].previousTeacherId, teacherOriginal.teacher.id);
+      assert.equal(history[0].newTeacherId, teacherReplacement.teacher.id);
+    } finally {
+      if (exam) {
+        await prisma.examClass.deleteMany({ where: { examId: exam.id } }).catch(() => {});
+        await prisma.exam.delete({ where: { id: exam.id } }).catch(() => {});
+      }
+      await prisma.teachingAssignmentHistory.deleteMany({
+        where: { classId: examClass.id },
+      }).catch(() => {});
+      await prisma.teachingAssignment.deleteMany({
+        where: { classId: examClass.id },
+      }).catch(() => {});
+      await classService.deleteClass(examClass.id).catch(() => {});
+      await prisma.user.delete({ where: { id: teacherOriginal.id } }).catch(() => {});
+      await prisma.user.delete({ where: { id: teacherReplacement.id } }).catch(() => {});
+    }
+  });
 });

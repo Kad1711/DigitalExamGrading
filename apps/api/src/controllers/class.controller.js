@@ -9,6 +9,7 @@ import {
   importStudentsConfigSchema,
 } from "../schemas/class.schema.js";
 import * as classService from "../services/class.service.js";
+import * as adminTeacherService from "../services/admin-teacher.service.js";
 
 // Multer memory storage configuration for Excel (10MB limit)
 const storage = multer.memoryStorage();
@@ -264,6 +265,42 @@ export async function standardizeClassSbd(req, res, next) {
     res.json({
       success: true,
       message: result.message,
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getClassTeachingHistory(req, res, next) {
+  try {
+    const { classId } = req.params;
+    const { subjectId } = req.query;
+    const history = await adminTeacherService.getClassTeachingHistory(classId, { subjectId });
+    res.json({
+      success: true,
+      data: history,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function assignClassTeacher(req, res, next) {
+  try {
+    const { classId } = req.params;
+    const { subjectId, teacherId, reason, confirmOverride } = req.body || {};
+    const result = await adminTeacherService.assignClassSubjectTeacher({
+      classId,
+      subjectId,
+      teacherId,
+      actorUserId: req.user?.id,
+      reason,
+      confirmOverride: Boolean(confirmOverride),
+    });
+    res.json({
+      success: true,
+      message: "Cập nhật phân công giáo viên cho lớp thành công.",
       data: result,
     });
   } catch (err) {

@@ -177,13 +177,27 @@ export async function createClass({ name, gradeId, teacherUserId }) {
         subjectId = defaultSubject?.id;
       }
       if (subjectId) {
-        await prisma.teachingAssignment.create({
-          data: {
-            teacherId: teacher.id,
-            subjectId,
-            classId: newClass.id,
-            academicYearId: academicYear.id,
-          },
+        await prisma.$transaction(async (tx) => {
+          await tx.teachingAssignment.create({
+            data: {
+              teacherId: teacher.id,
+              subjectId,
+              classId: newClass.id,
+              academicYearId: academicYear.id,
+            },
+          });
+          await tx.teachingAssignmentHistory.create({
+            data: {
+              classId: newClass.id,
+              subjectId,
+              academicYearId: academicYear.id,
+              action: "ASSIGNED",
+              previousTeacherId: null,
+              newTeacherId: teacher.id,
+              actorUserId: teacherUserId,
+              reason: "Phân công khởi tạo khi tạo lớp",
+            },
+          });
         }).catch(() => {});
       }
     }
@@ -272,13 +286,27 @@ export async function createBatchClasses({ names, gradeId, teacherUserId }) {
     });
 
     if (teacher && subjectId) {
-      await prisma.teachingAssignment.create({
-        data: {
-          teacherId: teacher.id,
-          subjectId,
-          classId: newClass.id,
-          academicYearId: academicYear.id,
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.teachingAssignment.create({
+          data: {
+            teacherId: teacher.id,
+            subjectId,
+            classId: newClass.id,
+            academicYearId: academicYear.id,
+          },
+        });
+        await tx.teachingAssignmentHistory.create({
+          data: {
+            classId: newClass.id,
+            subjectId,
+            academicYearId: academicYear.id,
+            action: "ASSIGNED",
+            previousTeacherId: null,
+            newTeacherId: teacher.id,
+            actorUserId: teacherUserId,
+            reason: "Phân công khởi tạo khi tạo lớp",
+          },
+        });
       }).catch(() => {});
     }
 

@@ -686,6 +686,30 @@ export async function getTeacherAssignments(teacherId) {
   };
 }
 
+export async function recordAssignmentHistory(tx, {
+  classId,
+  subjectId,
+  academicYearId,
+  action = "ASSIGNED",
+  previousTeacherId = null,
+  newTeacherId = null,
+  actorUserId = null,
+  reason = null,
+}) {
+  return tx.teachingAssignmentHistory.create({
+    data: {
+      classId,
+      subjectId,
+      academicYearId,
+      action,
+      previousTeacherId,
+      newTeacherId,
+      actorUserId,
+      reason,
+    },
+  });
+}
+
 /**
  * Cap nhat phan cong giang day cho giao vien (VICE_PRINCIPAL hoac ADMIN)
  */
@@ -696,6 +720,8 @@ export async function updateTeacherAssignments(
     subjectId,
     removeOtherSubjects = false,
     confirmOverride = false,
+    actorUserId = null,
+    reason = null,
   } = {}
 ) {
   const teacher = await prisma.teacher.findUnique({
@@ -738,7 +764,7 @@ export async function updateTeacherAssignments(
       subjectId: targetSubjectId,
       academicYearId: academicYear.id,
     },
-    select: { id: true, classId: true },
+    select: { id: true, classId: true, subjectId: true, academicYearId: true },
   });
   const currentClassIds = currentAssignments.map((a) => a.classId);
 
@@ -785,25 +811,46 @@ export async function updateTeacherAssignments(
 
   await prisma.$transaction(async (tx) => {
     if (removeOtherSubjects) {
-      await tx.teachingAssignment.deleteMany({
+      const otherAssignments = await tx.teachingAssignment.findMany({
         where: {
           teacherId,
           subjectId: { not: targetSubjectId },
         },
       });
+      for (const oa of otherAssignments) {
+        await tx.teachingAssignment.delete({ where: { id: oa.id } });
+        await recordAssignmentHistory(tx, {
+          classId: oa.classId,
+          subjectId: oa.subjectId,
+          academicYearId: oa.academicYearId,
+          action: "UNASSIGNED",
+          previousTeacherId: teacherId,
+          newTeacherId: null,
+          actorUserId,
+          reason: reason || "Hủy phân công các môn khác khi cập nhật chuyên môn",
+        });
+      }
     }
 
     if (toRemove.length > 0) {
-      await tx.teachingAssignment.deleteMany({
-        where: {
-          id: { in: toRemove.map((r) => r.id) },
-        },
-      });
+      for (const r of toRemove) {
+        await tx.teachingAssignment.delete({ where: { id: r.id } });
+        await recordAssignmentHistory(tx, {
+          classId: r.classId,
+          subjectId: targetSubjectId,
+          academicYearId: academicYear.id,
+          action: "UNASSIGNED",
+          previousTeacherId: teacherId,
+          newTeacherId: null,
+          actorUserId,
+          reason: reason || "Hủy phân công lớp cho giáo viên",
+        });
+      }
     }
 
     for (const cid of toAdd) {
       // Đảm bảo nguyên tắc THCS V2: Mỗi lớp chỉ có tối đa 1 giáo viên cho mỗi môn học
-      await tx.teachingAssignment.deleteMany({
+      const existing = await tx.teachingAssignment.findFirst({
         where: {
           classId: cid,
           subjectId: targetSubjectId,
@@ -811,17 +858,188 @@ export async function updateTeacherAssignments(
         },
       });
 
-      await tx.teachingAssignment.create({
-        data: {
-          teacherId,
+      if (existing) {
+        await tx.teachingAssignment.delete({ where: { id: existing.id } });
+        await tx.teachingAssignment.create({
+          data: {
+            teacherId,
+            classId: cid,
+            subjectId: targetSubjectId,
+            academicYearId: academicYear.id,
+          },
+        });
+        await recordAssignmentHistory(tx, {
           classId: cid,
           subjectId: targetSubjectId,
           academicYearId: academicYear.id,
-        },
-      });
+          action: "REASSIGNED",
+          previousTeacherId: existing.teacherId,
+          newTeacherId: teacherId,
+          actorUserId,
+          reason: reason || "Chuyển giao quyền phụ trách sang giáo viên mới",
+        });
+      } else {
+        await tx.teachingAssignment.create({
+          data: {
+            teacherId,
+            classId: cid,
+            subjectId: targetSubjectId,
+            academicYearId: academicYear.id,
+          },
+        });
+        await recordAssignmentHistory(tx, {
+          classId: cid,
+          subjectId: targetSubjectId,
+          academicYearId: academicYear.id,
+          action: "ASSIGNED",
+          previousTeacherId: null,
+          newTeacherId: teacherId,
+          actorUserId,
+          reason: reason || "Phân công lớp cho giáo viên",
+        });
+      }
     }
   });
 
   return getTeacherAssignments(teacherId);
+}
+
+/**
+ * Đổi / phân công giáo viên cho 1 lớp và 1 môn học (Class-first assignment)
+ */
+export async function assignClassSubjectTeacher({
+  classId,
+  subjectId,
+  teacherId,
+  actorUserId = null,
+  reason = null,
+  confirmOverride = false,
+}) {
+  const cls = await prisma.class.findUnique({
+    where: { id: classId },
+    include: { academicYear: true },
+  });
+  if (!cls) throw new AppError("Lớp học không tồn tại.", 404, "CLASS_NOT_FOUND");
+
+  const subject = await prisma.subject.findUnique({
+    where: { id: subjectId },
+  });
+  if (!subject) throw new AppError("Môn học không tồn tại.", 404, "SUBJECT_NOT_FOUND");
+
+  let teacher = null;
+  if (teacherId) {
+    teacher = await prisma.teacher.findUnique({
+      where: { id: teacherId },
+    });
+    if (!teacher) throw new AppError("Giáo viên không tồn tại.", 404, "TEACHER_NOT_FOUND");
+  }
+
+  const academicYearId = cls.academicYearId;
+
+  // Lay phan cong hien tai
+  const current = await prisma.teachingAssignment.findFirst({
+    where: {
+      classId,
+      subjectId,
+      academicYearId,
+    },
+    include: {
+      teacher: true,
+    },
+  });
+
+  // Neu khong thay doi
+  if (current?.teacherId === teacherId) {
+    return current;
+  }
+
+  // Neu da co giao vien khac phu trach va chua co co confirmOverride
+  if (current && teacherId && current.teacherId !== teacherId && !confirmOverride) {
+    const conflict = {
+      classId: cls.id,
+      className: cls.name,
+      subjectName: subject.name,
+      currentTeacherId: current.teacher.id,
+      currentTeacherName: current.teacher.fullName,
+      currentTeacherCode: current.teacher.teacherCode,
+    };
+    throw new AppError(
+      `Hệ thống nhận thấy: Lớp ${cls.name} đang do ${current.teacher.fullName} (${current.teacher.teacherCode}) phụ trách môn ${subject.name}. Bạn có muốn chuyển giao quyền phụ trách sang cho giáo viên này không?`,
+      409,
+      "ASSIGNMENT_CONFLICT",
+      { conflicts: [conflict] }
+    );
+  }
+
+  // Thuc hien thay doi va luu lich su trong cung 1 transaction
+  return prisma.$transaction(async (tx) => {
+    let result = null;
+    if (current) {
+      await tx.teachingAssignment.delete({ where: { id: current.id } });
+    }
+
+    if (teacherId) {
+      result = await tx.teachingAssignment.create({
+        data: {
+          classId,
+          subjectId,
+          academicYearId,
+          teacherId,
+        },
+        include: {
+          class: true,
+          subject: true,
+          teacher: true,
+        },
+      });
+
+      await recordAssignmentHistory(tx, {
+        classId,
+        subjectId,
+        academicYearId,
+        action: current ? "REASSIGNED" : "ASSIGNED",
+        previousTeacherId: current?.teacherId || null,
+        newTeacherId: teacherId,
+        actorUserId,
+        reason: reason || (current ? "Chuyển giao quyền phụ trách lớp" : "Phân công lớp ban đầu"),
+      });
+    } else if (current) {
+      await recordAssignmentHistory(tx, {
+        classId,
+        subjectId,
+        academicYearId,
+        action: "UNASSIGNED",
+        previousTeacherId: current.teacherId,
+        newTeacherId: null,
+        actorUserId,
+        reason: reason || "Hủy phân công lớp",
+      });
+    }
+
+    return result;
+  });
+}
+
+/**
+ * Lay lich su phan cong giang day cua mot lop (So truy cuu ai tung day lop nay)
+ */
+export async function getClassTeachingHistory(classId, { subjectId } = {}) {
+  const cls = await prisma.class.findUnique({ where: { id: classId } });
+  if (!cls) throw new AppError("Lớp học không tồn tại.", 404, "CLASS_NOT_FOUND");
+
+  const where = { classId };
+  if (subjectId) where.subjectId = subjectId;
+
+  return prisma.teachingAssignmentHistory.findMany({
+    where,
+    include: {
+      subject: { select: { id: true, name: true, code: true } },
+      previousTeacher: { select: { id: true, fullName: true, teacherCode: true } },
+      newTeacher: { select: { id: true, fullName: true, teacherCode: true } },
+      actorUser: { select: { id: true, fullName: true, email: true, role: true } },
+      academicYear: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 }
 
