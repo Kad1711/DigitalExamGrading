@@ -267,6 +267,10 @@ export default function TeacherClassesPage() {
     return classes.find((c) => c.id === selectedClassId) || null;
   }, [classes, selectedClassId]);
 
+  const canManageCurrentClassStudents = useMemo(() => {
+    return canManageAllClasses || (isTeacher && isClassAssignedToMe(selectedClass));
+  }, [canManageAllClasses, isTeacher, isClassAssignedToMe, selectedClass]);
+
   // Toggle password visibility for a single student
   const togglePasswordVisibility = (id) => {
     setVisiblePasswords((prev) => ({
@@ -1596,32 +1600,32 @@ export default function TeacherClassesPage() {
                     </p>
                   </div>
 
-                  {canManageAllClasses && (
-                    <div className="flex items-center flex-wrap gap-2">
-                      {students.length > 0 && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            icon={Sparkles}
-                            onClick={() => setShowStandardizeModal(true)}
-                            className="text-blue-700 bg-blue-50/70 hover:bg-blue-100 border-blue-200"
-                            title="Chuẩn hóa SBD 6 số (Khối-Lớp-STT) cho toàn bộ học sinh trong lớp"
-                          >
-                            Chuẩn hóa SBD 6 số
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            icon={Trash2}
-                            onClick={() => setShowClearStudentsModal(true)}
-                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
-                            title="Xóa toàn bộ học sinh trong lớp học này"
-                          >
-                            Xóa tất cả ({students.length})
-                          </Button>
-                        </>
-                      )}
+                  <div className="flex items-center flex-wrap gap-2">
+                    {canManageCurrentClassStudents && students.length > 0 && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={Sparkles}
+                          onClick={() => setShowStandardizeModal(true)}
+                          className="text-blue-700 bg-blue-50/70 hover:bg-blue-100 border-blue-200"
+                          title="Chuẩn hóa SBD 6 số (Khối-Lớp-STT) cho toàn bộ học sinh trong lớp"
+                        >
+                          Chuẩn hóa SBD 6 số
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={Trash2}
+                          onClick={() => setShowClearStudentsModal(true)}
+                          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                          title="Xóa toàn bộ học sinh trong lớp học này"
+                        >
+                          Xóa tất cả ({students.length})
+                        </Button>
+                      </>
+                    )}
+                    {canManageAllClasses && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1630,30 +1634,34 @@ export default function TeacherClassesPage() {
                       >
                         Sửa lớp
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        icon={Upload}
-                        onClick={() => {
-                          setImportFile(null);
-                          setPreviewData(null);
-                          setImportResult(null);
-                          setImportError("");
-                          setShowImportModal(true);
-                        }}
-                      >
-                        Import Excel
-                      </Button>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        icon={Plus}
-                        onClick={handleOpenAddStudent}
-                      >
-                        Thêm học sinh
-                      </Button>
-                    </div>
-                  )}
+                    )}
+                    {canManageCurrentClassStudents && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={Upload}
+                          onClick={() => {
+                            setImportFile(null);
+                            setPreviewData(null);
+                            setImportResult(null);
+                            setImportError("");
+                            setShowImportModal(true);
+                          }}
+                        >
+                          Import Excel
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          icon={Plus}
+                          onClick={handleOpenAddStudent}
+                        >
+                          Thêm học sinh
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Role Awareness Banner for Teachers */}
@@ -1673,13 +1681,13 @@ export default function TeacherClassesPage() {
                   <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs animate-in fade-in duration-150">
                     <GraduationCap className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold text-blue-950">Lớp phân công giảng dạy:</span> Bạn là giáo viên chuyên môn phụ trách lớp <strong className="font-semibold text-blue-950">{selectedClass.name}</strong>. Bạn có thể xem toàn bộ Số báo danh, tài khoản tra cứu của học sinh để hỗ trợ phòng thi và quản lý điểm thi.
+                      <span className="font-bold text-blue-950">Lớp phân công giảng dạy:</span> Bạn là giáo viên phụ trách lớp <strong className="font-semibold text-blue-950">{selectedClass.name}</strong>. Bạn có quyền thêm, sửa, xóa học sinh, chuẩn hóa SBD và import danh sách từ Excel cho lớp học này.
                     </div>
                   </div>
                 )}
 
                 {/* Bulk Student Actions Banner */}
-                {canManageAllClasses && selectedStudentIds.length > 0 && (
+                {canManageCurrentClassStudents && selectedStudentIds.length > 0 && (
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 animate-in fade-in duration-150">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -1769,12 +1777,12 @@ export default function TeacherClassesPage() {
                         Chưa có học sinh nào trong lớp {selectedClass.name}
                       </h3>
                       <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                        {canManageAllClasses
+                        {canManageCurrentClassStudents
                           ? "Bạn có thể thêm từng học sinh thủ công hoặc tải lên file Excel (hỗ trợ file từ vnEdu, SMAS, file điểm danh trường)."
                           : "Lớp học này hiện tại chưa có danh sách học sinh chính thức từ Ban giám hiệu."}
                       </p>
                     </div>
-                    {canManageAllClasses && (
+                    {canManageCurrentClassStudents && (
                       <div className="flex items-center justify-center gap-2 pt-2">
                         <Button
                           variant="primary"
@@ -1804,7 +1812,7 @@ export default function TeacherClassesPage() {
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                          {canManageAllClasses && (
+                          {canManageCurrentClassStudents && (
                             <th className="py-2.5 px-3 w-10 text-center">
                               <input
                                 type="checkbox"
@@ -1842,7 +1850,7 @@ export default function TeacherClassesPage() {
                           <th className="py-2.5 px-3 whitespace-nowrap w-24">Ngày sinh</th>
                           <th className="py-2.5 px-3 whitespace-nowrap w-36">Tài khoản tra cứu</th>
                           <th className="py-2.5 px-3 whitespace-nowrap w-32">Mật khẩu</th>
-                          {canManageAllClasses && (
+                          {canManageCurrentClassStudents && (
                             <th className="py-2.5 px-3 w-16 text-center whitespace-nowrap">Thao tác</th>
                           )}
                         </tr>
@@ -1853,7 +1861,7 @@ export default function TeacherClassesPage() {
                           const pwdValue = s.initialPassword || "123456";
                           return (
                             <tr key={s.studentId} className="hover:bg-slate-50/70 transition-colors">
-                              {canManageAllClasses && (
+                              {canManageCurrentClassStudents && (
                                 <td className="py-2.5 px-3 text-center">
                                   <input
                                     type="checkbox"
@@ -1929,7 +1937,7 @@ export default function TeacherClassesPage() {
                                   </button>
                                 </div>
                               </td>
-                              {canManageAllClasses && (
+                              {canManageCurrentClassStudents && (
                                 <td className="py-2.5 px-3 text-center whitespace-nowrap">
                                   <div className="flex items-center justify-center gap-1">
                                     <button

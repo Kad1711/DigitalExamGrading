@@ -43,6 +43,7 @@ export default function AppHeader() {
   const isClassesActive = location.pathname.startsWith("/classes");
   const isGradeActive = location.pathname.startsWith("/grade");
   const isAdminDashboardActive = location.pathname === "/admin/dashboard" || location.pathname === "/admin";
+  const isTeacherStatisticsActive = location.pathname.startsWith("/teacher/statistics");
   const isStatisticsActive = location.pathname.startsWith("/admin/dashboard") || location.pathname.startsWith("/statistics");
   const isAdminManagementActive = location.pathname.startsWith("/admin/management");
   const isAcademicStructureActive = location.pathname.startsWith("/principal/academic-structure");
@@ -83,9 +84,9 @@ export default function AppHeader() {
     },
     {
       label: "Thống kê",
-      href: "/statistics",
+      href: "/teacher/statistics",
       icon: BarChart3,
-      active: isStatisticsActive,
+      active: isTeacherStatisticsActive,
     },
     {
       label: "Hồ sơ giáo viên",
@@ -189,7 +190,7 @@ export default function AppHeader() {
     },
     {
       label: "Thống kê",
-      href: "/statistics",
+      href: "/admin/dashboard",
       icon: BarChart3,
       active: isStatisticsActive,
     },
@@ -229,7 +230,7 @@ export default function AppHeader() {
     },
     {
       label: "Thống kê",
-      href: "/statistics",
+      href: "/admin/dashboard",
       icon: BarChart3,
       active: isStatisticsActive,
     },
@@ -263,7 +264,7 @@ export default function AppHeader() {
     },
     {
       label: "Thống kê",
-      href: "/statistics",
+      href: "/admin/dashboard",
       icon: BarChart3,
       active: isStatisticsActive,
     },

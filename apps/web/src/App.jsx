@@ -22,6 +22,7 @@ const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const AdminManagementPage = lazy(() => import("./pages/AdminManagementPage"));
 const PrincipalAcademicStructurePage = lazy(() => import("./pages/PrincipalAcademicStructurePage"));
 const VicePrincipalTeacherManagementPage = lazy(() => import("./pages/VicePrincipalTeacherManagementPage"));
+const TeacherStatisticsPage = lazy(() => import("./pages/TeacherStatisticsPage"));
 
 // Role groups for route protection
 const ALL_STAFF_ROLES = ["SUPER_ADMIN", "TEACHER", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"];
@@ -38,6 +39,14 @@ function PageLoading() {
       </div>
     </div>
   );
+}
+
+function StatisticsRouteDispatcher() {
+  const { user } = useAuth();
+  if (user?.role === "TEACHER") {
+    return <Navigate to="/teacher/statistics" replace />;
+  }
+  return <Navigate to="/admin/dashboard" replace />;
 }
 
 function RootRedirect() {
@@ -64,8 +73,16 @@ export default function App() {
           <Route
             path="/admin/dashboard"
             element={
-              <RequireRole roles={["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER", "TEACHER"]}>
+              <RequireRole roles={["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER"]}>
                 <AdminDashboardPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/teacher/statistics"
+            element={
+              <RequireRole roles={["TEACHER", "SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"]}>
+                <TeacherStatisticsPage />
               </RequireRole>
             }
           />
@@ -73,7 +90,7 @@ export default function App() {
             path="/statistics"
             element={
               <RequireRole roles={["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER", "TEACHER"]}>
-                <AdminDashboardPage />
+                <StatisticsRouteDispatcher />
               </RequireRole>
             }
           />

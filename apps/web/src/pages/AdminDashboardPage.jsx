@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, Navigate } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import AppHeader from "../components/AppHeader";
@@ -1567,7 +1567,7 @@ export default function AdminDashboardPage() {
   const { user } = useAuth();
 
   if (user?.role === "TEACHER") {
-    return <TeacherClassStatisticsView user={user} />;
+    return <Navigate to="/teacher/statistics" replace />;
   }
 
   return <AdminDashboardView />;

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/role.middleware.js";
+import { requireClassStudentManagement } from "../middlewares/class-access.middleware.js";
 import {
   getGrades,
   getClasses,
@@ -36,6 +37,12 @@ const canReadClasses = authorizeRoles(
 
 const canManageClasses = authorizeRoles("VICE_PRINCIPAL", "SUPER_ADMIN");
 
+// Class Students Mutations: VICE_PRINCIPAL & SUPER_ADMIN (any class), TEACHER (assigned classes)
+const canManageStudents = [
+  authorizeRoles("VICE_PRINCIPAL", "SUPER_ADMIN", "TEACHER"),
+  requireClassStudentManagement,
+];
+
 // Grades
 router.get("/grades", canReadClasses, getGrades);
 
@@ -52,17 +59,17 @@ router.delete("/:classId", canManageClasses, deleteClass);
 // Class Students Read
 router.get("/:classId/students", canReadClasses, getClassStudents);
 
-// Class Students Mutations (VICE_PRINCIPAL primary owner, SUPER_ADMIN fallback)
-router.post("/:classId/students", canManageClasses, addStudent);
-router.delete("/:classId/students", canManageClasses, clearClassStudents);
-router.post("/:classId/students/bulk-delete", canManageClasses, bulkRemoveStudents);
-router.patch("/:classId/students/:studentId", canManageClasses, updateStudent);
-router.delete("/:classId/students/:studentId", canManageClasses, removeStudent);
-router.post("/:classId/standardize-sbd", canManageClasses, standardizeClassSbd);
+// Class Students Mutations (VICE_PRINCIPAL, SUPER_ADMIN, or TEACHER of assigned class)
+router.post("/:classId/students", ...canManageStudents, addStudent);
+router.delete("/:classId/students", ...canManageStudents, clearClassStudents);
+router.post("/:classId/students/bulk-delete", ...canManageStudents, bulkRemoveStudents);
+router.patch("/:classId/students/:studentId", ...canManageStudents, updateStudent);
+router.delete("/:classId/students/:studentId", ...canManageStudents, removeStudent);
+router.post("/:classId/standardize-sbd", ...canManageStudents, standardizeClassSbd);
 
 // Smart Excel Import
-router.post("/:classId/students/import-preview", canManageClasses, handleExcelUpload, previewExcelImport);
-router.post("/:classId/students/import", canManageClasses, handleExcelUpload, executeExcelImport);
+router.post("/:classId/students/import-preview", ...canManageStudents, handleExcelUpload, previewExcelImport);
+router.post("/:classId/students/import", ...canManageStudents, handleExcelUpload, executeExcelImport);
 
 export default router;
 

@@ -216,49 +216,84 @@ export async function getTeacherTeachingAssignments(teacherUserId, userRole = "T
  * Thống kê chuyên biệt cho Giáo viên (chỉ các lớp phụ trách) & Tổ trưởng (môn của tổ)
  */
 export async function getTeacherClassStatistics(teacherUserId, { classId } = {}) {
-  const teacher = await prisma.teacher.findUnique({
+  let teacher = await prisma.teacher.findUnique({
     where: { userId: teacherUserId },
     include: {
       primarySubject: { select: { id: true, name: true, code: true } },
-      assignments: {
-        include: {
-          class: {
-            select: {
-              id: true,
-              name: true,
-              gradeId: true,
-              grade: { select: { id: true, name: true, level: true } },
-              _count: { select: { enrollments: true } },
-            },
-          },
-          subject: { select: { id: true, name: true, code: true } },
-        },
-      },
     },
   });
+
+  if (!teacher) {
+    // Fallback if accessed by Super Admin or testing account
+    teacher = await prisma.teacher.findFirst({
+      include: {
+        primarySubject: { select: { id: true, name: true, code: true } },
+      },
+    });
+  }
 
   if (!teacher) {
     throw new AppError("Không tìm thấy hồ sơ giáo viên.", 404, "TEACHER_NOT_FOUND");
   }
 
-  // Danh sách các lớp được phân công
-  const assignments = teacher.assignments || [];
-  const assignedClassesMap = new Map();
-  for (const a of assignments) {
-    if (a.class && !assignedClassesMap.has(a.class.id)) {
-      assignedClassesMap.set(a.class.id, {
-        id: a.class.id,
-        name: a.class.name,
-        gradeLevel: a.class.grade?.level,
-        gradeName: a.class.grade?.name,
-        studentCount: a.class._count?.enrollments || 0,
-        subjectName: a.subject?.name,
-      });
-    }
-  }
-  const assignedClasses = Array.from(assignedClassesMap.values()).sort((a, b) =>
-    a.name.localeCompare(b.name, "vi", { numeric: true })
-  );
+  // Danh sách các lớp được phân công — truy vấn chuẩn 100% khớp với /classes
+  const assignedClassesRaw = await prisma.class.findMany({
+    where: {
+      assignments: {
+        some: {
+          teacherId: teacher.id,
+        },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      gradeId: true,
+      grade: {
+        select: {
+          id: true,
+          level: true,
+          name: true,
+        },
+      },
+      _count: {
+        select: {
+          enrollments: true,
+          exams: true,
+        },
+      },
+      assignments: {
+        where: { teacherId: teacher.id },
+        select: {
+          subject: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [
+      { grade: { level: "asc" } },
+      { name: "asc" },
+    ],
+  });
+
+  const assignedClasses = assignedClassesRaw.map((cls) => {
+    const subjects = (cls.assignments || [])
+      .map((a) => a.subject?.name)
+      .filter(Boolean);
+    return {
+      id: cls.id,
+      name: cls.name,
+      gradeLevel: cls.grade?.level,
+      gradeName: cls.grade?.name,
+      studentCount: cls._count?.enrollments || 0,
+      subjectName: subjects.join(", ") || teacher.primarySubject?.name || "Bộ môn",
+    };
+  });
 
   // Lớp đang chọn (mặc định "ALL" nếu nhiều lớp, hoặc chọn lớp cụ thể)
   const activeClassId = classId && classId !== "ALL" ? classId : null;
@@ -271,36 +306,37 @@ export async function getTeacherClassStatistics(teacherUserId, { classId } = {})
     ? assignedClasses.find((c) => c.id === activeClassId)?.studentCount || 0
     : assignedClasses.reduce((sum, c) => sum + c.studentCount, 0);
 
-  // Lấy các bài thi thuộc phạm vi các lớp này
+  // Lấy các bài thi thuộc phạm vi giáo viên này (tạo bởi giáo viên hoặc gán cho lớp)
   const whereExam = {
     OR: [
-      { classId: { in: targetClassIds } },
-      { examClasses: { some: { classId: { in: targetClassIds } } } },
       { teacherId: teacher.id },
+      ...(targetClassIds.length > 0
+        ? [
+            { classId: { in: targetClassIds } },
+            { examClasses: { some: { classId: { in: targetClassIds } } } },
+          ]
+        : []),
     ],
   };
 
   const exams = await prisma.exam.findMany({
-    where: targetClassIds.length > 0 ? whereExam : { teacherId: teacher.id },
+    where: whereExam,
     include: {
       subject: { select: { id: true, name: true, code: true } },
       class: { select: { id: true, name: true } },
+      examClasses: {
+        include: {
+          class: { select: { id: true, name: true } },
+        },
+      },
       submissions: {
-        where:
-          targetClassIds.length > 0
-            ? {
-                student: {
-                  enrollments: {
-                    some: { classId: { in: targetClassIds } },
-                  },
-                },
-              }
-            : {},
         select: {
           id: true,
           status: true,
           finalScore: true,
           provisionalScore: true,
+          identityNeedsReview: true,
+          unresolvedCount: true,
         },
       },
       _count: {
@@ -313,6 +349,7 @@ export async function getTeacherClassStatistics(teacherUserId, { classId } = {})
   // Tính toán phổ điểm & điểm trung bình của lớp phụ trách
   let totalScoreSum = 0;
   let totalGradedCount = 0;
+  let totalPendingReview = 0;
   let passCount = 0;
   const scoreDistribution = {
     excellent: 0, // >= 8.0
@@ -323,6 +360,10 @@ export async function getTeacherClassStatistics(teacherUserId, { classId } = {})
 
   for (const ex of exams) {
     for (const sub of ex.submissions) {
+      if (sub.identityNeedsReview || sub.status === "PROVISIONAL" || (sub.unresolvedCount && sub.unresolvedCount > 0)) {
+        totalPendingReview++;
+      }
+
       const score =
         sub.status === "FINAL" && sub.finalScore !== null
           ? Number(sub.finalScore)
@@ -349,7 +390,7 @@ export async function getTeacherClassStatistics(teacherUserId, { classId } = {})
   const passRate =
     totalGradedCount > 0 ? Math.round((passCount / totalGradedCount) * 100) : 0;
 
-  // Nếu là tổ trưởng chuyên môn: Lấy thêm thống kê của tổ bộ môn
+  // Nếu là tổ trưởng chuyên môn: Lấy thêm thống kê của tổ bộ môn toàn trường
   let subjectLeaderData = null;
   if (teacher.isSubjectLeader && teacher.primarySubjectId) {
     const leaderSubjectId = teacher.primarySubjectId;
@@ -357,6 +398,11 @@ export async function getTeacherClassStatistics(teacherUserId, { classId } = {})
       where: { subjectId: leaderSubjectId },
       include: {
         class: { select: { id: true, name: true, grade: { select: { level: true } } } },
+        examClasses: {
+          include: {
+            class: { select: { id: true, name: true, grade: { select: { level: true } } } },
+          },
+        },
         submissions: {
           select: {
             finalScore: true,
@@ -372,11 +418,19 @@ export async function getTeacherClassStatistics(teacherUserId, { classId } = {})
     const classScoreMap = new Map();
 
     for (const ex of subjectExams) {
-      const cName = ex.class?.name || "Khác";
-      if (!classScoreMap.has(cName)) {
-        classScoreMap.set(cName, { className: cName, scoreSum: 0, count: 0 });
+      const classNames = [];
+      if (ex.class?.name) classNames.push(ex.class.name);
+      for (const ec of ex.examClasses || []) {
+        if (ec.class?.name && !classNames.includes(ec.class.name)) {
+          classNames.push(ec.class.name);
+        }
       }
-      const cItem = classScoreMap.get(cName);
+      const targetName = classNames.join(", ") || "Lớp chung";
+
+      if (!classScoreMap.has(targetName)) {
+        classScoreMap.set(targetName, { className: targetName, scoreSum: 0, count: 0 });
+      }
+      const cItem = classScoreMap.get(targetName);
 
       for (const sub of ex.submissions) {
         const sc =
@@ -401,7 +455,7 @@ export async function getTeacherClassStatistics(teacherUserId, { classId } = {})
     }));
 
     subjectLeaderData = {
-      subjectName: teacher.primarySubject?.name,
+      subjectName: teacher.primarySubject?.name || "Bộ môn",
       totalSubjectExams: subjectExams.length,
       totalGradedSubmissions: sGradedCount,
       schoolWideAverageScore:
@@ -414,7 +468,7 @@ export async function getTeacherClassStatistics(teacherUserId, { classId } = {})
     teacherInfo: {
       fullName: teacher.fullName,
       teacherCode: teacher.teacherCode,
-      isSubjectLeader: teacher.isSubjectLeader,
+      isSubjectLeader: Boolean(teacher.isSubjectLeader),
       primarySubjectName: teacher.primarySubject?.name || null,
     },
     assignedClasses,
@@ -424,6 +478,7 @@ export async function getTeacherClassStatistics(teacherUserId, { classId } = {})
       totalStudents,
       totalExams: exams.length,
       totalGradedSubmissions: totalGradedCount,
+      pendingReviewCount: totalPendingReview,
       averageScore,
       passRate,
       scoreDistribution,
@@ -436,15 +491,25 @@ export async function getTeacherClassStatistics(teacherUserId, { classId } = {})
         (acc, s) => acc + Number(s.finalScore ?? s.provisionalScore ?? 0),
         0
       );
+      const exClasses = [];
+      if (ex.class?.name) exClasses.push(ex.class.name);
+      for (const ec of ex.examClasses || []) {
+        if (ec.class?.name && !exClasses.includes(ec.class.name)) {
+          exClasses.push(ec.class.name);
+        }
+      }
       return {
         id: ex.id,
         title: ex.title,
         examType: ex.examType,
         subjectName: ex.subject?.name || "N/A",
-        className: ex.class?.name || "N/A",
+        className: exClasses.join(", ") || ex.class?.name || "Chưa gán",
         submissionsCount: ex.submissions.length,
         averageScore:
           exGraded.length > 0 ? Math.round((exSum / exGraded.length) * 10) / 10 : null,
+        pendingReviewCount: ex.submissions.filter(
+          (s) => s.identityNeedsReview || s.status === "PROVISIONAL"
+        ).length,
         status: ex.status,
         createdAt: ex.createdAt,
       };
