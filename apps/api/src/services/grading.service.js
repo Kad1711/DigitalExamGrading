@@ -5,6 +5,7 @@ import { assertExamAccess } from "./exam.service.js";
 import { analyzeOmrSheet } from "./omr-client.service.js";
 import { normalizeExamCode } from "../utils/exam-code.js";
 import { calculateEqualScore } from "../utils/scoring.rules.js";
+import { buildAnswerSheetGeometry, TEMPLATE_VERSION } from "../utils/answer-sheet-layout.js";
 
 /**
  * Pure evaluation function for student answers against answer keys.
@@ -367,9 +368,27 @@ export async function gradeExamImage(examId, imageBuffer, filename, reqUser, rev
     );
   }
 
+  let layout = template.layoutJson;
+  if (!layout || !layout.pages || !layout.pages[0] || !layout.pages[0].part2) {
+    layout = buildAnswerSheetGeometry({
+      exam,
+      templateId: template.id,
+      templateVersion: template.templateVersion || TEMPLATE_VERSION,
+      studentNumberDigits: template.studentNumberDigits,
+      examCodeDigits: template.examCodeDigits,
+      questionsPerPage: template.questionsPerPage,
+    });
+    try {
+      await prisma.answerSheetTemplate.update({
+        where: { id: template.id },
+        data: { layoutJson: layout },
+      });
+    } catch {}
+  }
+
   // 4. Call FastAPI OMR service with timing
   const omrStart = performance.now();
-  const omrData = await analyzeOmrSheet(imageBuffer, template.layoutJson, filename);
+  const omrData = await analyzeOmrSheet(imageBuffer, layout, filename);
   const omrTimeMs = Math.round(performance.now() - omrStart);
 
   // 5. Strict QR / Template Integrity Verification

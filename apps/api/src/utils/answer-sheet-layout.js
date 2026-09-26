@@ -1,6 +1,7 @@
 /**
  * =====================================================================
  * OMR ANSWER SHEET LAYOUT BUILDER - SINGLE SOURCE OF TRUTH FOR GEOMETRY
+ * CHUẨN MẪU PHIẾU BỘ GIÁO DỤC VÀ ĐÀO TẠO (GDPT 2018 / 2025)
  * =====================================================================
  *
  * All coordinates are in millimeters (mm) on standard A4 portrait (210mm x 297mm).
@@ -14,11 +15,11 @@ export const PT_PER_MM = 72 / 25.4; // 2.83464567
 export const TEMPLATE_VERSION = "OMR_V1";
 export const DEFAULT_STUDENT_DIGITS = 6;
 export const DEFAULT_EXAM_CODE_DIGITS = 3;
-export const QUESTIONS_PER_PAGE = 50;
+export const QUESTIONS_PER_PAGE = 40;
 
-export const MARKER_SIZE_MM = 7.0;
+export const MARKER_SIZE_MM = 6.5;
 export const MARKER_MARGIN_MM = 8.0;
-export const BUBBLE_RADIUS_MM = 2.0;
+export const BUBBLE_RADIUS_MM = 1.7;
 
 /**
  * Standard 4 corner alignment markers for OpenCV perspective transform.
@@ -33,12 +34,12 @@ export function getCornerMarkers() {
 }
 
 /**
- * Build geometry for SBD grid (student number).
+ * Build geometry for SBD grid (student number - 6 columns chuẩn BGD).
  */
-export function buildStudentNumberGrid(xMm, yMm, digits) {
-  const colWidth = 6.0;
+export function buildStudentNumberGrid(xMm = 138.0, yMm = 25.0, digits = DEFAULT_STUDENT_DIGITS) {
+  const colWidth = 5.2;
   const headerHeight = 6.0;
-  const rowHeight = 5.0;
+  const rowHeight = 4.6;
   const columns = [];
 
   for (let c = 0; c < digits; c++) {
@@ -51,7 +52,7 @@ export function buildStudentNumberGrid(xMm, yMm, digits) {
         digit: d,
         centerX: Math.round((colLeft + colWidth / 2) * 100) / 100,
         centerY: Math.round((rowTop + rowHeight / 2) * 100) / 100,
-        radiusMm: 1.8,
+        radiusMm: 1.65,
       });
     }
 
@@ -78,12 +79,12 @@ export function buildStudentNumberGrid(xMm, yMm, digits) {
 }
 
 /**
- * Build geometry for Exam Code grid (ma de).
+ * Build geometry for Exam Code grid (mã đề thi - 3 columns chuẩn BGD).
  */
-export function buildExamCodeGrid(xMm, yMm, digits) {
-  const colWidth = 6.0;
+export function buildExamCodeGrid(xMm = 171.0, yMm = 25.0, digits = DEFAULT_EXAM_CODE_DIGITS) {
+  const colWidth = 5.2;
   const headerHeight = 6.0;
-  const rowHeight = 5.0;
+  const rowHeight = 4.6;
   const columns = [];
 
   for (let c = 0; c < digits; c++) {
@@ -96,7 +97,7 @@ export function buildExamCodeGrid(xMm, yMm, digits) {
         digit: d,
         centerX: Math.round((colLeft + colWidth / 2) * 100) / 100,
         centerY: Math.round((rowTop + rowHeight / 2) * 100) / 100,
-        radiusMm: 1.8,
+        radiusMm: 1.65,
       });
     }
 
@@ -123,100 +124,65 @@ export function buildExamCodeGrid(xMm, yMm, digits) {
 }
 
 export const SHEET_PRESETS = {
+  PRESET_BGD_STANDARD: {
+    id: "PRESET_BGD_STANDARD",
+    name: "Chuẩn Bộ Giáo dục & Đào tạo (40 câu Phần I + Phần II + Phần III)",
+    questionCount: 40,
+    durationMinutes: 50,
+    columns: 4,
+    questionsPerPage: 40,
+  },
   PRESET_15MIN_20Q: {
     id: "PRESET_15MIN_20Q",
     name: "Kiểm tra 15 phút - 20 câu",
     questionCount: 20,
     durationMinutes: 15,
-    columns: 2,
-    questionsPerPage: 50,
+    columns: 4,
+    questionsPerPage: 40,
   },
   PRESET_15MIN_30Q: {
     id: "PRESET_15MIN_30Q",
     name: "Kiểm tra 15 phút - 30 câu",
     questionCount: 30,
     durationMinutes: 15,
-    columns: 2,
-    questionsPerPage: 50,
+    columns: 4,
+    questionsPerPage: 40,
   },
   PRESET_45MIN_40Q: {
     id: "PRESET_45MIN_40Q",
-    name: "Kiểm tra 45 phút - 40 câu",
+    name: "Kiểm tra 45 phút - 40 câu (Chuẩn BGD)",
     questionCount: 40,
     durationMinutes: 45,
-    columns: 2,
-    questionsPerPage: 50,
+    columns: 4,
+    questionsPerPage: 40,
   },
   PRESET_TERM_50Q: {
     id: "PRESET_TERM_50Q",
-    name: "Học kỳ / Chuẩn - 50 câu",
-    questionCount: 50,
+    name: "Học kỳ / Chuẩn BGD - 40 câu trắc nghiệm",
+    questionCount: 40,
     durationMinutes: 60,
-    columns: 2,
-    questionsPerPage: 50,
-  },
-  PRESET_45MIN_60Q: {
-    id: "PRESET_45MIN_60Q",
-    name: "Kiểm tra 45 phút - 60 câu",
-    questionCount: 60,
-    durationMinutes: 45,
-    columns: 3,
-    questionsPerPage: 60,
-  },
-  PRESET_90MIN_60Q: {
-    id: "PRESET_90MIN_60Q",
-    name: "Kiểm tra 90 phút - 60 câu",
-    questionCount: 60,
-    durationMinutes: 90,
-    columns: 3,
-    questionsPerPage: 60,
-  },
-  PRESET_CUSTOM: {
-    id: "PRESET_CUSTOM",
-    name: "Tùy chỉnh số câu",
-    questionCount: null,
-    durationMinutes: 45,
-    columns: null,
-    questionsPerPage: 60,
+    columns: 4,
+    questionsPerPage: 40,
   },
 };
 
 /**
- * Build answer question rows for a page.
+ * Build geometry for PHẦN I: 40 Multiple-Choice Questions (4 columns of 10 questions).
  */
-export function buildAnswerRows(startQuestion, endQuestion, startYMm, options = {}) {
-  const totalQuestions = endQuestion - startQuestion + 1;
-  const numColumns = options.numColumns || (totalQuestions > 50 ? 3 : 2);
-  const rowsPerColumn = Math.ceil(totalQuestions / numColumns);
-
+export function buildPart1Answers(startQuestion = 1, endQuestion = 40) {
+  const colXPositions = [14.0, 59.5, 105.0, 150.5];
+  const optionSpacing = 7.0;
+  const optionStartOffset = 15.5;
+  const startYMm = 99.5;
+  const rowHeight = 4.4;
   const optionLetters = ["A", "B", "C", "D"];
-
-  let colXPositions;
-  let optionSpacing;
-  let optionStartOffset;
-  let rowHeight;
-  let labelWidth;
-
-  if (numColumns === 3) {
-    colXPositions = [20.0, 78.0, 136.0];
-    optionSpacing = 8.5;
-    optionStartOffset = 16.0;
-    rowHeight = rowsPerColumn <= 20 ? 6.5 : 5.8;
-    labelWidth = 12.0;
-  } else {
-    colXPositions = [20.0, 112.0];
-    optionSpacing = 9.0;
-    optionStartOffset = 18.0;
-    rowHeight = rowsPerColumn <= 15 ? 7.0 : (rowsPerColumn <= 20 ? 6.6 : 6.3);
-    labelWidth = 14.0;
-  }
 
   const questions = [];
 
   for (let q = startQuestion; q <= endQuestion; q++) {
-    const indexInPage = q - startQuestion;
-    const colIndex = Math.min(numColumns - 1, Math.floor(indexInPage / rowsPerColumn));
-    const rowIndex = indexInPage % rowsPerColumn;
+    const index = q - 1;
+    const colIndex = Math.floor(index / 10);
+    const rowIndex = index % 10;
     const colX = colXPositions[colIndex];
     const yMm = startYMm + rowIndex * rowHeight;
     const centerY = Math.round((yMm + rowHeight / 2) * 100) / 100;
@@ -236,9 +202,9 @@ export function buildAnswerRows(startQuestion, endQuestion, startYMm, options = 
       questionNumber: q,
       column: colIndex + 1,
       labelBox: {
-        xMm: colX,
-        yMm,
-        widthMm: labelWidth,
+        xMm: colX + 1.5,
+        yMm: Math.round(yMm * 100) / 100,
+        widthMm: 8.0,
         heightMm: rowHeight,
       },
       options: optCoords,
@@ -249,7 +215,112 @@ export function buildAnswerRows(startQuestion, endQuestion, startYMm, options = 
 }
 
 /**
- * Master function to build full layout geometry across all pages.
+ * Build geometry for PHẦN II: 8 True/False Questions (4 boxes, 2 questions each, 4 sub-items a..d).
+ */
+export function buildPart2Answers() {
+  const boxXPositions = [14.0, 59.5, 105.0, 150.5];
+  const startYMm = 162.0;
+  const rowHeight = 4.6;
+  const subItems = ["a", "b", "c", "d"];
+
+  const questions = [];
+
+  for (let q = 1; q <= 8; q++) {
+    const boxIndex = Math.floor((q - 1) / 2);
+    const isRightSub = (q - 1) % 2 === 1;
+    const subX = boxXPositions[boxIndex] + (isRightSub ? 21.5 : 0.0);
+
+    const items = {};
+    subItems.forEach((subKey, rIndex) => {
+      const yMm = startYMm + rIndex * rowHeight;
+      const centerY = Math.round((yMm + rowHeight / 2) * 100) / 100;
+      items[subKey] = {
+        subKey,
+        trueOption: {
+          xMm: Math.round((subX + 11.5) * 100) / 100,
+          yMm: centerY,
+          radiusMm: 1.5,
+        },
+        falseOption: {
+          xMm: Math.round((subX + 17.5) * 100) / 100,
+          yMm: centerY,
+          radiusMm: 1.5,
+        },
+      };
+    });
+
+    questions.push({
+      questionNumber: q,
+      boxIndex: boxIndex + 1,
+      subIndex: isRightSub ? 2 : 1,
+      xMm: subX,
+      items,
+    });
+  }
+
+  return questions;
+}
+
+/**
+ * Build geometry for PHẦN III: 6 Short-Answer Numeric Questions (6 vertical columns).
+ */
+export function buildPart3Answers() {
+  const boxXPositions = [14.0, 44.2, 74.4, 104.6, 134.8, 165.0];
+  const boxWidth = 28.5;
+  const rowHeight = 4.6;
+
+  const questions = [];
+
+  for (let q = 1; q <= 6; q++) {
+    const boxX = boxXPositions[q - 1];
+
+    // Row 1: '-' sign (col 1)
+    const minusRowY = 199.5;
+    const minusBubble = {
+      xMm: Math.round((boxX + 8.5) * 100) / 100,
+      yMm: Math.round((minusRowY + rowHeight / 2) * 100) / 100,
+      radiusMm: 1.5,
+    };
+
+    // Row 2: ',' sign (cols 2, 3, 4)
+    const commaRowY = 204.1;
+    const commaBubbles = [13.5, 18.5, 23.5].map((offX, cIdx) => ({
+      columnIndex: cIdx + 2,
+      xMm: Math.round((boxX + offX) * 100) / 100,
+      yMm: Math.round((commaRowY + rowHeight / 2) * 100) / 100,
+      radiusMm: 1.5,
+    }));
+
+    // Rows 0..9: Digits (cols 1..4)
+    const digitsStartY = 208.7;
+    const digitRows = [];
+    for (let d = 0; d <= 9; d++) {
+      const yMm = digitsStartY + d * rowHeight;
+      const centerY = Math.round((yMm + rowHeight / 2) * 100) / 100;
+      const bubbles = [8.5, 13.5, 18.5, 23.5].map((offX, cIdx) => ({
+        columnIndex: cIdx + 1,
+        xMm: Math.round((boxX + offX) * 100) / 100,
+        yMm: centerY,
+        radiusMm: 1.5,
+      }));
+      digitRows.push({ digit: d, bubbles });
+    }
+
+    questions.push({
+      questionNumber: q,
+      boxX,
+      boxWidth,
+      minusBubble,
+      commaBubbles,
+      digitRows,
+    });
+  }
+
+  return questions;
+}
+
+/**
+ * Master function to build full layout geometry according to MOET 2025 Standard.
  */
 export function buildAnswerSheetGeometry({
   exam,
@@ -259,24 +330,16 @@ export function buildAnswerSheetGeometry({
   examCodeDigits = DEFAULT_EXAM_CODE_DIGITS,
   questionsPerPage = QUESTIONS_PER_PAGE,
 }) {
-  const questionCount = exam.questionCount || 40;
-  // If exam has > 50 questions, allow 60 on page 1 if fits in 3 columns
-  const effectiveQuestionsPerPage = questionCount <= 60 ? questionCount : questionsPerPage;
-  const totalPages = Math.max(1, Math.ceil(questionCount / effectiveQuestionsPerPage));
+  const totalPages = 1;
   const markers = getCornerMarkers();
   const pages = [];
 
   for (let p = 1; p <= totalPages; p++) {
-    const startQ = (p - 1) * effectiveQuestionsPerPage + 1;
-    const endQ = Math.min(questionCount, p * effectiveQuestionsPerPage);
-    const pageQuestionCount = endQ - startQ + 1;
-    const numColumns = pageQuestionCount > 50 ? 3 : 2;
-
-    // QR code position & metadata payload
+    // QR code position & metadata payload (discreetly placed in footer margin)
     const qrBox = {
-      xMm: 168.0,
-      yMm: 18.0,
-      sizeMm: 24.0,
+      xMm: 178.5,
+      yMm: 264.0,
+      sizeMm: 15.0,
       payload: {
         v: 1,
         templateVersion,
@@ -290,18 +353,22 @@ export function buildAnswerSheetGeometry({
     // Header info
     const header = {
       examTitle: exam.title,
-      subjectName: exam.subject ? exam.subject.name : "Kiem tra",
+      subjectName: exam.subject ? exam.subject.name : "Kiểm tra trắc nghiệm",
       className: exam.class ? exam.class.name : "",
       pageNumber: p,
       totalPages,
     };
 
-    // SBD and ExamCode grids
-    const studentNumber = buildStudentNumberGrid(20.0, 42.0, studentNumberDigits);
-    const examCode = buildExamCodeGrid(64.0, 42.0, examCodeDigits);
+    // SBD and ExamCode grids (Standard top-right BGD placement)
+    const studentNumber = buildStudentNumberGrid(138.0, 25.0, studentNumberDigits);
+    const examCode = buildExamCodeGrid(171.0, 25.0, examCodeDigits);
 
-    // Answer questions
-    const answers = buildAnswerRows(startQ, endQ, 106.0, { numColumns });
+    // PHẦN I: 40 questions (Standard 4 columns of 10)
+    const answers = buildPart1Answers(1, 40);
+
+    // PHẦN II & PHẦN III geometry
+    const part2 = buildPart2Answers();
+    const part3 = buildPart3Answers();
 
     pages.push({
       pageNumber: p,
@@ -311,6 +378,8 @@ export function buildAnswerSheetGeometry({
       studentNumber,
       examCode,
       answers,
+      part2,
+      part3,
     });
   }
 
@@ -326,7 +395,7 @@ export function buildAnswerSheetGeometry({
     settings: {
       studentNumberDigits,
       examCodeDigits,
-      questionsPerPage: effectiveQuestionsPerPage,
+      questionsPerPage: 40,
       bubbleRadiusMm: BUBBLE_RADIUS_MM,
     },
     markers,

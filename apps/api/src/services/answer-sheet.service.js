@@ -137,24 +137,36 @@ export async function getLatestTemplate(examId, reqUser) {
  * Get full layoutJson of the latest template for an Exam.
  */
 export async function getTemplateLayout(examId, reqUser) {
-  await assertExamAccess(examId, reqUser);
+  const exam = await assertExamAccess(examId, reqUser);
 
   const template = await prisma.answerSheetTemplate.findFirst({
     where: { examId },
     orderBy: { version: "desc" },
-    select: {
-      id: true,
-      version: true,
-      templateVersion: true,
-      layoutJson: true,
-    },
   });
 
   if (!template) {
     throw new AppError("Chua co phieu tra loi nao duoc tao cho ky thi nay.", 404, "ANSWER_SHEET_TEMPLATE_NOT_FOUND");
   }
 
-  return template.layoutJson;
+  let layout = template.layoutJson;
+  if (!layout || !layout.pages || !layout.pages[0] || !layout.pages[0].part2) {
+    layout = buildAnswerSheetGeometry({
+      exam,
+      templateId: template.id,
+      templateVersion: template.templateVersion || TEMPLATE_VERSION,
+      studentNumberDigits: template.studentNumberDigits,
+      examCodeDigits: template.examCodeDigits,
+      questionsPerPage: template.questionsPerPage,
+    });
+    try {
+      await prisma.answerSheetTemplate.update({
+        where: { id: template.id },
+        data: { layoutJson: layout },
+      });
+    } catch {}
+  }
+
+  return layout;
 }
 
 /**
@@ -173,7 +185,25 @@ export async function downloadTemplatePdf(examId, reqUser) {
     throw new AppError("Chua co phieu tra loi nao duoc tao cho ky thi nay.", 404, "ANSWER_SHEET_TEMPLATE_NOT_FOUND");
   }
 
-  const pdfBuffer = await renderAnswerSheetPdf(template.layoutJson);
+  let layout = template.layoutJson;
+  if (!layout || !layout.pages || !layout.pages[0] || !layout.pages[0].part2) {
+    layout = buildAnswerSheetGeometry({
+      exam,
+      templateId: template.id,
+      templateVersion: template.templateVersion || TEMPLATE_VERSION,
+      studentNumberDigits: template.studentNumberDigits,
+      examCodeDigits: template.examCodeDigits,
+      questionsPerPage: template.questionsPerPage,
+    });
+    try {
+      await prisma.answerSheetTemplate.update({
+        where: { id: template.id },
+        data: { layoutJson: layout },
+      });
+    } catch {}
+  }
+
+  const pdfBuffer = await renderAnswerSheetPdf(layout);
   const cleanTitle = (exam.title || "exam")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
