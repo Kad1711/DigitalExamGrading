@@ -82,6 +82,15 @@ export default function VicePrincipalTeacherManagementPage() {
     fetchAll();
   }, [fetchAll]);
 
+  useEffect(() => {
+    if (alert && (alert.type === "success" || alert.variant === "success")) {
+      const timer = setTimeout(() => {
+        setAlert(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [alert]);
+
   // ─── Professional Modal ────────────────────────────────────────────────────
   const openProfModal = (teacher) => {
     setProfModal(teacher);
@@ -233,13 +242,14 @@ export default function VicePrincipalTeacherManagementPage() {
           </p>
         </div>
 
-        {alert && (
+        {alert && (alert.message || alert.title) && (
           <div className="mb-5">
             <Alert
-              type={alert.type}
-              message={alert.message}
+              variant={alert.type || alert.variant || "info"}
               onClose={() => setAlert(null)}
-            />
+            >
+              {alert.message}
+            </Alert>
           </div>
         )}
 
@@ -437,10 +447,11 @@ export default function VicePrincipalTeacherManagementPage() {
           <div className="space-y-5 py-1">
             {profError && (
               <Alert
-                type="danger"
-                message={profError}
+                variant="danger"
                 onClose={() => setProfError("")}
-              />
+              >
+                {profError}
+              </Alert>
             )}
 
             {/* Title */}
@@ -531,10 +542,11 @@ export default function VicePrincipalTeacherManagementPage() {
           <div className="space-y-5 py-1">
             {assignError && (
               <Alert
-                type="danger"
-                message={assignError}
+                variant="danger"
                 onClose={() => setAssignError("")}
-              />
+              >
+                {assignError}
+              </Alert>
             )}
 
             {/* Subject for assignment */}

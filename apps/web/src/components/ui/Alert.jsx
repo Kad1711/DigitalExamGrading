@@ -8,12 +8,22 @@ import {
 } from "lucide-react";
 
 export default function Alert({
-  variant = "info",
+  variant,
+  type,
   title,
+  message,
   children,
   onClose,
   className = "",
 }) {
+  const actualVariant = variant || type || "info";
+  const content = children ?? message;
+
+  // Never render a hollow empty alert box if there is no content or title
+  if (!content && !title) {
+    return null;
+  }
+
   const config = {
     info: {
       bg: "bg-blue-50 border-blue-200 text-blue-900",
@@ -35,7 +45,12 @@ export default function Alert({
       iconColor: "text-rose-600",
       Icon: AlertCircle,
     },
-  }[variant] || {
+    error: {
+      bg: "bg-rose-50 border-rose-200 text-rose-900",
+      iconColor: "text-rose-600",
+      Icon: AlertCircle,
+    },
+  }[actualVariant] || {
     bg: "bg-blue-50 border-blue-200 text-blue-900",
     iconColor: "text-blue-600",
     Icon: Info,
@@ -51,7 +66,7 @@ export default function Alert({
       <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${iconColor}`} />
       <div className="flex-1 text-sm leading-relaxed">
         {title && <h5 className="font-semibold mb-1 text-inherit">{title}</h5>}
-        <div className="text-inherit">{children}</div>
+        <div className="text-inherit">{content}</div>
       </div>
       {onClose && (
         <button
