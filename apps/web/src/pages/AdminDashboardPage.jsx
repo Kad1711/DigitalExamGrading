@@ -34,7 +34,442 @@ import {
 } from "lucide-react";
 import { formatExamStatus } from "../utils/enum-map";
 
-export default function AdminDashboardPage() {
+/**
+ * =========================================================================
+ * 1. GIAO DIỆN THỐNG KÊ DÀNH RIÊNG CHO GIÁO VIÊN & TỔ TRƯỞNG CHUYÊN MÔN
+ * Chỉ hiển thị các lớp mình được phân công phụ trách & môn học của tổ mình.
+ * Tuyệt đối không hiển thị dữ liệu toàn trường của Admin.
+ * =========================================================================
+ */
+function TeacherClassStatisticsView({ user }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedClassId, setSelectedClassId] = useState("ALL");
+  const [activeTab, setActiveTab] = useState("MY_CLASSES"); // "MY_CLASSES" | "SUBJECT_LEADER"
+
+  const fetchData = useCallback(
+    async (isSilent = false, classId = selectedClassId) => {
+      if (!isSilent) setLoading(true);
+      else setRefreshing(true);
+      try {
+        const res = await api.get("/teacher/class-statistics", {
+          params: classId && classId !== "ALL" ? { classId } : {},
+        });
+        setData(res.data.data);
+      } catch (err) {
+        console.error("Failed to load teacher class stats:", err);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [selectedClassId]
+  );
+
+  useEffect(() => {
+    fetchData(false, selectedClassId);
+  }, [selectedClassId, fetchData]);
+
+  const teacherInfo = data?.teacherInfo;
+  const isSubjectLeader = teacherInfo?.isSubjectLeader;
+  const assignedClasses = data?.assignedClasses || [];
+  const stats = data?.stats;
+  const exams = data?.exams || [];
+  const subjectLeaderData = data?.subjectLeaderData;
+
+  const dist = stats?.scoreDistribution || { excellent: 0, good: 0, average: 0, belowAvg: 0 };
+  const totalGraded = stats?.totalGradedSubmissions || 0;
+  const pExcellent = totalGraded > 0 ? Math.round((dist.excellent / totalGraded) * 100) : 0;
+  const pGood = totalGraded > 0 ? Math.round((dist.good / totalGraded) * 100) : 0;
+  const pAvg = totalGraded > 0 ? Math.round((dist.average / totalGraded) * 100) : 0;
+  const pBelow = totalGraded > 0 ? Math.round((dist.belowAvg / totalGraded) * 100) : 0;
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <AppHeader />
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
+        {/* Top Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 mb-1">
+              <School className="w-4 h-4" />
+              <span>
+                {isSubjectLeader
+                  ? `TỔ TRƯỞNG CHUYÊN MÔN • TỔ ${teacherInfo?.primarySubjectName?.toUpperCase() || "BỘ MÔN"}`
+                  : "GIÁO VIÊN BỘ MÔN • LỚP PHỤ TRÁCH"}
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="text-slate-500 font-normal">
+                {teacherInfo?.fullName || user?.fullName}
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              {isSubjectLeader && activeTab === "SUBJECT_LEADER"
+                ? `Thống Kê Chuyên Môn Môn ${teacherInfo?.primarySubjectName || ""}`
+                : "Thống Kê Lớp Học Phụ Trách"}
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              {isSubjectLeader && activeTab === "SUBJECT_LEADER"
+                ? `Theo dõi chất lượng dạy và học môn ${teacherInfo?.primarySubjectName || ""} trên toàn trường.`
+                : "Theo dõi kết quả thi cử, phổ điểm và tiến độ học tập của các lớp học bạn được phân công giảng dạy."}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchData(true, selectedClassId)}
+              disabled={loading || refreshing}
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 text-slate-500 ${refreshing ? "animate-spin text-blue-600" : ""}`}
+              />
+              <span>{refreshing ? "Đang cập nhật..." : "Làm mới"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Tab switch for Subject Leader */}
+        {isSubjectLeader && (
+          <div className="flex items-center gap-2 border-b border-slate-200 pb-3 mb-6">
+            <button
+              onClick={() => setActiveTab("MY_CLASSES")}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === "MY_CLASSES"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <School className="w-4 h-4" />
+              <span>Lớp học tôi phụ trách</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("SUBJECT_LEADER")}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === "SUBJECT_LEADER"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Báo cáo Tổ bộ môn {teacherInfo?.primarySubjectName}</span>
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="py-20 flex flex-col items-center justify-center text-center">
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
+            <p className="text-sm font-medium text-slate-500">Đang tổng hợp dữ liệu lớp học...</p>
+          </div>
+        ) : activeTab === "SUBJECT_LEADER" && isSubjectLeader ? (
+          /* SUBJECT LEADER VIEW */
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-xs font-bold text-slate-400 uppercase">Tổng số bài thi môn</span>
+                <div className="text-3xl font-black text-slate-900 mt-2">
+                  {subjectLeaderData?.totalSubjectExams || 0}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">Bài thi được tổ chức toàn trường</div>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-xs font-bold text-slate-400 uppercase">Bài nộp đã chấm</span>
+                <div className="text-3xl font-black text-slate-900 mt-2">
+                  {subjectLeaderData?.totalGradedSubmissions || 0}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">Bài thi học sinh toàn trường</div>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-xs font-bold text-slate-400 uppercase">Điểm trung bình toàn trường</span>
+                <div className="text-3xl font-black text-blue-600 mt-2">
+                  {subjectLeaderData?.schoolWideAverageScore ?? "---"}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">Thang điểm 10</div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-600" />
+                So sánh điểm trung bình giữa các lớp học (Môn {teacherInfo?.primarySubjectName})
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="py-3 px-4">Lớp học</th>
+                      <th className="py-3 px-4 text-center">Số bài thi đã chấm</th>
+                      <th className="py-3 px-4 text-center">Điểm trung bình</th>
+                      <th className="py-3 px-4 text-right">Đánh giá</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(subjectLeaderData?.classesComparison || []).map((c, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="py-3 px-4 font-bold text-slate-900">{c.className}</td>
+                        <td className="py-3 px-4 text-center text-slate-600">{c.gradedCount} bài</td>
+                        <td className="py-3 px-4 text-center font-black text-slate-900">
+                          {c.averageScore !== null ? `${c.averageScore} / 10` : "---"}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {c.averageScore >= 8.0 ? (
+                            <Badge variant="success">Xuất sắc</Badge>
+                          ) : c.averageScore >= 6.5 ? (
+                            <Badge variant="info">Khá giỏi</Badge>
+                          ) : c.averageScore >= 5.0 ? (
+                            <Badge variant="warning">Đạt chuẩn</Badge>
+                          ) : (
+                            <Badge variant="danger">Cần cải thiện</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* TEACHER CLASS VIEW */
+          <div className="space-y-6">
+            {/* Class Selector Bar */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <Filter className="w-4 h-4 text-blue-600" />
+                  Chọn lớp phụ trách:
+                </span>
+                <select
+                  value={selectedClassId}
+                  onChange={(e) => setSelectedClassId(e.target.value)}
+                  className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                >
+                  <option value="ALL">Tất cả lớp phụ trách ({assignedClasses.length} lớp)</option>
+                  {assignedClasses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.studentCount} HS) - {c.subjectName || "Bộ môn"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="text-xs text-slate-500">
+                Hiển thị số liệu của:{" "}
+                <strong className="text-slate-800 font-semibold">
+                  {selectedClassId === "ALL"
+                    ? `Tất cả ${assignedClasses.length} lớp được phân công`
+                    : assignedClasses.find((c) => c.id === selectedClassId)?.name}
+                </strong>
+              </div>
+            </div>
+
+            {assignedClasses.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                <School className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h3 className="font-bold text-slate-800 text-base mb-1">
+                  Bạn chưa được phân công lớp học nào
+                </h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Vui lòng liên hệ Hiệu phó chuyên môn để được xếp lớp giảng dạy.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* 4 Cards KPI of assigned classes */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-400 uppercase">Học sinh phụ trách</span>
+                      <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                        <Users className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-black text-slate-900 mt-3">
+                      {stats?.totalStudents || 0}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">Sĩ số thực tế trong lớp</div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-400 uppercase">Số bài kiểm tra</span>
+                      <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-black text-slate-900 mt-3">
+                      {stats?.totalExams || 0}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {stats?.totalGradedSubmissions || 0} bài thi đã chấm
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-400 uppercase">Điểm trung bình</span>
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <Award className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-black text-blue-600 mt-3">
+                      {stats?.averageScore !== null ? `${stats.averageScore} / 10` : "---"}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">Điểm TB các bài kiểm tra</div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-400 uppercase">Tỷ lệ đạt chuẩn</span>
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-black text-emerald-600 mt-3">
+                      {stats?.passRate || 0}%
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">Học sinh đạt từ 5.0 trở lên</div>
+                  </div>
+                </div>
+
+                {/* Score Distribution */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900">
+                        Phổ điểm & Phân loại học lực lớp phụ trách
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Tổng số {totalGraded} bài kiểm tra đã được chấm
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                    <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                      <span className="text-xs font-bold text-emerald-800">Giỏi (8.0 - 10.0)</span>
+                      <div className="text-2xl font-black text-emerald-700 mt-1">
+                        {dist.excellent} <span className="text-xs font-normal">({pExcellent}%)</span>
+                      </div>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-100">
+                      <span className="text-xs font-bold text-blue-800">Khá (6.5 - 7.9)</span>
+                      <div className="text-2xl font-black text-blue-700 mt-1">
+                        {dist.good} <span className="text-xs font-normal">({pGood}%)</span>
+                      </div>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-100">
+                      <span className="text-xs font-bold text-amber-800">Trung bình (5.0 - 6.4)</span>
+                      <div className="text-2xl font-black text-amber-700 mt-1">
+                        {dist.average} <span className="text-xs font-normal">({pAvg}%)</span>
+                      </div>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-rose-50/60 border border-rose-100">
+                      <span className="text-xs font-bold text-rose-800">Dưới TB (&lt; 5.0)</span>
+                      <div className="text-2xl font-black text-rose-700 mt-1">
+                        {dist.belowAvg} <span className="text-xs font-normal">({pBelow}%)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress visualizer */}
+                  {totalGraded > 0 && (
+                    <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex mt-2">
+                      <div
+                        style={{ width: `${pExcellent}%` }}
+                        className="bg-emerald-500 h-full"
+                        title={`Giỏi: ${pExcellent}%`}
+                      />
+                      <div
+                        style={{ width: `${pGood}%` }}
+                        className="bg-blue-500 h-full"
+                        title={`Khá: ${pGood}%`}
+                      />
+                      <div
+                        style={{ width: `${pAvg}%` }}
+                        className="bg-amber-500 h-full"
+                        title={`TB: ${pAvg}%`}
+                      />
+                      <div
+                        style={{ width: `${pBelow}%` }}
+                        className="bg-rose-500 h-full"
+                        title={`Dưới TB: ${pBelow}%`}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Exam List of assigned classes */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                  <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                        Danh sách bài kiểm tra & kỳ thi
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Các bài kiểm tra áp dụng cho lớp bạn phụ trách
+                      </p>
+                    </div>
+                  </div>
+
+                  {exams.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-400">
+                      Chưa có bài kiểm tra nào được tổ chức cho lớp này.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs sm:text-sm">
+                        <thead className="bg-slate-50 text-slate-500 uppercase font-semibold text-[11px] border-b border-slate-200">
+                          <tr>
+                            <th className="py-3 px-4">Tên bài kiểm tra</th>
+                            <th className="py-3 px-4">Môn học</th>
+                            <th className="py-3 px-4">Lớp thi</th>
+                            <th className="py-3 px-4 text-center">Số bài đã chấm</th>
+                            <th className="py-3 px-4 text-center">Điểm TB</th>
+                            <th className="py-3 px-4 text-right">Trạng thái</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {exams.map((ex) => (
+                            <tr key={ex.id} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="py-3 px-4 font-bold text-slate-900">{ex.title}</td>
+                              <td className="py-3 px-4 font-semibold text-slate-700">
+                                {ex.subjectName}
+                              </td>
+                              <td className="py-3 px-4 text-slate-600">{ex.className}</td>
+                              <td className="py-3 px-4 text-center font-bold text-slate-800">
+                                {ex.submissionsCount}
+                              </td>
+                              <td className="py-3 px-4 text-center font-black text-blue-600">
+                                {ex.averageScore !== null ? `${ex.averageScore} / 10` : "---"}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                {formatExamStatus(ex.status)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+/**
+ * =========================================================================
+ * 2. GIAO DIỆN THỐNG KÊ QUẢN TRỊ VIÊN & BAN GIÁM HIỆU TOÀN TRƯỜNG
+ * =========================================================================
+ */
+function AdminDashboardView() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.role === "SUPER_ADMIN";
@@ -1119,4 +1554,21 @@ export default function AdminDashboardPage() {
       </main>
     </div>
   );
+}
+
+/**
+ * =========================================================================
+ * 3. ROUTE WRAPPER: PHÂN NHÁNH TRANG THỐNG KÊ
+ * - Giáo viên -> TeacherClassStatisticsView (Chỉ thống kê lớp phụ trách)
+ * - Ban Giám Hiệu / Quản trị viên -> AdminDashboardView (Toàn trường)
+ * =========================================================================
+ */
+export default function AdminDashboardPage() {
+  const { user } = useAuth();
+
+  if (user?.role === "TEACHER") {
+    return <TeacherClassStatisticsView user={user} />;
+  }
+
+  return <AdminDashboardView />;
 }
