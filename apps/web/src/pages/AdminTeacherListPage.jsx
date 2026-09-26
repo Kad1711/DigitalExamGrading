@@ -415,9 +415,14 @@ export default function AdminTeacherListPage() {
       if (errData?.code === "ASSIGNMENT_CONFLICT") {
         setAssignConflict(errData);
       } else {
-        setAssignError(
-          errData?.message || "Không thể cập nhật phân công."
-        );
+        const errorMsg =
+          errData?.message ||
+          err.response?.data?.message ||
+          (err.message === "Network Error"
+            ? "Mất kết nối tới máy chủ (Network Error). Vui lòng thử lại sau giây lát."
+            : err.message) ||
+          "Không thể cập nhật phân công.";
+        setAssignError(errorMsg);
       }
     } finally {
       setSavingAssign(false);
