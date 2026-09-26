@@ -526,8 +526,20 @@ export default function ExamDetailPage() {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-    } catch {
-      setErrorMsg("Không thể tải file PDF phiếu trả lời.");
+    } catch (err) {
+      let msg = "Không thể tải file PDF phiếu trả lời.";
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json.error?.message) {
+            msg = json.error.message;
+          }
+        } catch {}
+      } else if (err.response?.data?.error?.message) {
+        msg = err.response.data.error.message;
+      }
+      setErrorMsg(msg);
     } finally {
       setDownloadingPdf(false);
     }

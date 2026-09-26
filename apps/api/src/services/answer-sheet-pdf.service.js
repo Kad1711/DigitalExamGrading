@@ -1,8 +1,15 @@
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { PT_PER_MM } from "../utils/answer-sheet-layout.js";
 import { AppError } from "../middlewares/error.middleware.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const BUNDLED_FONT_REGULAR = path.join(__dirname, "../assets/fonts/font-regular.ttf");
+const BUNDLED_FONT_BOLD = path.join(__dirname, "../assets/fonts/font-bold.ttf");
 
 /**
  * Helper to convert mm to PDF points.
@@ -16,10 +23,25 @@ const TEXT_BLACK = "#000000";
 
 /**
  * Resolves available system/runtime TrueType font supporting Vietnamese Unicode.
- * Checks env vars, standard Windows and Linux locations.
+ * Priority:
+ * 1. Bundled TrueType font in apps/api/src/assets/fonts/ (guarantees 100% portability)
+ * 2. Environment variables (OMR_PDF_FONT_REGULAR, etc.)
+ * 3. Standard Windows and Linux OS locations
  * Returns { regular, bold, italic } or null if none found.
  */
 export function resolveUnicodeFont() {
+  // 1. Check bundled project fonts first (ensures 100% reliability on Render Cloud / Docker / Linux)
+  try {
+    if (fs.existsSync(BUNDLED_FONT_REGULAR) && fs.existsSync(BUNDLED_FONT_BOLD)) {
+      return {
+        regular: BUNDLED_FONT_REGULAR,
+        bold: BUNDLED_FONT_BOLD,
+        italic: BUNDLED_FONT_REGULAR,
+      };
+    }
+  } catch {}
+
+  // 2. Custom environment variables
   const customRegular = process.env.OMR_PDF_FONT_REGULAR;
   const customBold = process.env.OMR_PDF_FONT_BOLD;
   const customItalic = process.env.OMR_PDF_FONT_ITALIC;
@@ -109,22 +131,38 @@ export async function renderAnswerSheetPdf(layoutJson) {
         },
       });
 
-      // Register Unicode font
+      // Register Unicode font with robust fallback to built-in fonts
       const fontCandidate = resolveUnicodeFont();
-      if (!fontCandidate) {
-        throw new AppError(
-          "Không tìm thấy font chữ Unicode hỗ trợ tiếng Việt trên hệ thống máy chủ (cần cài đặt TrueType font như DejaVuSans, LiberationSans hoặc Arial).",
-          500,
-          "UNICODE_FONT_NOT_CONFIGURED"
-        );
+      let fontRegular = "Helvetica";
+      let fontBold = "Helvetica-Bold";
+      let fontItalic = "Helvetica-Oblique";
+
+      if (fontCandidate) {
+        try {
+          doc.registerFont("AppUnicodeFont", fontCandidate.regular);
+          doc.registerFont("AppUnicodeFont-Bold", fontCandidate.bold);
+          doc.registerFont("AppUnicodeFont-Italic", fontCandidate.italic || fontCandidate.regular);
+          fontRegular = "AppUnicodeFont";
+          fontBold = "AppUnicodeFont-Bold";
+          fontItalic = "AppUnicodeFont-Italic";
+        } catch {
+          // fallback to built-in Helvetica if font file load fails
+          fontRegular = "Helvetica";
+          fontBold = "Helvetica-Bold";
+          fontItalic = "Helvetica-Oblique";
+        }
       }
 
-      doc.registerFont("AppUnicodeFont", fontCandidate.regular);
-      doc.registerFont("AppUnicodeFont-Bold", fontCandidate.bold);
-      doc.registerFont("AppUnicodeFont-Italic", fontCandidate.italic || fontCandidate.regular);
-      const fontRegular = "AppUnicodeFont";
-      const fontBold = "AppUnicodeFont-Bold";
-      const fontItalic = "AppUnicodeFont-Italic";
+      const hasUnicodeFont = fontRegular === "AppUnicodeFont";
+      const safeText = (str) => {
+        if (!str) return "";
+        if (hasUnicodeFont) return str;
+        return str
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/đ/g, "d")
+          .replace(/Đ/g, "D");
+      };
 
       const buffers = [];
       doc.on("data", (chunk) => buffers.push(chunk));
