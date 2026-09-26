@@ -14,7 +14,7 @@
     "test:workflow:dev": "node scripts/test-exam-setup-workflow.js --allow-dev-api",
     "test:phase6:dev": "node scripts/test-phase6-persistence.js --allow-dev-db",
     "dev:localize-data": "node scripts/localize-dev-data.js",
-    "start": "npx prisma migrate deploy && node src/server.js"
+    "start": "node scripts/start-prod.js"
   },
   "keywords": [],
   "author": "",
