@@ -8,21 +8,20 @@ const ALL_STAFF_ROLES = ["PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER", "TEACHER
 
 /**
  * GET /api/admin/management-accounts
- * List institutional staff accounts (Leadership, Exam Officers, and Teachers).
+ * List institutional leadership accounts (Principal, Vice Principal, Exam Officer).
+ * Teachers are strictly excluded (managed under /admin/teachers).
  */
 export async function listManagementAccountsController(req, res, next) {
   try {
-    const { search, role, status, includeTeachers } = req.query;
+    const { search, role, status } = req.query;
 
-    const allowedRoles = includeTeachers === "true" || role === "TEACHER"
-      ? ALL_STAFF_ROLES
-      : ALL_STAFF_ROLES; // Include all staff roles so admin has full visibility
+    const allowedRoles = MANAGEMENT_ROLES;
 
     const where = {
       role: { in: allowedRoles },
     };
 
-    if (role && ALL_STAFF_ROLES.includes(role)) {
+    if (role && MANAGEMENT_ROLES.includes(role)) {
       where.role = role;
     }
 
@@ -50,15 +49,6 @@ export async function listManagementAccountsController(req, res, next) {
         avatarUrl: true,
         createdAt: true,
         updatedAt: true,
-        teacher: {
-          select: {
-            id: true,
-            teacherCode: true,
-            primarySubject: {
-              select: { id: true, name: true, code: true },
-            },
-          },
-        },
       },
       orderBy: [
         { role: "asc" },
@@ -77,16 +67,16 @@ export async function listManagementAccountsController(req, res, next) {
 
 /**
  * POST /api/admin/management-accounts
- * Create new account and assign role (TEACHER, EXAM_OFFICER, PRINCIPAL, VICE_PRINCIPAL).
+ * Create new management account (PRINCIPAL, VICE_PRINCIPAL, EXAM_OFFICER).
  */
 export async function createManagementAccountController(req, res, next) {
   try {
-    const { email, password, fullName, phone, role, teacherCode, subjectId } = req.body;
+    const { email, password, fullName, phone, role } = req.body;
 
-    if (!role || !ALL_STAFF_ROLES.includes(role)) {
+    if (!role || !MANAGEMENT_ROLES.includes(role)) {
       return next(
         new AppError(
-          "Vai trò không hợp lệ. Vui lòng chọn: Hiệu trưởng, Hiệu phó, Cán bộ khảo thí hoặc Giáo viên.",
+          "Vai trò không hợp lệ. Vui lòng chọn: Hiệu trưởng, Hiệu phó hoặc Cán bộ khảo thí.",
           422,
           "INVALID_ROLE"
         )
@@ -111,59 +101,6 @@ export async function createManagementAccountController(req, res, next) {
 
     const cleanFullName = (fullName || "").trim() || "Nhân sự mới";
     const passwordHash = await bcrypt.hash(password.trim(), SALT_ROUNDS);
-
-    if (role === "TEACHER") {
-      let code = (teacherCode || "").trim().toUpperCase();
-      if (!code) {
-        const count = await prisma.teacher.count();
-        code = `GV${String(count + 1).padStart(3, "0")}`;
-      }
-
-      const existingCode = await prisma.teacher.findUnique({
-        where: { teacherCode: code },
-      });
-      if (existingCode) {
-        code = `GV${Date.now().toString().slice(-4)}`;
-      }
-
-      const result = await prisma.$transaction(async (tx) => {
-        const user = await tx.user.create({
-          data: {
-            email: cleanEmail,
-            passwordHash,
-            role: "TEACHER",
-            status: "ACTIVE",
-            fullName: cleanFullName,
-            phone: phone ? phone.trim() : null,
-          },
-        });
-
-        const teacher = await tx.teacher.create({
-          data: {
-            userId: user.id,
-            teacherCode: code,
-            fullName: cleanFullName,
-            phone: phone ? phone.trim() : null,
-            primarySubjectId: subjectId || null,
-          },
-        });
-
-        return { user, teacher };
-      });
-
-      return res.status(201).json({
-        success: true,
-        message: `Đã tạo tài khoản Giáo viên ${cleanEmail} (Mã: ${result.teacher.teacherCode}) thành công.`,
-        data: {
-          id: result.user.id,
-          email: result.user.email,
-          fullName: result.user.fullName,
-          role: result.user.role,
-          status: result.user.status,
-          teacherCode: result.teacher.teacherCode,
-        },
-      });
-    }
 
     // PRINCIPAL, VICE_PRINCIPAL, EXAM_OFFICER
     const user = await prisma.user.create({

@@ -182,7 +182,7 @@ export async function renderAnswerSheetPdf(layoutJson) {
           doc.rect(toPt(m.xMm), toPt(m.yMm), toPt(m.sizeMm), toPt(m.sizeMm)).fill();
         }
 
-        // Section margin alignment marks (Left & Right)
+        // Section margin alignment marks (Left & Right) — Chuẩn BGD
         const sectionMarkersY = [89.0, 148.5, 188.5];
         for (const sym of sectionMarkersY) {
           doc.rect(toPt(8.0), toPt(sym), toPt(4.0), toPt(3.5)).fill();
@@ -204,16 +204,9 @@ export async function renderAnswerSheetPdf(layoutJson) {
         doc.font(fontBold).fontSize(14).fillColor(TEXT_BLACK);
         doc.text("PHIẾU TRẢ LỜI TRẮC NGHIỆM", toPt(14), toPt(9.5), { width: toPt(182), align: "center" });
 
-        // Left exam info (constrained to 120mm to prevent collision with SBD / Mã đề)
-        doc.font(fontRegular).fontSize(8.5).fillColor(TEXT_BLACK);
-        const titleStr = page.header.examTitle
-          ? `Kỳ thi: ${page.header.examTitle}`
-          : "Kỳ thi: .......................................................................................................";
-        doc.text(titleStr, toPt(14), toPt(15.2), { width: toPt(120), align: "left" });
-
-        const subjStr = page.header.subjectName ? `Môn thi: ${page.header.subjectName}` : "Môn thi: ........................................";
-        const clsStr = page.header.className ? ` - Lớp: ${page.header.className}` : "";
-        doc.text(`${subjStr}${clsStr}         Ngày thi: ........./........./ 20.........`, toPt(14), toPt(19.2), {
+        // Left exam info — KHÔNG hardcode kỳ thi / môn thi; để thí sinh tự điền vào các ô bên dưới
+        doc.font(fontRegular).fontSize(8).fillColor(TEXT_BLACK);
+        doc.text("Thí sinh điền đầy đủ thông tin vào các ô bên dưới trước khi làm bài.", toPt(14), toPt(16.5), {
           width: toPt(120),
           align: "left",
         });
@@ -237,24 +230,26 @@ export async function renderAnswerSheetPdf(layoutJson) {
         doc.text("Họ tên, chữ ký\ncủa Giám thị 1", b1X + 4, b1Y + 7, { width: b1W - 8, align: "center" });
         doc.text("Họ tên, chữ ký\ncủa Giám thị 2", b1X + 4, b1Y + b1H / 2 + 7, { width: b1W - 8, align: "center" });
 
-        // Box 2: Center - Thông tin thí sinh (76mm x 56mm)
+        // Box 2: Center - Thông tin thí sinh (76mm x 56mm — 7 trường cấu hình thí sinh tự điền)
         const b2X = toPt(60.0);
         const b2Y = toPt(25.0);
         const b2W = toPt(76.0);
         const b2H = toPt(56.0);
         doc.rect(b2X, b2Y, b2W, b2H).lineWidth(0.6).strokeColor(THEME_PINK).stroke();
 
-        doc.font(fontRegular).fontSize(7).fillColor(TEXT_BLACK);
+        // 7 trường thí sinh tự điền (không set cứng)
+        doc.font(fontRegular).fontSize(6.8).fillColor(TEXT_BLACK);
         const candidateFields = [
-          "1. Hội đồng thi: .....................................................................",
-          "2. Điểm thi: ..............................................................................",
-          "3. Phòng thi số: ......................................................................",
-          "4. Họ và tên thí sinh: .............................................................",
-          "5. Ngày sinh: ........./........./................ (Nam/ Nữ): ..............",
-          "6. Chữ ký của thí sinh: ...........................................................",
+          "1. Trường: .........................................................................",
+          "2. Lớp: ...............................................................................",
+          "3. Họ và tên thí sinh: ...................................................",
+          "4. Ngày sinh: ......../......../............",
+          "5. Môn thi: .......................................................................",
+          "6. Phòng thi: .....................................................................",
+          "7. Ngày thi: ......../......../20..........",
         ];
         candidateFields.forEach((field, fIdx) => {
-          doc.text(field, b2X + 6, b2Y + 5 + fIdx * 8.5);
+          doc.text(field, b2X + 5, b2Y + 4.5 + fIdx * 7.0);
         });
 
         // Box 3: Right - Số báo danh & Mã đề thi (54mm x 56mm)
@@ -263,10 +258,10 @@ export async function renderAnswerSheetPdf(layoutJson) {
         const b3W = toPt(54.0);
         const b3H = toPt(56.0);
 
-        // Labels above Box 3
+        // Labels above Box 3 (số thứ tự 8 và 9 vì 1-7 là thông tin thí sinh)
         doc.font(fontBold).fontSize(7.5).fillColor(TEXT_BLACK);
-        doc.text("7. Số báo danh", b3X, toPt(20.5), { width: toPt(31.2), align: "center" });
-        doc.text("8. Mã đề thi", b3X + toPt(32.5), toPt(20.5), { width: toPt(21.5), align: "center" });
+        doc.text("8. Số báo danh", b3X, toPt(20.5), { width: toPt(31.2), align: "center" });
+        doc.text("9. Mã đề thi", b3X + toPt(32.5), toPt(20.5), { width: toPt(21.5), align: "center" });
 
         // Outer border of Box 3
         doc.rect(b3X, b3Y, b3W, b3H).lineWidth(0.6).strokeColor(THEME_PINK).stroke();
@@ -276,6 +271,7 @@ export async function renderAnswerSheetPdf(layoutJson) {
           .lineWidth(0.6)
           .strokeColor(THEME_PINK)
           .stroke();
+
 
         // Render SBD Grid
         if (page.studentNumber) {

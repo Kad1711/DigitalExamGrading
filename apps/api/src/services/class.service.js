@@ -32,10 +32,30 @@ export async function listGrades() {
 }
 
 /**
- * List all classes with student count
+ * List all classes with student count (scoped to assigned classes if role is TEACHER)
  */
-export async function listClasses() {
+export async function listClasses(user = null) {
+  const where = {};
+
+  if (user && user.role === "TEACHER") {
+    const teacher = await prisma.teacher.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+
+    if (!teacher) {
+      return [];
+    }
+
+    where.assignments = {
+      some: {
+        teacherId: teacher.id,
+      },
+    };
+  }
+
   const classes = await prisma.class.findMany({
+    where,
     select: {
       id: true,
       name: true,

@@ -16,8 +16,8 @@ export async function getAcademicStructure() {
             gradeId: true,
             _count: {
               select: {
-                students: true,
-                teachingAssignments: true,
+                enrollments: true,
+                assignments: true,
               },
             },
           },
@@ -130,6 +130,19 @@ export async function getAcademicStructure() {
   const totalClasses = grades.reduce((acc, g) => acc + g.classes.length, 0);
   const totalSubjectLeaders = teachers.filter((t) => t.isSubjectLeader === true).length;
 
+  const formattedGrades = grades.map((g) => ({
+    ...g,
+    classes: g.classes.map((c) => ({
+      ...c,
+      _count: {
+        students: c._count?.enrollments ?? 0,
+        enrollments: c._count?.enrollments ?? 0,
+        teachingAssignments: c._count?.assignments ?? 0,
+        assignments: c._count?.assignments ?? 0,
+      },
+    })),
+  }));
+
   return {
     summary: {
       totalTeachers: teachers.length,
@@ -138,6 +151,6 @@ export async function getAcademicStructure() {
       totalSubjectLeaders,
     },
     subjectsBreakdown,
-    grades,
+    grades: formattedGrades,
   };
 }

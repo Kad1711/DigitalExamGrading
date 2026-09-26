@@ -58,7 +58,7 @@ export async function getGrades(req, res, next) {
 
 export async function getClasses(req, res, next) {
   try {
-    const classes = await classService.listClasses();
+    const classes = await classService.listClasses(req.user);
     res.json({ success: true, data: classes });
   } catch (err) {
     next(err);

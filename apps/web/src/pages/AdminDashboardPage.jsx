@@ -41,6 +41,10 @@ export default function AdminDashboardPage() {
   const isBGH = user?.role === "PRINCIPAL" || user?.role === "VICE_PRINCIPAL";
 
   const [data, setData] = useState(null);
+  const scopeInfo = data?.scopeInfo;
+  const isTeacher = user?.role === "TEACHER" || scopeInfo?.isTeacher;
+  const isSubjectLeader = scopeInfo?.isSubjectLeader;
+  const subjectName = scopeInfo?.subjectName;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -207,7 +211,15 @@ export default function AdminDashboardPage() {
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 mb-1">
               <ShieldCheck className="w-4 h-4" />
-              <span>{isAdmin ? "BẢNG ĐIỀU KHIỂN QUẢN TRỊ VIÊN" : "BÁO CÁO & THỐNG KÊ TOÀN DIỆN"}</span>
+              <span>
+                {isAdmin
+                  ? "BẢNG ĐIỀU KHIỂN QUẢN TRỊ VIÊN"
+                  : isTeacher && isSubjectLeader
+                  ? `TỔ TRƯỞNG CHUYÊN MÔN - TỔ ${subjectName?.toUpperCase() || "BỘ MÔN"}`
+                  : isTeacher
+                  ? "GIÁO VIÊN BỘ MÔN - LỚP PHỤ TRÁCH"
+                  : "BÁO CÁO & THỐNG KÊ TOÀN DIỆN"}
+              </span>
               <span className="text-slate-300">•</span>
               <span className="flex items-center gap-1 text-slate-500 font-normal">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -215,10 +227,20 @@ export default function AdminDashboardPage() {
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              {isAdmin ? "Tổng quan & Thống kê hệ thống" : "Trung tâm Thống kê & Báo cáo kết quả"}
+              {isAdmin
+                ? "Tổng quan & Thống kê hệ thống"
+                : isTeacher && isSubjectLeader
+                ? `Thống kê Chuyên môn Môn ${subjectName || ""}`
+                : isTeacher
+                ? "Thống kê Kết quả Lớp phụ trách"
+                : "Trung tâm Thống kê & Báo cáo kết quả"}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Thống kê kết quả thi cử, phân bố điểm số và chấm thi OMR theo khối, lớp, môn học và giáo viên.
+              {isTeacher && isSubjectLeader
+                ? `Theo dõi chất lượng dạy và học, phân bố điểm số và kết quả thi bộ môn ${subjectName || ""} trên toàn trường.`
+                : isTeacher
+                ? "Theo dõi kết quả thi, phân bố điểm số và tình hình học tập của các lớp được phân công giảng dạy."
+                : "Thống kê kết quả thi cử, phân bố điểm số và chấm thi OMR theo khối, lớp, môn học và giáo viên."}
             </p>
           </div>
 
@@ -410,11 +432,15 @@ export default function AdminDashboardPage() {
             {/* 1. TOP KPI METRIC CARDS (6 Key Metrics)               */}
             {/* ===================================================== */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-              {/* Card 1: Teachers */}
+              {/* Card 1: Teachers or Assigned Classes */}
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-shadow relative overflow-hidden group">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Giáo viên
+                    {isTeacher && isSubjectLeader
+                      ? `Tổ ${subjectName || "Bộ Môn"}`
+                      : isTeacher
+                      ? "Lớp phụ trách"
+                      : "Giáo viên"}
                   </span>
                   <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
                     <Users className="w-5 h-5" />
@@ -422,18 +448,26 @@ export default function AdminDashboardPage() {
                 </div>
                 <div className="mt-3">
                   <div className="text-2xl font-black text-slate-900">
-                    {overview?.teachers.total || 0}
+                    {isTeacher && !isSubjectLeader
+                      ? scopeInfo?.assignedClassCount ?? (overview?.classes.total || 0)
+                      : overview?.teachers.total || 0}
                   </div>
                   <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span className="font-semibold text-emerald-700">
-                      {overview?.teachers.active || 0}
-                    </span>{" "}
-                    hoạt động
-                    {overview?.teachers.locked > 0 && (
-                      <span className="text-rose-500 font-semibold ml-1">
-                        • {overview?.teachers.locked} khóa
-                      </span>
+                    {isTeacher && !isSubjectLeader ? (
+                      <span className="text-slate-600 font-medium">Lớp được phân công</span>
+                    ) : (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="font-semibold text-emerald-700">
+                          {overview?.teachers.active || 0}
+                        </span>{" "}
+                        hoạt động
+                        {overview?.teachers.locked > 0 && (
+                          <span className="text-rose-500 font-semibold ml-1">
+                            • {overview?.teachers.locked} khóa
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -975,59 +1009,61 @@ export default function AdminDashboardPage() {
 
               {/* System Health & Top Teachers (1 col) */}
               <div className="space-y-6">
-                {/* System Infrastructure Health Card */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Server className="w-4 h-4 text-blue-600" />
-                    Hạ tầng & Trạng thái dịch vụ
-                  </h3>
+                {/* System Infrastructure Health Card (Chỉ hiển thị cho Ban Giám hiệu / Quản trị viên) */}
+                {systemHealth && (
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Server className="w-4 h-4 text-blue-600" />
+                      Hạ tầng & Trạng thái dịch vụ
+                    </h3>
 
-                  <div className="space-y-2.5 text-xs">
-                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <div className="flex items-center gap-2">
-                        <Server className="w-4 h-4 text-slate-500" />
-                        <span className="font-semibold text-slate-700">
-                          Express API Server
+                    <div className="space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <Server className="w-4 h-4 text-slate-500" />
+                          <span className="font-semibold text-slate-700">
+                            Express API Server
+                          </span>
+                        </div>
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-600">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          Online (Port 5000)
                         </span>
                       </div>
-                      <span className="inline-flex items-center gap-1 font-bold text-emerald-600">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        Online (Port 5000)
-                      </span>
+
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <Database className="w-4 h-4 text-slate-500" />
+                          <span className="font-semibold text-slate-700">
+                            PostgreSQL Database
+                          </span>
+                        </div>
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-600">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          {systemHealth?.dbStatus || "CONNECTED"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <Cpu className="w-4 h-4 text-slate-500" />
+                          <span className="font-semibold text-slate-700">
+                            AI OMR Engine
+                          </span>
+                        </div>
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-600">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          Ready (Port 8000)
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <div className="flex items-center gap-2">
-                        <Database className="w-4 h-4 text-slate-500" />
-                        <span className="font-semibold text-slate-700">
-                          PostgreSQL Database
-                        </span>
-                      </div>
-                      <span className="inline-flex items-center gap-1 font-bold text-emerald-600">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        {systemHealth?.dbStatus || "CONNECTED"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <div className="flex items-center gap-2">
-                        <Cpu className="w-4 h-4 text-slate-500" />
-                        <span className="font-semibold text-slate-700">
-                          AI OMR Engine
-                        </span>
-                      </div>
-                      <span className="inline-flex items-center gap-1 font-bold text-emerald-600">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        Ready (Port 8000)
-                      </span>
+                    <div className="pt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-100">
+                      <span>Môi trường: development</span>
+                      <span>Node: {systemHealth?.nodeVersion}</span>
                     </div>
                   </div>
-
-                  <div className="pt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-100">
-                    <span>Môi trường: development</span>
-                    <span>Node: {systemHealth?.nodeVersion}</span>
-                  </div>
-                </div>
+                )}
 
                 {/* Top Teachers Card */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">

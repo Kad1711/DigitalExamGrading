@@ -219,8 +219,11 @@ export default function TeacherClassesPage() {
         setNewClassGradeId(grList[0].id);
       }
 
-      if (clsList.length > 0 && !selectedClassId) {
-        setSelectedClassId(clsList[0].id);
+      const myClasses = isTeacher ? clsList.filter((c) => isClassAssignedToMe(c)) : clsList;
+      if (myClasses.length > 0 && (!selectedClassId || !myClasses.some((c) => c.id === selectedClassId))) {
+        setSelectedClassId(myClasses[0].id);
+      } else if (myClasses.length === 0) {
+        setSelectedClassId(null);
       }
     } catch (err) {
       setErrorMsg(
@@ -229,7 +232,7 @@ export default function TeacherClassesPage() {
     } finally {
       setLoadingClasses(false);
     }
-  }, [selectedClassId, newClassGradeId]);
+  }, [selectedClassId, newClassGradeId, isTeacher, isClassAssignedToMe]);
 
   useEffect(() => {
     loadClassesAndGrades();
@@ -620,11 +623,12 @@ export default function TeacherClassesPage() {
 
   // Grade list with counts for filter chips
   const gradeListWithCounts = useMemo(() => {
+    const displayedClasses = isTeacher ? classes.filter((c) => isClassAssignedToMe(c)) : classes;
     const gradeMap = new Map();
     grades.forEach((g) => {
       gradeMap.set(g.id, { id: g.id, name: g.name, level: g.level, classCount: 0, studentCount: 0 });
     });
-    classes.forEach((c) => {
+    displayedClasses.forEach((c) => {
       if (c.gradeId && gradeMap.has(c.gradeId)) {
         const item = gradeMap.get(c.gradeId);
         item.classCount++;
@@ -642,11 +646,16 @@ export default function TeacherClassesPage() {
     return Array.from(gradeMap.values())
       .filter((g) => g.classCount > 0)
       .sort((a, b) => a.level - b.level);
-  }, [grades, classes]);
+  }, [grades, classes, isTeacher, isClassAssignedToMe]);
 
   // Grouped and filtered classes by grade
   const groupedClasses = useMemo(() => {
     let filtered = classes;
+
+    // Đối với Giáo viên: Chỉ hiển thị các lớp mình được phân công giảng dạy
+    if (isTeacher) {
+      filtered = filtered.filter((c) => isClassAssignedToMe(c));
+    }
 
     // 1. Filter by grade if not ALL
     if (selectedGradeFilter !== "ALL") {
@@ -682,7 +691,7 @@ export default function TeacherClassesPage() {
     }
 
     return Array.from(map.values()).sort((a, b) => a.gradeLevel - b.gradeLevel);
-  }, [classes, selectedGradeFilter, classSearch]);
+  }, [classes, selectedGradeFilter, classSearch, isTeacher, isClassAssignedToMe]);
 
   // All visible class IDs
   const allVisibleClassIds = useMemo(() => {
@@ -1372,8 +1381,10 @@ export default function TeacherClassesPage() {
                   )}
                 </div>
               ) : groupedClasses.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  Không tìm thấy lớp học nào phù hợp với bộ lọc.
+                <div className="py-8 px-4 text-center text-xs text-slate-500">
+                  {isTeacher
+                    ? "Bạn chưa được phân công giảng dạy lớp nào. Vui lòng liên hệ Hiệu phó chuyên môn để được xếp lớp."
+                    : "Không tìm thấy lớp học nào phù hợp với bộ lọc."}
                 </div>
               ) : (
                 <div className="mt-3 space-y-2.5 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">

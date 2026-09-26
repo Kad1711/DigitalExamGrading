@@ -4,47 +4,102 @@ import prisma from "../config/prisma.js";
  * Get aggregated system statistics for Admin Dashboard with dynamic filters
  * @param {Object} filters - { gradeId, classId, subjectId, teacherId }
  */
-export async function getAdminSystemDashboard(filters = {}) {
+export async function getAdminSystemDashboard(filters = {}, user = null) {
   const { gradeId, classId, subjectId, teacherId } = filters;
+
+  const isTeacher = user?.role === "TEACHER";
+  let teacherProfile = null;
+  let isSubjectLeader = false;
+  let leaderSubjectId = null;
+  let assignedClassIds = [];
+
+  if (isTeacher && user?.id) {
+    teacherProfile = await prisma.teacher.findUnique({
+      where: { userId: user.id },
+      include: {
+        primarySubject: { select: { id: true, name: true, code: true } },
+        assignments: {
+          select: { classId: true, subjectId: true },
+        },
+      },
+    });
+
+    if (teacherProfile) {
+      isSubjectLeader = teacherProfile.isSubjectLeader === true && !!teacherProfile.primarySubjectId;
+      leaderSubjectId = teacherProfile.primarySubjectId;
+      assignedClassIds = (teacherProfile.assignments || []).map((a) => a.classId).filter(Boolean);
+    }
+  }
 
   // Build exam filter
   const whereExam = {};
-  if (subjectId && subjectId !== "ALL") whereExam.subjectId = subjectId;
-  if (gradeId && gradeId !== "ALL") whereExam.gradeId = gradeId;
-  if (classId && classId !== "ALL") {
-    whereExam.OR = [{ classId }, { examClasses: { some: { classId } } }];
-  }
-  if (teacherId && teacherId !== "ALL") whereExam.teacherId = teacherId;
-
-  // Build submission filter
-  const whereSubmission = {};
-  if (Object.keys(whereExam).length > 0) {
-    whereSubmission.exam = whereExam;
-  }
-  if (classId && classId !== "ALL") {
-    whereSubmission.student = { enrollments: { some: { classId } } };
-  } else if (gradeId && gradeId !== "ALL") {
-    whereSubmission.student = { enrollments: { some: { class: { gradeId } } } };
-  }
-
-  // Build student filter
-  const whereStudent = {
-    enrollments: {
-      some:
-        classId && classId !== "ALL"
-          ? { classId }
-          : gradeId && gradeId !== "ALL"
-          ? { class: { gradeId } }
-          : {},
-    },
-  };
-
-  // Build class filter
   const whereClass = {};
-  if (classId && classId !== "ALL") {
-    whereClass.id = classId;
-  } else if (gradeId && gradeId !== "ALL") {
-    whereClass.gradeId = gradeId;
+  const whereStudent = {};
+  const whereSubmission = {};
+
+  if (isTeacher && isSubjectLeader && leaderSubjectId) {
+    // 1. TỔ TRƯỞNG CHUYÊN MÔN: Xem thống kê toàn trường của môn mình làm tổ trưởng
+    const targetSubjectId = leaderSubjectId;
+    whereExam.subjectId = targetSubjectId;
+
+    if (gradeId && gradeId !== "ALL") whereExam.gradeId = gradeId;
+    if (classId && classId !== "ALL") {
+      whereExam.OR = [{ classId }, { examClasses: { some: { classId } } }];
+      whereClass.id = classId;
+      whereStudent.enrollments = { some: { classId } };
+    } else if (gradeId && gradeId !== "ALL") {
+      whereClass.gradeId = gradeId;
+      whereStudent.enrollments = { some: { class: { gradeId } } };
+    }
+    if (teacherId && teacherId !== "ALL") whereExam.teacherId = teacherId;
+
+    whereSubmission.exam = whereExam;
+  } else if (isTeacher) {
+    // 2. GIÁO VIÊN THƯỜNG: Chỉ xem thống kê của các lớp mình phụ trách giảng dạy
+    const scopedClassIds = assignedClassIds.length > 0 ? assignedClassIds : ["__no_class__"];
+
+    if (classId && classId !== "ALL" && scopedClassIds.includes(classId)) {
+      whereExam.OR = [{ classId }, { examClasses: { some: { classId } } }];
+      whereClass.id = classId;
+      whereStudent.enrollments = { some: { classId } };
+      whereSubmission.student = { enrollments: { some: { classId } } };
+    } else {
+      whereExam.OR = [
+        { classId: { in: scopedClassIds } },
+        { examClasses: { some: { classId: { in: scopedClassIds } } } },
+        { teacherId: teacherProfile ? teacherProfile.id : "__none__" },
+      ];
+      whereClass.id = { in: scopedClassIds };
+      whereStudent.enrollments = { some: { classId: { in: scopedClassIds } } };
+      whereSubmission.student = { enrollments: { some: { classId: { in: scopedClassIds } } } };
+    }
+
+    if (subjectId && subjectId !== "ALL") whereExam.subjectId = subjectId;
+    if (gradeId && gradeId !== "ALL") {
+      whereExam.gradeId = gradeId;
+      whereClass.gradeId = gradeId;
+    }
+
+    whereSubmission.exam = whereExam;
+  } else {
+    // 3. BAN GIÁM HIỆU / ADMIN: Xem toàn trường
+    if (subjectId && subjectId !== "ALL") whereExam.subjectId = subjectId;
+    if (gradeId && gradeId !== "ALL") whereExam.gradeId = gradeId;
+    if (classId && classId !== "ALL") {
+      whereExam.OR = [{ classId }, { examClasses: { some: { classId } } }];
+      whereClass.id = classId;
+      whereSubmission.student = { enrollments: { some: { classId } } };
+      whereStudent.enrollments = { some: { classId } };
+    } else if (gradeId && gradeId !== "ALL") {
+      whereClass.gradeId = gradeId;
+      whereSubmission.student = { enrollments: { some: { class: { gradeId } } } };
+      whereStudent.enrollments = { some: { class: { gradeId } } };
+    }
+    if (teacherId && teacherId !== "ALL") whereExam.teacherId = teacherId;
+
+    if (Object.keys(whereExam).length > 0) {
+      whereSubmission.exam = whereExam;
+    }
   }
 
   const [
@@ -75,26 +130,95 @@ export async function getAdminSystemDashboard(filters = {}) {
   ] = await Promise.all([
     // Filter dropdown options
     prisma.grade.findMany({
+      where: isTeacher && !isSubjectLeader
+        ? { classes: { some: { id: { in: assignedClassIds.length > 0 ? assignedClassIds : ["__none__"] } } } }
+        : {},
       orderBy: { level: "asc" },
       select: { id: true, name: true, level: true },
     }),
     prisma.class.findMany({
+      where: isTeacher && !isSubjectLeader
+        ? { id: { in: assignedClassIds.length > 0 ? assignedClassIds : ["__none__"] } }
+        : isTeacher && isSubjectLeader
+        ? { assignments: { some: { subjectId: leaderSubjectId } } }
+        : {},
       orderBy: { name: "asc" },
       select: { id: true, name: true, gradeId: true },
     }),
     prisma.subject.findMany({
+      where: isTeacher && isSubjectLeader
+        ? { id: leaderSubjectId }
+        : isTeacher && !isSubjectLeader
+        ? {
+            OR: [
+              { assignments: { some: { teacherId: teacherProfile?.id || "__none__" } } },
+              { id: teacherProfile?.primarySubjectId || "__none__" },
+            ],
+          }
+        : {},
       orderBy: { name: "asc" },
       select: { id: true, name: true, code: true },
     }),
     prisma.teacher.findMany({
+      where: isTeacher && !isSubjectLeader
+        ? { id: teacherProfile?.id || "__none__" }
+        : isTeacher && isSubjectLeader
+        ? {
+            OR: [
+              { primarySubjectId: leaderSubjectId },
+              { assignments: { some: { subjectId: leaderSubjectId } } },
+            ],
+          }
+        : {},
       orderBy: { fullName: "asc" },
       select: { id: true, fullName: true, teacherCode: true },
     }),
 
     // Teachers
-    prisma.teacher.count(),
-    prisma.user.count({ where: { role: "TEACHER", status: "ACTIVE" } }),
-    prisma.user.count({ where: { role: "TEACHER", status: "LOCKED" } }),
+    isTeacher && !isSubjectLeader
+      ? 1
+      : isTeacher && isSubjectLeader
+      ? prisma.teacher.count({
+          where: {
+            OR: [
+              { primarySubjectId: leaderSubjectId },
+              { assignments: { some: { subjectId: leaderSubjectId } } },
+            ],
+          },
+        })
+      : prisma.teacher.count(),
+    isTeacher && !isSubjectLeader
+      ? (teacherProfile ? 1 : 0)
+      : isTeacher && isSubjectLeader
+      ? prisma.user.count({
+          where: {
+            role: "TEACHER",
+            status: "ACTIVE",
+            teacher: {
+              OR: [
+                { primarySubjectId: leaderSubjectId },
+                { assignments: { some: { subjectId: leaderSubjectId } } },
+              ],
+            },
+          },
+        })
+      : prisma.user.count({ where: { role: "TEACHER", status: "ACTIVE" } }),
+    isTeacher && !isSubjectLeader
+      ? 0
+      : isTeacher && isSubjectLeader
+      ? prisma.user.count({
+          where: {
+            role: "TEACHER",
+            status: "LOCKED",
+            teacher: {
+              OR: [
+                { primarySubjectId: leaderSubjectId },
+                { assignments: { some: { subjectId: leaderSubjectId } } },
+              ],
+            },
+          },
+        })
+      : prisma.user.count({ where: { role: "TEACHER", status: "LOCKED" } }),
 
     // Students: Đã được xếp lớp (tuân thủ bộ lọc)
     prisma.student.count({
@@ -208,16 +332,41 @@ export async function getAdminSystemDashboard(filters = {}) {
     }),
 
     // Top active teachers
-    prisma.teacher.findMany({
-      take: 5,
-      include: {
-        user: { select: { email: true, status: true } },
-        _count: { select: { exams: true } },
-      },
-      orderBy: {
-        exams: { _count: "desc" },
-      },
-    }),
+    isTeacher && !isSubjectLeader
+      ? (teacherProfile
+          ? prisma.teacher.findMany({
+              where: { id: teacherProfile.id },
+              include: {
+                user: { select: { email: true, status: true } },
+                _count: { select: { exams: true } },
+              },
+            })
+          : Promise.resolve([]))
+      : isTeacher && isSubjectLeader
+      ? prisma.teacher.findMany({
+          where: {
+            OR: [
+              { primarySubjectId: leaderSubjectId },
+              { assignments: { some: { subjectId: leaderSubjectId } } },
+            ],
+          },
+          take: 5,
+          include: {
+            user: { select: { email: true, status: true } },
+            _count: { select: { exams: true } },
+          },
+          orderBy: { exams: { _count: "desc" } },
+        })
+      : prisma.teacher.findMany({
+          take: 5,
+          include: {
+            user: { select: { email: true, status: true } },
+            _count: { select: { exams: true } },
+          },
+          orderBy: {
+            exams: { _count: "desc" },
+          },
+        }),
   ]);
 
   // Format Exams by status
@@ -430,12 +579,21 @@ export async function getAdminSystemDashboard(filters = {}) {
       status: t.user?.status,
       examsCount: t._count.exams,
     })),
-    systemHealth: {
-      status: "HEALTHY",
-      uptimeSeconds: Math.round(process.uptime()),
-      nodeVersion: process.version,
-      platform: process.platform,
-      dbStatus: "CONNECTED",
+    systemHealth: isTeacher
+      ? null
+      : {
+          status: "HEALTHY",
+          uptimeSeconds: Math.round(process.uptime()),
+          nodeVersion: process.version,
+          platform: process.platform,
+          dbStatus: "CONNECTED",
+        },
+    scopeInfo: {
+      isTeacher,
+      isSubjectLeader,
+      subjectName: teacherProfile?.primarySubject?.name || null,
+      assignedClassCount: assignedClassIds.length,
+      teacherFullName: teacherProfile?.fullName || user?.fullName || null,
     },
   };
 }

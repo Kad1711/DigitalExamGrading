@@ -94,7 +94,6 @@ export default function AdminManagementPage() {
   const [createEmail, setCreateEmail] = useState("");
   const [createPhone, setCreatePhone] = useState("");
   const [createPassword, setCreatePassword] = useState("");
-  const [createTeacherCode, setCreateTeacherCode] = useState("");
   const [createShowPassword, setCreateShowPassword] = useState(true);
 
   const fetchAccounts = useCallback(async () => {
@@ -263,7 +262,6 @@ export default function AdminManagementPage() {
         phone: createPhone.trim() || undefined,
         password: createPassword.trim(),
         role: createRole,
-        teacherCode: createRole === "TEACHER" ? createTeacherCode.trim() : undefined,
       });
 
       setIsCreateModalOpen(false);
@@ -296,8 +294,6 @@ export default function AdminManagementPage() {
       matchGroup = acc.role === "PRINCIPAL" || acc.role === "VICE_PRINCIPAL";
     } else if (activeGroupTab === "PROFESSIONAL_BOARDS") {
       matchGroup = acc.role === "EXAM_OFFICER";
-    } else if (activeGroupTab === "TEACHERS") {
-      matchGroup = acc.role === "TEACHER";
     }
 
     const matchRole = roleFilter === "ALL" || acc.role === roleFilter;
@@ -308,7 +304,6 @@ export default function AdminManagementPage() {
   const countPrincipal = accounts.filter((a) => a.role === "PRINCIPAL").length;
   const countVicePrincipal = accounts.filter((a) => a.role === "VICE_PRINCIPAL").length;
   const countExamOfficer = accounts.filter((a) => a.role === "EXAM_OFFICER").length;
-  const countTeacher = accounts.filter((a) => a.role === "TEACHER").length;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -324,11 +319,11 @@ export default function AdminManagementPage() {
                 <Landmark className="w-5 h-5" />
               </span>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Quản lý Ban Giám Hiệu & Phân Quyền Nhân Sự
+                Quản lý Ban Giám Hiệu & Cán Bộ Khảo Thí
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Quản lý, tạo tài khoản và phân quyền cho Ban Giám hiệu, Cán bộ khảo thí và Giáo viên.
+              Quản lý, tạo tài khoản và phân quyền cho Ban Giám hiệu (Hiệu trưởng, Hiệu phó) và Cán bộ khảo thí.
             </p>
           </div>
 
@@ -367,8 +362,8 @@ export default function AdminManagementPage() {
           </Alert>
         )}
 
-        {/* Overview Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Overview Stats Cards - 3 Management Roles */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
           <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-purple-700">Hiệu trưởng</span>
@@ -401,17 +396,6 @@ export default function AdminManagementPage() {
             <div className="mt-2 text-2xl font-bold text-slate-900">{countExamOfficer}</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Tổ chức thi & chấm OMR</div>
           </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-emerald-700">Giáo viên</span>
-              <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
-                <School className="w-4 h-4" />
-              </span>
-            </div>
-            <div className="mt-2 text-2xl font-bold text-slate-900">{countTeacher}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Giảng dạy & chấm bài</div>
-          </div>
         </div>
 
         {/* Navigation Section Tabs */}
@@ -425,7 +409,7 @@ export default function AdminManagementPage() {
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            Tất cả nhân sự ({accounts.length})
+            Tất cả cán bộ quản lý ({accounts.length})
           </button>
           <button
             type="button"
@@ -450,18 +434,6 @@ export default function AdminManagementPage() {
           >
             <ShieldCheck className="w-3.5 h-3.5" />
             Cán bộ khảo thí ({countExamOfficer})
-          </button>
-          <button
-            type="button"
-            onClick={() => { setActiveGroupTab("TEACHERS"); setRoleFilter("ALL"); }}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              activeGroupTab === "TEACHERS"
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            <School className="w-3.5 h-3.5" />
-            Giáo viên ({countTeacher})
           </button>
         </div>
 
@@ -488,7 +460,6 @@ export default function AdminManagementPage() {
               <option value="PRINCIPAL">Hiệu trưởng</option>
               <option value="VICE_PRINCIPAL">Hiệu phó chuyên môn</option>
               <option value="EXAM_OFFICER">Cán bộ khảo thí</option>
-              <option value="TEACHER">Giáo viên</option>
             </select>
 
             <select
@@ -830,7 +801,6 @@ export default function AdminManagementPage() {
               <option value="PRINCIPAL">👑 Hiệu trưởng (Phê duyệt kết quả cao nhất)</option>
               <option value="VICE_PRINCIPAL">🎓 Hiệu phó chuyên môn (Quản lý chuyên môn & phân công)</option>
               <option value="EXAM_OFFICER">📋 Cán bộ khảo thí (Tổ chức thi & chấm OMR)</option>
-              <option value="TEACHER">🏫 Giáo viên (Giảng dạy, tạo đề & chấm bài)</option>
             </select>
           </div>
 
@@ -856,7 +826,7 @@ export default function AdminManagementPage() {
             </label>
             <input
               type="email"
-              placeholder="VD: giaovien@digitalexam.local..."
+              placeholder="VD: bgh@digitalexam.local..."
               value={createEmail}
               onChange={(e) => setCreateEmail(e.target.value)}
               required
@@ -864,35 +834,18 @@ export default function AdminManagementPage() {
             />
           </div>
 
-          {/* Phone & Teacher Code (if TEACHER) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Số điện thoại
-              </label>
-              <input
-                type="tel"
-                placeholder="VD: 0912345678"
-                value={createPhone}
-                onChange={(e) => setCreatePhone(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-              />
-            </div>
-
-            {createRole === "TEACHER" && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Mã giáo viên (Tùy chọn)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Để trống tự sinh mã (VD: GV010)"
-                  value={createTeacherCode}
-                  onChange={(e) => setCreateTeacherCode(e.target.value.toUpperCase())}
-                  className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-mono uppercase"
-                />
-              </div>
-            )}
+          {/* Phone */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Số điện thoại
+            </label>
+            <input
+              type="tel"
+              placeholder="VD: 0912345678"
+              value={createPhone}
+              onChange={(e) => setCreatePhone(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+            />
           </div>
 
           {/* Initial Password */}

@@ -97,9 +97,18 @@ export function assertExamDraft(exam) {
 }
 
 export async function assertExamManageAccess(exam, reqUser) {
-  // SUPER_ADMIN, PRINCIPAL, and VICE_PRINCIPAL have institutional management rights
-  if (["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL"].includes(reqUser.role)) {
+  // SUPER_ADMIN has unconditional management access
+  if (reqUser.role === "SUPER_ADMIN") {
     return true;
+  }
+
+  // PRINCIPAL and VICE_PRINCIPAL have read-only oversight (cannot directly modify exam config)
+  if (["PRINCIPAL", "VICE_PRINCIPAL"].includes(reqUser.role)) {
+    throw new AppError(
+      "Ban Giám hiệu chỉ có quyền giám sát, phê duyệt và không trực tiếp chỉnh sửa cấu hình đề thi.",
+      403,
+      "EXAM_MANAGEMENT_DENIED"
+    );
   }
 
   // EXAM_OFFICER can manage official examinations (MIDTERM, FINAL)

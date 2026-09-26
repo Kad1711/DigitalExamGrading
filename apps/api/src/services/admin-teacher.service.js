@@ -736,6 +736,15 @@ export async function updateTeacherAssignments(teacherId, { classIds = [], subje
     }
 
     for (const cid of toAdd) {
+      // Đảm bảo nguyên tắc THCS V2: Mỗi lớp chỉ có tối đa 1 giáo viên cho mỗi môn học
+      await tx.teachingAssignment.deleteMany({
+        where: {
+          classId: cid,
+          subjectId: targetSubjectId,
+          academicYearId: academicYear.id,
+        },
+      });
+
       await tx.teachingAssignment.create({
         data: {
           teacherId,
