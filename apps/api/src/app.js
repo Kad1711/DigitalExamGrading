@@ -12,6 +12,9 @@ import { getAvatarController } from "./controllers/profile.controller.js";
 
 const app = express();
 
+// Trust reverse proxy headers (e.g. on Render / Heroku / Nginx)
+app.set("trust proxy", 1);
+
 // =====================================================
 // GLOBAL MIDDLEWARES
 // =====================================================

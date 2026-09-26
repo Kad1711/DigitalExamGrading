@@ -33,10 +33,13 @@ export function notFoundHandler(req, res) {
  */
 // eslint-disable-next-line no-unused-vars
 export function globalErrorHandler(err, req, res, next) {
-  if (process.env.NODE_ENV !== "production") {
-    console.error("[ERROR]", err);
-  } else {
-    console.error("[ERROR]", err.message);
+  const isClientError = err.isOperational && err.statusCode && err.statusCode < 500;
+  if (!isClientError) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[ERROR]", err);
+    } else {
+      console.error("[ERROR]", err.message);
+    }
   }
 
   if (err.isOperational) {

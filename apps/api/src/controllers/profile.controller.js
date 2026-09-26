@@ -87,6 +87,17 @@ export async function getAvatarController(req, res, next) {
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     stream.pipe(res);
   } catch (err) {
+    if (err.statusCode === 404 || err.code === "AVATAR_NOT_FOUND") {
+      res.setHeader("Content-Type", "image/svg+xml");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      return res.status(200).send(`
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="96" height="96" fill="#94a3b8">
+          <circle cx="12" cy="12" r="12" fill="#f1f5f9"/>
+          <path d="M12 4a4 4 0 0 1 4 4 4 4 0 0 1-4 4 4 4 0 0 1-4-4 4 4 0 0 1 4-4zm0 10c4.42 0 8 1.79 8 4v2H4v-2c0-2.21 3.58-4 8-4z"/>
+        </svg>
+      `.trim());
+    }
     next(err);
   }
 }
