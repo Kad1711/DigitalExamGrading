@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { redisConnectionOptions } from "../config/redis.config.js";
+import { redisConnectionOptions, isRedisConfigured } from "../config/redis.config.js";
 import { GRADING_QUEUE_NAME, getBatchRecord, saveBatchRecord } from "./grading.queue.js";
 import { createSubmission } from "../services/submission.service.js";
 
@@ -93,6 +93,10 @@ async function processGradingJob(job) {
  */
 export function initGradingWorker() {
   if (worker) return worker;
+  if (!isRedisConfigured()) {
+    console.log("[QUEUE] Skipping BullMQ Worker initialization: Redis not configured.");
+    return null;
+  }
 
   const concurrency = Number(process.env.GRADING_WORKER_CONCURRENCY) || 2;
 

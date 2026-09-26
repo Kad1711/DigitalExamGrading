@@ -22,10 +22,17 @@ const server = app.listen(PORT, async () => {
   console.log(`[SERVER] API running at http://localhost:${PORT}`);
   console.log(`[SERVER] Environment: ${process.env.NODE_ENV || "development"}`);
 
-  // Initialize BullMQ background queue worker
+  // Initialize BullMQ background queue worker only if Redis is configured
   try {
-    const { initGradingWorker } = await import("./queue/grading.worker.js");
-    initGradingWorker();
+    const { isRedisConfigured } = await import("./config/redis.config.js");
+    if (isRedisConfigured()) {
+      const { initGradingWorker } = await import("./queue/grading.worker.js");
+      initGradingWorker();
+    } else {
+      console.log(
+        "[QUEUE] REDIS_URL not configured. Running without queue worker (set REDIS_URL if batch queue is needed)."
+      );
+    }
   } catch (err) {
     console.warn("[SERVER] BullMQ worker initialization skipped:", err.message);
   }
