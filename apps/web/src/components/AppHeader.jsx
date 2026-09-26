@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   LayoutDashboard,
   Landmark,
+  BarChart3,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { formatUserRole, getInitials, getAvatarUrl } from "../utils/enum-map";
@@ -42,6 +43,7 @@ export default function AppHeader() {
   const isClassesActive = location.pathname.startsWith("/classes");
   const isGradeActive = location.pathname.startsWith("/grade");
   const isAdminDashboardActive = location.pathname === "/admin/dashboard" || location.pathname === "/admin";
+  const isStatisticsActive = location.pathname.startsWith("/admin/dashboard") || location.pathname.startsWith("/statistics");
   const isAdminManagementActive = location.pathname.startsWith("/admin/management");
   const isAcademicStructureActive = location.pathname.startsWith("/principal/academic-structure");
   const isAdminTeachersActive = location.pathname.startsWith("/admin/teachers");
@@ -80,6 +82,12 @@ export default function AppHeader() {
       active: isGradeActive,
     },
     {
+      label: "Thống kê",
+      href: "/statistics",
+      icon: BarChart3,
+      active: isStatisticsActive,
+    },
+    {
       label: "Hồ sơ giáo viên",
       href: "/profile",
       icon: UserCheck,
@@ -110,10 +118,10 @@ export default function AppHeader() {
 
   const adminNavItems = [
     {
-      label: "Tổng quan",
+      label: "Tổng quan & Thống kê",
       href: "/admin/dashboard",
       icon: LayoutDashboard,
-      active: isAdminDashboardActive,
+      active: isStatisticsActive,
     },
     {
       label: "Quản lý phòng ban",
@@ -180,6 +188,12 @@ export default function AppHeader() {
       active: isAdminTeachersActive,
     },
     {
+      label: "Thống kê",
+      href: "/statistics",
+      icon: BarChart3,
+      active: isStatisticsActive,
+    },
+    {
       label: "Hồ sơ",
       href: "/profile",
       icon: UserCheck,
@@ -214,6 +228,12 @@ export default function AppHeader() {
       active: isClassesActive,
     },
     {
+      label: "Thống kê",
+      href: "/statistics",
+      icon: BarChart3,
+      active: isStatisticsActive,
+    },
+    {
       label: "Hồ sơ",
       href: "/profile",
       icon: UserCheck,
@@ -240,6 +260,12 @@ export default function AppHeader() {
       href: "/classes",
       icon: Users,
       active: isClassesActive,
+    },
+    {
+      label: "Thống kê",
+      href: "/statistics",
+      icon: BarChart3,
+      active: isStatisticsActive,
     },
     {
       label: "Hồ sơ",

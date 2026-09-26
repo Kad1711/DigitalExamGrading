@@ -1,10 +1,57 @@
 import prisma from "../config/prisma.js";
 
 /**
- * Get aggregated system statistics for Admin Dashboard
+ * Get aggregated system statistics for Admin Dashboard with dynamic filters
+ * @param {Object} filters - { gradeId, classId, subjectId, teacherId }
  */
-export async function getAdminSystemDashboard() {
+export async function getAdminSystemDashboard(filters = {}) {
+  const { gradeId, classId, subjectId, teacherId } = filters;
+
+  // Build exam filter
+  const whereExam = {};
+  if (subjectId && subjectId !== "ALL") whereExam.subjectId = subjectId;
+  if (gradeId && gradeId !== "ALL") whereExam.gradeId = gradeId;
+  if (classId && classId !== "ALL") {
+    whereExam.OR = [{ classId }, { examClasses: { some: { classId } } }];
+  }
+  if (teacherId && teacherId !== "ALL") whereExam.teacherId = teacherId;
+
+  // Build submission filter
+  const whereSubmission = {};
+  if (Object.keys(whereExam).length > 0) {
+    whereSubmission.exam = whereExam;
+  }
+  if (classId && classId !== "ALL") {
+    whereSubmission.student = { enrollments: { some: { classId } } };
+  } else if (gradeId && gradeId !== "ALL") {
+    whereSubmission.student = { enrollments: { some: { class: { gradeId } } } };
+  }
+
+  // Build student filter
+  const whereStudent = {
+    enrollments: {
+      some:
+        classId && classId !== "ALL"
+          ? { classId }
+          : gradeId && gradeId !== "ALL"
+          ? { class: { gradeId } }
+          : {},
+    },
+  };
+
+  // Build class filter
+  const whereClass = {};
+  if (classId && classId !== "ALL") {
+    whereClass.id = classId;
+  } else if (gradeId && gradeId !== "ALL") {
+    whereClass.gradeId = gradeId;
+  }
+
   const [
+    filterGrades,
+    filterClasses,
+    filterSubjects,
+    filterTeachers,
     totalTeachers,
     activeTeachers,
     lockedTeachers,
@@ -26,23 +73,44 @@ export async function getAdminSystemDashboard() {
     recentSubmissionsRaw,
     topTeachersRaw,
   ] = await Promise.all([
+    // Filter dropdown options
+    prisma.grade.findMany({
+      orderBy: { level: "asc" },
+      select: { id: true, name: true, level: true },
+    }),
+    prisma.class.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, gradeId: true },
+    }),
+    prisma.subject.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, code: true },
+    }),
+    prisma.teacher.findMany({
+      orderBy: { fullName: "asc" },
+      select: { id: true, fullName: true, teacherCode: true },
+    }),
+
     // Teachers
     prisma.teacher.count(),
     prisma.user.count({ where: { role: "TEACHER", status: "ACTIVE" } }),
     prisma.user.count({ where: { role: "TEACHER", status: "LOCKED" } }),
 
-    // Students: Chi thong ke thuc te hoc sinh da duoc xep vao lop
+    // Students: Đã được xếp lớp (tuân thủ bộ lọc)
     prisma.student.count({
-      where: {
-        enrollments: {
-          some: {},
-        },
-      },
+      where: whereStudent,
     }),
-    prisma.studentEnrollment.count(),
+    prisma.studentEnrollment.count({
+      where:
+        classId && classId !== "ALL"
+          ? { classId }
+          : gradeId && gradeId !== "ALL"
+          ? { class: { gradeId } }
+          : {},
+    }),
 
     // Classes
-    prisma.class.count(),
+    prisma.class.count({ where: whereClass }),
     prisma.academicYear.findFirst({ orderBy: { createdAt: "desc" } }),
 
     // Grades with classes and student counts
@@ -72,28 +140,31 @@ export async function getAdminSystemDashboard() {
       },
     }),
 
-    // Exams
-    prisma.exam.count(),
+    // Exams (Filtered)
+    prisma.exam.count({ where: whereExam }),
     prisma.exam.groupBy({
       by: ["status"],
+      where: whereExam,
       _count: { id: true },
     }),
     prisma.exam.count({
-      where: { resultsPublishedAt: { not: null } },
+      where: { ...whereExam, resultsPublishedAt: { not: null } },
     }),
 
-    // Submissions
-    prisma.examSubmission.count(),
+    // Submissions (Filtered)
+    prisma.examSubmission.count({ where: whereSubmission }),
     prisma.examSubmission.groupBy({
       by: ["status"],
+      where: whereSubmission,
       _count: { id: true },
     }),
     prisma.examSubmission.count({
-      where: { identityNeedsReview: true },
+      where: { ...whereSubmission, identityNeedsReview: true },
     }),
 
-    // Answers aggregation
+    // Answers aggregation (Filtered)
     prisma.examSubmission.aggregate({
+      where: whereSubmission,
       _sum: {
         correctCount: true,
         incorrectCount: true,
@@ -102,8 +173,9 @@ export async function getAdminSystemDashboard() {
       },
     }),
 
-    // Submissions score list for distribution and average
+    // Submissions score list for distribution and average (Filtered)
     prisma.examSubmission.findMany({
+      where: whereSubmission,
       select: {
         finalScore: true,
         provisionalScore: true,
@@ -111,8 +183,9 @@ export async function getAdminSystemDashboard() {
       },
     }),
 
-    // Recent exams
+    // Recent exams (Filtered)
     prisma.exam.findMany({
+      where: whereExam,
       take: 5,
       orderBy: { createdAt: "desc" },
       include: {
@@ -123,8 +196,9 @@ export async function getAdminSystemDashboard() {
       },
     }),
 
-    // Recent submissions
+    // Recent submissions (Filtered)
     prisma.examSubmission.findMany({
+      where: whereSubmission,
       take: 5,
       orderBy: { createdAt: "desc" },
       include: {
@@ -181,16 +255,16 @@ export async function getAdminSystemDashboard() {
   };
 
   for (const sub of submissionsScores) {
-    const rawVal = sub.status === "FINAL" && sub.finalScore !== null
-      ? sub.finalScore
-      : sub.provisionalScore;
+    const rawVal =
+      sub.status === "FINAL" && sub.finalScore !== null
+        ? sub.finalScore
+        : sub.provisionalScore;
 
     if (rawVal !== null && rawVal !== undefined) {
       const score = Number(rawVal);
       if (!isNaN(score)) {
         scoreSum += score;
         scoreCount += 1;
-
         if (score >= 8.0) scoreDistribution.excellent += 1;
         else if (score >= 6.5) scoreDistribution.good += 1;
         else if (score >= 5.0) scoreDistribution.average += 1;
@@ -199,7 +273,8 @@ export async function getAdminSystemDashboard() {
     }
   }
 
-  const averageScore = scoreCount > 0 ? Number((scoreSum / scoreCount).toFixed(2)) : 0;
+  const averageScore =
+    scoreCount > 0 ? Number((scoreSum / scoreCount).toFixed(2)) : 0;
 
   // Grade level breakdown (THCS: 6-9, THPT: 10-12)
   const gradeBreakdown = allGrades.map((g) => {
@@ -239,7 +314,10 @@ export async function getAdminSystemDashboard() {
     code: s.code,
     name: s.name,
     examsCount: s._count.exams,
-    examPercentage: totalExams > 0 ? Number(((s._count.exams / totalExams) * 100).toFixed(1)) : 0,
+    examPercentage:
+      totalExams > 0
+        ? Number(((s._count.exams / totalExams) * 100).toFixed(1))
+        : 0,
   }));
 
   // OMR Answer Stats
@@ -256,6 +334,18 @@ export async function getAdminSystemDashboard() {
     omrAnswers.unresolved;
 
   return {
+    filterOptions: {
+      grades: filterGrades,
+      classes: filterClasses,
+      subjects: filterSubjects,
+      teachers: filterTeachers,
+    },
+    appliedFilters: {
+      gradeId: gradeId || "ALL",
+      classId: classId || "ALL",
+      subjectId: subjectId || "ALL",
+      teacherId: teacherId || "ALL",
+    },
     overview: {
       teachers: {
         total: totalTeachers,
@@ -263,8 +353,8 @@ export async function getAdminSystemDashboard() {
         locked: lockedTeachers,
       },
       students: {
-        total: thcsStudents,
-        enrolled: thcsStudents,
+        total: totalStudents,
+        enrolled: totalEnrollments,
       },
       classes: {
         total: totalClasses,
@@ -318,9 +408,18 @@ export async function getAdminSystemDashboard() {
       examId: s.exam?.id,
       examTitle: s.exam?.title || "Kỳ thi",
       examCode: s.examCode?.code || "N/A",
-      studentNumber: s.resolvedStudentNumber || s.candidateStudentNumber || s.detectedStudentNumber || "---",
+      studentNumber:
+        s.resolvedStudentNumber ||
+        s.candidateStudentNumber ||
+        s.detectedStudentNumber ||
+        "---",
       status: s.status,
-      score: s.status === "FINAL" && s.finalScore !== null ? Number(s.finalScore) : (s.provisionalScore !== null ? Number(s.provisionalScore) : null),
+      score:
+        s.status === "FINAL" && s.finalScore !== null
+          ? Number(s.finalScore)
+          : s.provisionalScore !== null
+          ? Number(s.provisionalScore)
+          : null,
       createdAt: s.createdAt,
     })),
     topTeachers: topTeachersRaw.map((t) => ({

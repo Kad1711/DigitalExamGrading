@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/client";
+import { useAuth } from "../context/AuthContext";
 import AppHeader from "../components/AppHeader";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -27,35 +28,62 @@ import {
   Calendar,
   Layers,
   Landmark,
+  Filter,
+  RotateCcw,
+  SlidersHorizontal,
 } from "lucide-react";
 import { formatExamStatus } from "../utils/enum-map";
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "SUPER_ADMIN";
+  const isBGH = user?.role === "PRINCIPAL" || user?.role === "VICE_PRINCIPAL";
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const fetchDashboardData = useCallback(async (isSilent = false) => {
-    if (!isSilent) setLoading(true);
-    else setRefreshing(true);
-    setError("");
+  // Multi-dimensional filter states
+  const [selectedGradeId, setSelectedGradeId] = useState("ALL");
+  const [selectedClassId, setSelectedClassId] = useState("ALL");
+  const [selectedSubjectId, setSelectedSubjectId] = useState("ALL");
+  const [selectedTeacherId, setSelectedTeacherId] = useState("ALL");
 
-    try {
-      const res = await api.get("/admin/dashboard");
-      setData(res.data.data);
-    } catch (err) {
-      console.error("Failed to load admin dashboard data:", err);
-      setError(
-        err.response?.data?.error?.message ||
-          "Không thể tải dữ liệu thống kê hệ thống. Vui lòng thử lại sau."
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const fetchDashboardData = useCallback(
+    async (isSilent = false, overrides = {}) => {
+      if (!isSilent) setLoading(true);
+      else setRefreshing(true);
+      setError("");
+
+      try {
+        const params = {};
+        const gId = overrides.gradeId !== undefined ? overrides.gradeId : selectedGradeId;
+        const cId = overrides.classId !== undefined ? overrides.classId : selectedClassId;
+        const sId = overrides.subjectId !== undefined ? overrides.subjectId : selectedSubjectId;
+        const tId = overrides.teacherId !== undefined ? overrides.teacherId : selectedTeacherId;
+
+        if (gId && gId !== "ALL") params.gradeId = gId;
+        if (cId && cId !== "ALL") params.classId = cId;
+        if (sId && sId !== "ALL") params.subjectId = sId;
+        if (tId && tId !== "ALL") params.teacherId = tId;
+
+        const res = await api.get("/admin/dashboard", { params });
+        setData(res.data.data);
+      } catch (err) {
+        console.error("Failed to load admin dashboard data:", err);
+        setError(
+          err.response?.data?.error?.message ||
+            "Không thể tải dữ liệu thống kê hệ thống. Vui lòng thử lại sau."
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [selectedGradeId, selectedClassId, selectedSubjectId, selectedTeacherId]
+  );
 
   useEffect(() => {
     fetchDashboardData();
@@ -71,6 +99,68 @@ export default function AdminDashboardPage() {
   const recentSubmissions = data?.recentSubmissions || [];
   const topTeachers = data?.topTeachers || [];
   const systemHealth = data?.systemHealth;
+
+  // Filter options from API
+  const filterGrades = data?.filterOptions?.grades || [];
+  const filterClasses = data?.filterOptions?.classes || [];
+  const filterSubjects = data?.filterOptions?.subjects || [];
+  const filterTeachers = data?.filterOptions?.teachers || [];
+
+  // Filter classes according to selectedGradeId
+  const availableClasses = useMemo(() => {
+    if (selectedGradeId === "ALL") return filterClasses;
+    return filterClasses.filter((c) => c.gradeId === selectedGradeId);
+  }, [filterClasses, selectedGradeId]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedGradeId !== "ALL") count++;
+    if (selectedClassId !== "ALL") count++;
+    if (selectedSubjectId !== "ALL") count++;
+    if (selectedTeacherId !== "ALL") count++;
+    return count;
+  }, [selectedGradeId, selectedClassId, selectedSubjectId, selectedTeacherId]);
+
+  const handleGradeChange = (newGradeId) => {
+    setSelectedGradeId(newGradeId);
+    let nextClassId = selectedClassId;
+    if (newGradeId !== "ALL") {
+      const clsInGrade = filterClasses.filter((c) => c.gradeId === newGradeId);
+      if (!clsInGrade.some((c) => c.id === selectedClassId)) {
+        nextClassId = "ALL";
+        setSelectedClassId("ALL");
+      }
+    }
+    fetchDashboardData(true, { gradeId: newGradeId, classId: nextClassId });
+  };
+
+  const handleClassChange = (newClassId) => {
+    setSelectedClassId(newClassId);
+    fetchDashboardData(true, { classId: newClassId });
+  };
+
+  const handleSubjectChange = (newSubjectId) => {
+    setSelectedSubjectId(newSubjectId);
+    fetchDashboardData(true, { subjectId: newSubjectId });
+  };
+
+  const handleTeacherChange = (newTeacherId) => {
+    setSelectedTeacherId(newTeacherId);
+    fetchDashboardData(true, { teacherId: newTeacherId });
+  };
+
+  const handleResetFilters = () => {
+    setSelectedGradeId("ALL");
+    setSelectedClassId("ALL");
+    setSelectedSubjectId("ALL");
+    setSelectedTeacherId("ALL");
+    fetchDashboardData(true, {
+      gradeId: "ALL",
+      classId: "ALL",
+      subjectId: "ALL",
+      teacherId: "ALL",
+    });
+  };
 
   const totalScoreSubmissions = scoring?.gradedCount || 0;
   const dist = scoring?.distribution || {
@@ -113,11 +203,11 @@ export default function AdminDashboardPage() {
 
       <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Top Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 mb-1">
               <ShieldCheck className="w-4 h-4" />
-              <span>BẢNG ĐIỀU KHIỂN QUẢN TRỊ VIÊN</span>
+              <span>{isAdmin ? "BẢNG ĐIỀU KHIỂN QUẢN TRỊ VIÊN" : "BÁO CÁO & THỐNG KÊ TOÀN DIỆN"}</span>
               <span className="text-slate-300">•</span>
               <span className="flex items-center gap-1 text-slate-500 font-normal">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -125,10 +215,10 @@ export default function AdminDashboardPage() {
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Tổng quan hệ thống
+              {isAdmin ? "Tổng quan & Thống kê hệ thống" : "Trung tâm Thống kê & Báo cáo kết quả"}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Báo cáo thống kê thời gian thực toàn bộ hoạt động giảng dạy, thi cử và chấm thi OMR
+              Thống kê kết quả thi cử, phân bố điểm số và chấm thi OMR theo khối, lớp, môn học và giáo viên.
             </p>
           </div>
 
@@ -136,7 +226,7 @@ export default function AdminDashboardPage() {
             <button
               onClick={() => fetchDashboardData(true)}
               disabled={loading || refreshing}
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-xs transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               title="Làm mới dữ liệu"
             >
               <RefreshCw
@@ -147,23 +237,151 @@ export default function AdminDashboardPage() {
               <span>{refreshing ? "Đang cập nhật..." : "Làm mới"}</span>
             </button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              icon={Landmark}
-              onClick={() => navigate("/admin/management")}
-            >
-              Quản lý phòng ban
-            </Button>
+            {isAdmin && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={Landmark}
+                  onClick={() => navigate("/admin/management")}
+                >
+                  Quản lý phòng ban
+                </Button>
 
-            <Button
-              variant="primary"
-              size="sm"
-              icon={Users}
-              onClick={() => navigate("/admin/teachers")}
-            >
-              Quản lý giáo viên
-            </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Users}
+                  onClick={() => navigate("/admin/teachers")}
+                >
+                  Quản lý giáo viên
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Multi-Dimensional Filter Bar Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5 mb-8 transition-all">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                <SlidersHorizontal className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+                    Bộ lọc Thống kê Đa chiều
+                  </h2>
+                  {activeFilterCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-600 text-white shadow-2xs">
+                      {activeFilterCount} bộ lọc
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Lọc số liệu tổng quan, phổ điểm, danh sách kỳ thi và bài nộp theo khối, lớp, môn học hoặc giáo viên
+                </p>
+              </div>
+            </div>
+
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer self-start sm:self-auto"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Đặt lại bộ lọc</span>
+              </button>
+            )}
+          </div>
+
+          {/* 4 Interactive Dropdown Filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-4">
+            {/* Filter 1: Grade (Khối) */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-blue-600" />
+                <span>Theo Khối</span>
+              </label>
+              <select
+                value={selectedGradeId}
+                onChange={(e) => handleGradeChange(e.target.value)}
+                className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 focus:bg-white transition-all cursor-pointer"
+              >
+                <option value="ALL">Tất cả khối học ({filterGrades.length})</option>
+                {filterGrades.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter 2: Class (Lớp) */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Theo Lớp học</span>
+              </label>
+              <select
+                value={selectedClassId}
+                onChange={(e) => handleClassChange(e.target.value)}
+                className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 focus:bg-white transition-all cursor-pointer"
+              >
+                <option value="ALL">
+                  Tất cả lớp ({availableClasses.length})
+                </option>
+                {availableClasses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    Lớp {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter 3: Subject (Môn) */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Theo Môn học</span>
+              </label>
+              <select
+                value={selectedSubjectId}
+                onChange={(e) => handleSubjectChange(e.target.value)}
+                className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 focus:bg-white transition-all cursor-pointer"
+              >
+                <option value="ALL">Tất cả môn học ({filterSubjects.length})</option>
+                {filterSubjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter 4: Teacher (Giáo viên) */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5 text-amber-600" />
+                <span>Theo Giáo viên</span>
+              </label>
+              <select
+                value={selectedTeacherId}
+                onChange={(e) => handleTeacherChange(e.target.value)}
+                className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 focus:bg-white transition-all cursor-pointer"
+              >
+                <option value="ALL">
+                  Tất cả giáo viên ({filterTeachers.length})
+                </option>
+                {filterTeachers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.fullName} {t.teacherCode ? `(${t.teacherCode})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

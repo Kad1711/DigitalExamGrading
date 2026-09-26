@@ -60,6 +60,19 @@ export async function listClasses() {
           exams: true,
         },
       },
+      assignments: {
+        select: {
+          teacherId: true,
+          subjectId: true,
+          teacher: {
+            select: {
+              id: true,
+              fullName: true,
+              teacherCode: true,
+            },
+          },
+        },
+      },
       createdAt: true,
     },
     orderBy: [{ grade: { level: "asc" } }, { name: "asc" }],
@@ -75,6 +88,8 @@ export async function listClasses() {
     academicYearName: c.academicYear.name,
     studentCount: c._count.enrollments,
     examCount: c._count.exams,
+    assignedTeacherIds: (c.assignments || []).map((a) => a.teacherId),
+    assignedTeachers: (c.assignments || []).map((a) => a.teacher?.fullName).filter(Boolean),
     createdAt: c.createdAt,
   }));
 }

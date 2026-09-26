@@ -59,6 +59,11 @@ export async function authenticate(req, res, next) {
               code: true,
             },
           },
+          assignments: {
+            select: {
+              classId: true,
+            },
+          },
         },
       },
       student: {

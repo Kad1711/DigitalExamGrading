@@ -11,7 +11,7 @@ const router = Router();
 router.use(authenticate);
 
 const adminOnly = authorizeRoles("SUPER_ADMIN");
-const canViewOversight = authorizeRoles("SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL");
+const canViewOversight = authorizeRoles("SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER", "TEACHER");
 const canManageTeacherProfessional = authorizeRoles("SUPER_ADMIN", "VICE_PRINCIPAL");
 const canViewTeachers = authorizeRoles("SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL");
 

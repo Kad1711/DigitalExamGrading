@@ -60,11 +60,19 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register-teacher" element={<RegisterTeacherPage />} />
 
-          {/* Admin Routes */}
+          {/* Dashboard / Statistics Routes */}
           <Route
             path="/admin/dashboard"
             element={
-              <RequireRole roles={["SUPER_ADMIN"]}>
+              <RequireRole roles={["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER", "TEACHER"]}>
+                <AdminDashboardPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/statistics"
+            element={
+              <RequireRole roles={["SUPER_ADMIN", "PRINCIPAL", "VICE_PRINCIPAL", "EXAM_OFFICER", "TEACHER"]}>
                 <AdminDashboardPage />
               </RequireRole>
             }

@@ -65,6 +65,11 @@ export async function login(email, password) {
             code: true,
           },
         },
+        assignments: {
+          select: {
+            classId: true,
+          },
+        },
       },
     },
     student: {
