@@ -775,7 +775,7 @@ export async function updateTeacherAssignments(
         .map((c) => `Lớp ${c.className} đang do ${c.currentTeacherName} (${c.currentTeacherCode}) phụ trách môn ${c.subjectName}`)
         .join("; ");
       throw new AppError(
-        `Phát hiện xung đột phân công: ${descriptions}. Vui lòng xác nhận chuyển quyền phụ trách sang cho giáo viên này.`,
+        `Hệ thống nhận thấy: ${descriptions}. Bạn có muốn chuyển giao quyền phụ trách sang cho giáo viên này không?`,
         409,
         "ASSIGNMENT_CONFLICT",
         { conflicts }
