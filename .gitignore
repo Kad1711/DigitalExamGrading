@@ -34,3 +34,7 @@ Desktop.ini
 .cursor/
 .devin/
 
+# Remediation & Audit reports
+REMEDIATION_*.md
+INDEPENDENT_RECHECK.md
+
