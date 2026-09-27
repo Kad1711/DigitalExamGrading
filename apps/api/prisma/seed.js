@@ -249,14 +249,15 @@ async function main() {
   for (const clsName of ["6A1", "7A1"]) {
     await prisma.teachingAssignment.upsert({
       where: {
-        teacherId_classId_subjectId_academicYearId: {
-          teacherId: teacherProfile.id,
+        classId_subjectId_academicYearId: {
           classId: classMap[clsName].id,
           subjectId: subjectMap["TOAN"].id,
           academicYearId: academicYear.id,
         },
       },
-      update: {},
+      update: {
+        teacherId: teacherProfile.id,
+      },
       create: {
         teacherId: teacherProfile.id,
         classId: classMap[clsName].id,
@@ -306,14 +307,15 @@ async function main() {
   // Assign Teacher 2 to 6A1 for NGUVAN
   await prisma.teachingAssignment.upsert({
     where: {
-      teacherId_classId_subjectId_academicYearId: {
-        teacherId: teacher2Profile.id,
+      classId_subjectId_academicYearId: {
         classId: classMap["6A1"].id,
         subjectId: subjectMap["NGUVAN"].id,
         academicYearId: academicYear.id,
       },
     },
-    update: {},
+    update: {
+      teacherId: teacher2Profile.id,
+    },
     create: {
       teacherId: teacher2Profile.id,
       classId: classMap["6A1"].id,
