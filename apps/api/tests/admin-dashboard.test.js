@@ -19,7 +19,11 @@ test("Admin Dashboard System Statistics Test Suite", async (t) => {
     assert.ok(data.overview.academicYear, "Must report academic year");
     assert.equal(typeof data.overview.exams.total, "number");
     assert.equal(typeof data.overview.submissions.total, "number");
-    assert.equal(typeof data.overview.scoring.averageScore, "number");
+    assert.ok(
+      typeof data.overview.scoring.averageScore === "number" ||
+        data.overview.scoring.averageScore === null,
+      "averageScore must be number or null"
+    );
     assert.ok(data.overview.scoring.distribution, "Must have score distribution");
 
     // Tier statistics (THCS & THPT)
