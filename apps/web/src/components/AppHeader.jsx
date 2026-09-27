@@ -39,7 +39,12 @@ export default function AppHeader() {
   const isExamOfficer = user?.role === "EXAM_OFFICER";
   const isManagement = isPrincipal || isVicePrincipal || isExamOfficer;
 
-  const isExamsActive = location.pathname.startsWith("/exams");
+  const searchParams = new URLSearchParams(location.search);
+  const isApprovalQueueActive =
+    (location.pathname === "/exams" && searchParams.get("tab") === "approval-queue") ||
+    location.pathname.startsWith("/exams/approval-queue") ||
+    location.pathname.startsWith("/publication/approval-queue");
+  const isExamsActive = location.pathname.startsWith("/exams") && !isApprovalQueueActive;
   const isClassesActive = location.pathname.startsWith("/classes");
   const isGradeActive = location.pathname.startsWith("/grade");
   const isAdminDashboardActive = location.pathname === "/admin/dashboard" || location.pathname === "/admin";
@@ -51,8 +56,6 @@ export default function AppHeader() {
   const isProfileActive = location.pathname.startsWith("/profile");
   const isStudentExamsActive = location.pathname.startsWith("/student/exams");
   const isStudentResultsActive = location.pathname.startsWith("/student/results");
-  const isApprovalQueueActive = location.pathname.startsWith("/exams/approval-queue") ||
-    location.pathname.startsWith("/publication/approval-queue");
   const isVicePrincipalTeachersActive = location.pathname.startsWith("/vice-principal/teachers");
 
   const displayName =
@@ -65,16 +68,16 @@ export default function AppHeader() {
 
   const teacherNavItems = [
     {
+      label: "Tổng quan & Thống kê",
+      href: "/teacher/statistics",
+      icon: LayoutDashboard,
+      active: isTeacherStatisticsActive,
+    },
+    {
       label: "Kỳ thi & Đề thi",
       href: "/exams",
       icon: FileText,
       active: isExamsActive,
-    },
-    {
-      label: "Lớp học & Học sinh",
-      href: "/classes",
-      icon: Users,
-      active: isClassesActive,
     },
     {
       label: "Chấm bài OMR",
@@ -83,13 +86,13 @@ export default function AppHeader() {
       active: isGradeActive,
     },
     {
-      label: "Thống kê",
-      href: "/teacher/statistics",
-      icon: BarChart3,
-      active: isTeacherStatisticsActive,
+      label: "Lớp học & Học sinh",
+      href: "/classes",
+      icon: Users,
+      active: isClassesActive,
     },
     {
-      label: "Hồ sơ giáo viên",
+      label: "Hồ sơ cá nhân",
       href: "/profile",
       icon: UserCheck,
       active: isProfileActive,
@@ -98,19 +101,19 @@ export default function AppHeader() {
 
   const studentNavItems = [
     {
-      label: "Kỳ thi",
+      label: "Kỳ thi của tôi",
       href: "/student/exams",
       icon: BookOpen,
       active: isStudentExamsActive,
     },
     {
-      label: "Kết quả",
+      label: "Kết quả học tập",
       href: "/student/results",
       icon: Award,
       active: isStudentResultsActive,
     },
     {
-      label: "Hồ sơ học sinh",
+      label: "Hồ sơ cá nhân",
       href: "/profile",
       icon: UserCheck,
       active: isProfileActive,
@@ -125,22 +128,28 @@ export default function AppHeader() {
       active: isStatisticsActive,
     },
     {
-      label: "Quản lý phòng ban",
-      href: "/admin/management",
-      icon: Landmark,
-      active: isAdminManagementActive,
+      label: "Kỳ thi & Đề thi",
+      href: "/exams",
+      icon: FileText,
+      active: isExamsActive,
     },
     {
-      label: "Cơ cấu chuyên môn",
+      label: "Giáo viên",
+      href: "/admin/teachers",
+      icon: UserCheck,
+      active: isAdminTeachersActive,
+    },
+    {
+      label: "Tổ chuyên môn",
       href: "/principal/academic-structure",
       icon: BookOpen,
       active: isAcademicStructureActive,
     },
     {
-      label: "Quản lý giáo viên",
-      href: "/admin/teachers",
-      icon: UserCheck,
-      active: isAdminTeachersActive,
+      label: "Phân công giảng dạy",
+      href: "/vice-principal/teachers",
+      icon: GraduationCap,
+      active: isVicePrincipalTeachersActive,
     },
     {
       label: "Lớp học & Học sinh",
@@ -149,13 +158,13 @@ export default function AppHeader() {
       active: isClassesActive,
     },
     {
-      label: "Giám sát Kỳ thi",
-      href: "/exams",
-      icon: FileText,
-      active: isExamsActive,
+      label: "Quản trị hệ thống",
+      href: "/admin/management",
+      icon: Landmark,
+      active: isAdminManagementActive,
     },
     {
-      label: "Hồ sơ quản trị",
+      label: "Hồ sơ cá nhân",
       href: "/profile",
       icon: UserCheck,
       active: isProfileActive,
@@ -165,19 +174,31 @@ export default function AppHeader() {
   // Nav for PRINCIPAL — oversight + approval queue for MIDTERM/FINAL
   const principalNavItems = [
     {
+      label: "Tổng quan & Thống kê",
+      href: "/admin/dashboard",
+      icon: LayoutDashboard,
+      active: isStatisticsActive,
+    },
+    {
       label: "Kỳ thi & Đề thi",
       href: "/exams",
       icon: FileText,
       active: isExamsActive,
     },
     {
-      label: "Chờ phê duyệt",
+      label: "Phê duyệt kết quả",
       href: "/exams?tab=approval-queue",
       icon: ShieldCheck,
       active: isApprovalQueueActive,
     },
     {
-      label: "Cơ cấu chuyên môn",
+      label: "Giáo viên",
+      href: "/admin/teachers",
+      icon: UserCheck,
+      active: isAdminTeachersActive,
+    },
+    {
+      label: "Tổ chuyên môn",
       href: "/principal/academic-structure",
       icon: BookOpen,
       active: isAcademicStructureActive,
@@ -189,19 +210,7 @@ export default function AppHeader() {
       active: isClassesActive,
     },
     {
-      label: "Giáo viên",
-      href: "/admin/teachers",
-      icon: UserCheck,
-      active: isAdminTeachersActive,
-    },
-    {
-      label: "Tổng quan & Thống kê",
-      href: "/admin/dashboard",
-      icon: BarChart3,
-      active: isStatisticsActive,
-    },
-    {
-      label: "Hồ sơ",
+      label: "Hồ sơ cá nhân",
       href: "/profile",
       icon: UserCheck,
       active: isProfileActive,
@@ -211,25 +220,31 @@ export default function AppHeader() {
   // Nav for VICE_PRINCIPAL — teacher professional management & publication approval
   const vicePrincipalNavItems = [
     {
+      label: "Tổng quan & Thống kê",
+      href: "/admin/dashboard",
+      icon: LayoutDashboard,
+      active: isStatisticsActive,
+    },
+    {
       label: "Kỳ thi & Đề thi",
       href: "/exams",
       icon: FileText,
       active: isExamsActive,
     },
     {
-      label: "Hàng đợi phê duyệt",
+      label: "Phê duyệt kết quả",
       href: "/exams?tab=approval-queue",
       icon: ShieldCheck,
       active: isApprovalQueueActive,
     },
     {
-      label: "Quản lý & Phân công giáo viên",
+      label: "Phân công giảng dạy",
       href: "/vice-principal/teachers",
       icon: GraduationCap,
       active: isVicePrincipalTeachersActive,
     },
     {
-      label: "Cơ cấu chuyên môn",
+      label: "Tổ chuyên môn",
       href: "/principal/academic-structure",
       icon: BookOpen,
       active: isAcademicStructureActive,
@@ -241,13 +256,7 @@ export default function AppHeader() {
       active: isClassesActive,
     },
     {
-      label: "Tổng quan & Thống kê",
-      href: "/admin/dashboard",
-      icon: BarChart3,
-      active: isStatisticsActive,
-    },
-    {
-      label: "Hồ sơ",
+      label: "Hồ sơ cá nhân",
       href: "/profile",
       icon: UserCheck,
       active: isProfileActive,
@@ -257,7 +266,13 @@ export default function AppHeader() {
   // Nav for EXAM_OFFICER — can create official exams + grade
   const examOfficerNavItems = [
     {
-      label: "Kỳ thi chính thức",
+      label: "Tổng quan & Thống kê",
+      href: "/admin/dashboard",
+      icon: LayoutDashboard,
+      active: isStatisticsActive,
+    },
+    {
+      label: "Kỳ thi & Đề thi",
       href: "/exams",
       icon: FileText,
       active: isExamsActive,
@@ -275,13 +290,7 @@ export default function AppHeader() {
       active: isClassesActive,
     },
     {
-      label: "Tổng quan & Thống kê",
-      href: "/admin/dashboard",
-      icon: BarChart3,
-      active: isStatisticsActive,
-    },
-    {
-      label: "Hồ sơ",
+      label: "Hồ sơ cá nhân",
       href: "/profile",
       icon: UserCheck,
       active: isProfileActive,
@@ -311,12 +320,16 @@ export default function AppHeader() {
 
   // Sidebar section label per role
   const sectionLabel = isAdmin
-    ? "Quản trị hệ thống"
+    ? "QUẢN TRỊ HỆ THỐNG"
+    : (isPrincipal || isVicePrincipal)
+    ? "QUẢN LÝ CHUYÊN MÔN"
+    : isExamOfficer
+    ? "NGHIỆP VỤ KHẢO THÍ"
+    : isTeacher
+    ? "NGHIỆP VỤ GIẢNG DẠY"
     : isStudent
-    ? "Cổng học sinh"
-    : isManagement
-    ? "Ban quản lý"
-    : "Thao tác chính";
+    ? "CỔNG HỌC SINH"
+    : "THAO TÁC CHÍNH";
 
 
   return (
@@ -512,7 +525,7 @@ export default function AppHeader() {
               {/* Drawer Links */}
               <div className="p-3 space-y-1">
                 <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Menu chức năng
+                  {sectionLabel}
                 </div>
                 {currentNavItems.map((item) => {
                   const Icon = item.icon;

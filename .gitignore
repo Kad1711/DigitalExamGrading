@@ -40,3 +40,6 @@ Desktop.ini
 REMEDIATION_*.md
 INDEPENDENT_RECHECK.md
 
+# Artifacts & Handover packages
+artifacts/
+*.zip

@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import path from "node:path";
 import os from "node:os";
 
@@ -22,6 +22,11 @@ if (!process.env.TEST_SUBMISSION_STORAGE_DIR) {
     os.tmpdir(),
     "digitalexam-test-storage"
   );
+}
+
+// 4. Test JWT Secret
+if (!process.env.JWT_ACCESS_SECRET) {
+  process.env.JWT_ACCESS_SECRET = "test-jwt-access-secret-32-chars-long!!";
 }
 
 // 4. Safe confirmation banner (never print credentials, only database name)

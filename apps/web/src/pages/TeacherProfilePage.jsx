@@ -243,7 +243,7 @@ export default function TeacherProfilePage() {
     switch (role) {
       case "SUPER_ADMIN":
         return {
-          title: "Hồ sơ Quản trị viên cấp cao",
+          title: "Hồ sơ Quản trị viên",
           subtitle: "Quản lý thông tin tài khoản kỹ thuật và bảo mật quản trị hệ thống.",
           permissionLabel: "Toàn quyền quản trị hệ thống",
           badgeColor: "text-amber-700 bg-amber-50 border-amber-200",

@@ -381,7 +381,7 @@ export default function ExamListPage() {
               }`}
             >
               <ShieldCheck className="w-4 h-4" />
-              <span>{isPrincipal ? "Chờ phê duyệt (HT)" : "Hàng đợi phê duyệt công bố điểm"}</span>
+              <span>Phê duyệt kết quả</span>
               {approvalQueue.filter(
                 (e) =>
                   e.publicationApprovalStatus === "PENDING_APPROVAL" ||

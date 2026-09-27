@@ -92,6 +92,11 @@ export async function assertSubmissionAccess(submissionId, reqUser) {
     }
   }
 
+  // Subject Leader can view submissions in their subject scope
+  if (teacher.isSubjectLeader && teacher.primarySubjectId && teacher.primarySubjectId === submission.exam.subjectId) {
+    return submission;
+  }
+
   throw new AppError("Bạn không có quyền truy cập bài nộp này.", 403, "SUBMISSION_ACCESS_DENIED");
 }
 

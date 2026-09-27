@@ -22,7 +22,7 @@ const viewSubmissionRoles = authorizeRoles(
   "EXAM_OFFICER",
   "TEACHER"
 );
-const mutateSubmissionRoles = authorizeRoles("SUPER_ADMIN", "EXAM_OFFICER", "TEACHER");
+const mutateSubmissionRoles = authorizeRoles("EXAM_OFFICER", "TEACHER");
 
 // Submission Details & Deletion
 router.get("/:submissionId", viewSubmissionRoles, getSubmissionController);

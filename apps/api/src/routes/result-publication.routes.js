@@ -28,8 +28,8 @@ const oversightRoles = authorizeRoles(
   "VICE_PRINCIPAL"
 );
 const examOfficerOrAdmin = authorizeRoles("SUPER_ADMIN", "EXAM_OFFICER");
-const vicePrincipalOrAdmin = authorizeRoles("SUPER_ADMIN", "VICE_PRINCIPAL");
-const principalOrAdmin = authorizeRoles("SUPER_ADMIN", "PRINCIPAL");
+const vicePrincipalOnly = authorizeRoles("VICE_PRINCIPAL");
+const principalOnly = authorizeRoles("PRINCIPAL");
 const canPublishOrUnpublish = authorizeRoles("SUPER_ADMIN", "TEACHER", "EXAM_OFFICER", "PRINCIPAL", "VICE_PRINCIPAL");
 
 // Approval queue for Vice Principal, Principal & School Management
@@ -46,21 +46,21 @@ router.get("/:examId/publication-logs", oversightRoles, getPublicationLogsContro
 router.post("/:examId/publication/request", examOfficerOrAdmin, requestPublicationController);
 router.post("/:examId/results/publication/request", examOfficerOrAdmin, requestPublicationController);
 
-// Approve publication (Vice Principal or Admin)
-router.post("/:examId/publication/approve", vicePrincipalOrAdmin, approvePublicationController);
-router.post("/:examId/results/publication/approve", vicePrincipalOrAdmin, approvePublicationController);
+// Approve publication (Vice Principal)
+router.post("/:examId/publication/approve", vicePrincipalOnly, approvePublicationController);
+router.post("/:examId/results/publication/approve", vicePrincipalOnly, approvePublicationController);
 
-// Reject publication (Vice Principal or Admin)
-router.post("/:examId/publication/reject", vicePrincipalOrAdmin, rejectPublicationController);
-router.post("/:examId/results/publication/reject", vicePrincipalOrAdmin, rejectPublicationController);
+// Reject publication (Vice Principal)
+router.post("/:examId/publication/reject", vicePrincipalOnly, rejectPublicationController);
+router.post("/:examId/results/publication/reject", vicePrincipalOnly, rejectPublicationController);
 
-// Principal Final Approval for FINAL (Principal or Admin)
-router.post("/:examId/publication/principal-approve", principalOrAdmin, principalApprovePublicationController);
-router.post("/:examId/results/publication/principal-approve", principalOrAdmin, principalApprovePublicationController);
+// Principal Final Approval for FINAL (Principal)
+router.post("/:examId/publication/principal-approve", principalOnly, principalApprovePublicationController);
+router.post("/:examId/results/publication/principal-approve", principalOnly, principalApprovePublicationController);
 
-// Principal Rejection for MIDTERM / FINAL (Principal or Admin)
-router.post("/:examId/publication/principal-reject", principalOrAdmin, principalRejectPublicationController);
-router.post("/:examId/results/publication/principal-reject", principalOrAdmin, principalRejectPublicationController);
+// Principal Rejection for MIDTERM / FINAL (Principal)
+router.post("/:examId/publication/principal-reject", principalOnly, principalRejectPublicationController);
+router.post("/:examId/results/publication/principal-reject", principalOnly, principalRejectPublicationController);
 
 // Publish & Unpublish actions
 router.post("/:examId/results/publish", canPublishOrUnpublish, publishResultsController);

@@ -575,7 +575,15 @@ function AdminDashboardView() {
 
   const handleClassChange = (newClassId) => {
     setSelectedClassId(newClassId);
-    fetchDashboardData(true, { classId: newClassId });
+    let nextGradeId = selectedGradeId;
+    if (newClassId !== "ALL") {
+      const cls = filterClasses.find((c) => c.id === newClassId);
+      if (cls && cls.gradeId && selectedGradeId !== cls.gradeId) {
+        nextGradeId = cls.gradeId;
+        setSelectedGradeId(cls.gradeId);
+      }
+    }
+    fetchDashboardData(true, { gradeId: nextGradeId, classId: newClassId });
   };
 
   const handleSubjectChange = (newSubjectId) => {
@@ -888,16 +896,19 @@ function AdminDashboardView() {
                   <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
                     {isTeacher && !isSubjectLeader ? (
                       <span className="text-slate-600 font-medium">Lớp được phân công</span>
+                    ) : selectedTeacherId !== "ALL" ? (
+                      <span className={overview?.teachers.total > 0 ? "text-emerald-700 font-semibold" : "text-slate-400 font-medium"}>
+                        {overview?.teachers.total > 0 ? "Có phân công trong phạm vi" : "Chưa có phân công trong phạm vi"}
+                      </span>
                     ) : (
                       <>
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        <span className="font-semibold text-emerald-700">
-                          {overview?.teachers.active || 0}
+                        <span className="font-semibold text-slate-700">
+                          {overview?.teachers.total || 0}
                         </span>{" "}
-                        hoạt động
-                        {overview?.teachers.locked > 0 && (
-                          <span className="text-rose-500 font-semibold ml-1">
-                            • {overview?.teachers.locked} khóa
+                        được phân công
+                        {overview?.teachers.systemTotal > 0 && (
+                          <span className="text-slate-400 font-medium ml-1">
+                            • {overview?.teachers.systemTotal} tổng số
                           </span>
                         )}
                       </>
@@ -922,10 +933,10 @@ function AdminDashboardView() {
                     {overview?.students.total || 0}
                   </div>
                   <div className="mt-2 text-xs text-slate-500">
-                    <span className="font-semibold text-slate-700">
-                      {overview?.students.total || 0}
+                    <span className="font-semibold text-emerald-700">
+                      {overview?.students.withResults ?? 0}
                     </span>{" "}
-                    thực có trong các lớp
+                    có kết quả thi / {overview?.students.total || 0} trong phạm vi
                   </div>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -997,8 +1008,12 @@ function AdminDashboardView() {
                       {overview?.submissions.final || 0}
                     </span>{" "}
                     chính thức
+                    <span className="text-slate-400">•</span>
+                    <span className="font-medium text-amber-600">
+                      {overview?.submissions.provisional || 0} sơ bộ
+                    </span>
                     {overview?.submissions.needsReview > 0 && (
-                      <span className="text-amber-600 font-semibold ml-1">
+                      <span className="text-rose-500 font-semibold ml-1">
                         • {overview?.submissions.needsReview} rà soát
                       </span>
                     )}
@@ -1019,7 +1034,9 @@ function AdminDashboardView() {
                 </div>
                 <div className="mt-3">
                   <div className="text-2xl font-black text-slate-900">
-                    {scoring?.averageScore ? `${scoring.averageScore}` : "---"}
+                    {scoring?.averageScore !== null && scoring?.averageScore !== undefined && scoring?.gradedCount > 0
+                      ? Number(scoring.averageScore).toFixed(2)
+                      : "—"}
                     <span className="text-sm font-normal text-slate-400">/10</span>
                   </div>
                   <div className="mt-2 text-xs text-slate-500">

@@ -5,8 +5,51 @@ import {
   assertSubmissionAccess,
   getSubmissionDetail,
 } from "./submission.service.js";
+import { getTeacherProfile } from "./exam.service.js";
 import { assertResultsNotPublished } from "./result-publication.service.js";
 import { calculateEqualScore } from "../utils/scoring.rules.js";
+
+async function assertSubmissionMutationAccess(submission, user) {
+  if (user.role === "SUPER_ADMIN") {
+    throw new AppError("Quản trị viên không có quyền chỉnh sửa bài làm hoặc điểm số.", 403, "FORBIDDEN");
+  }
+  if (user.role === "EXAM_OFFICER") {
+    return true;
+  }
+  if (user.role === "TEACHER") {
+    const teacher = await getTeacherProfile(user.id);
+    const isOwner =
+      (submission.exam.teacherId && submission.exam.teacherId === teacher.id) ||
+      submission.exam.createdByUserId === user.id;
+
+    if (isOwner) return true;
+
+    const examClassIds = [
+      ...(submission.exam.classId ? [submission.exam.classId] : []),
+      ...(submission.exam.examClasses ? submission.exam.examClasses.map((ec) => ec.classId) : []),
+    ];
+
+    const assignment =
+      examClassIds.length > 0
+        ? await prisma.teachingAssignment.findFirst({
+            where: {
+              teacherId: teacher.id,
+              subjectId: submission.exam.subjectId,
+              classId: { in: examClassIds },
+            },
+          })
+        : null;
+
+    if (assignment) return true;
+
+    throw new AppError(
+      "Tổ trưởng chuyên môn có quyền giám sát nhưng không được chỉnh sửa điểm số bài làm của giáo viên khác.",
+      403,
+      "SCORE_MUTATION_DENIED"
+    );
+  }
+  throw new AppError("Bạn không có quyền thao tác trên bài nộp này.", 403, "FORBIDDEN");
+}
 
 /**
  * Persistently reviews submission answers, re-grades deterministically using snapshots,
@@ -14,6 +57,7 @@ import { calculateEqualScore } from "../utils/scoring.rules.js";
  */
 export async function reviewSubmissionAnswers({ submissionId, reviews, user }) {
   const submission = await assertSubmissionAccess(submissionId, user);
+  await assertSubmissionMutationAccess(submission, user);
 
   // Block mutations if results are published
   await assertResultsNotPublished(submission.examId);
@@ -349,6 +393,7 @@ export async function reviewSubmissionAnswers({ submissionId, reviews, user }) {
  */
 export async function reviewSubmissionIdentity({ submissionId, studentNumber, user }) {
   const submission = await assertSubmissionAccess(submissionId, user);
+  await assertSubmissionMutationAccess(submission, user);
 
   // Block mutations if results are published
   await assertResultsNotPublished(submission.examId);

@@ -164,7 +164,8 @@ export default function TeacherModals({
               <option value="LICHSU">Lịch sử (GVSU...)</option>
               <option value="DIALY">Địa lý (GVDIA...)</option>
               <option value="TINHOC">Tin học (GVTIN...)</option>
-              <option value="GDKTPL">Giáo dục KT & PL / GDCD (GVGDCD...)</option>
+              <option value="GDCD">Giáo dục công dân (GVGDCD...)</option>
+              <option value="GDKTPL">Giáo dục KT & PL (THPT) (GVGDCD...)</option>
               <option value="CONGNGHE">Công nghệ (GVCN...)</option>
             </select>
           </div>

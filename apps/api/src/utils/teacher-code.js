@@ -38,7 +38,8 @@ export const STANDARD_SUBJECTS = [
   { code: "LICHSU", name: "Lịch sử", prefix: "GVSU" },
   { code: "DIALY", name: "Địa lý", prefix: "GVDIA" },
   { code: "TINHOC", name: "Tin học", prefix: "GVTIN" },
-  { code: "GDKTPL", name: "GDKT & Pháp luật (GDCD)", prefix: "GVGDCD" },
+  { code: "GDCD", name: "Giáo dục công dân", prefix: "GVGDCD" },
+  { code: "GDKTPL", name: "GDKT & Pháp luật (THPT)", prefix: "GVGDCD" },
   { code: "CONGNGHE", name: "Công nghệ", prefix: "GVCN" },
 ];
 
