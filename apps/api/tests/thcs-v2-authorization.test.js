@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, beforeEach, afterEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { assertExamManageAccess, createExam, updateExam } from "../src/services/exam.service.js";
 import { approveAnswerKey, putAnswerKey } from "../src/services/answer-key.service.js";
@@ -8,6 +8,63 @@ import { authorizeRoles } from "../src/middlewares/role.middleware.js";
 import prisma from "../src/config/prisma.js";
 
 describe("THCS V2 Core Authorization & Governance Verification Suite", () => {
+  const originalTx = prisma.$transaction;
+  const originalExamFind = prisma.exam.findUnique;
+  const originalExamUpdate = prisma.exam.update;
+  const originalTeacherFind = prisma.teacher.findUnique;
+  const originalExamCodeFind = prisma.examCode.findUnique;
+  const originalExamCodeFindMany = prisma.examCode.findMany;
+  const originalExamCodeCreate = prisma.examCode.create;
+  const originalExamCodeDelete = prisma.examCode.delete;
+  const originalSubmissionCount = prisma.examSubmission.count;
+
+  beforeEach(() => {
+    // Intercept prisma.$transaction so all transactions in this unit test suite use mockTx
+    // and never query the real PostgreSQL database in CI or local environment.
+    const mockTx = {
+      $executeRaw: async () => 1,
+      exam: {
+        findUnique: (...args) => (prisma.exam.findUnique ? prisma.exam.findUnique(...args) : null),
+        update: (...args) => (prisma.exam.update ? prisma.exam.update(...args) : null),
+      },
+      teacher: {
+        findUnique: (...args) => (prisma.teacher.findUnique ? prisma.teacher.findUnique(...args) : null),
+      },
+      examCode: {
+        findUnique: (...args) => (prisma.examCode.findUnique ? prisma.examCode.findUnique(...args) : null),
+        findMany: (...args) => (prisma.examCode.findMany ? prisma.examCode.findMany(...args) : []),
+        create: (...args) => (prisma.examCode.create ? prisma.examCode.create(...args) : null),
+        delete: (...args) => (prisma.examCode.delete ? prisma.examCode.delete(...args) : null),
+      },
+      answerKey: {
+        deleteMany: async () => ({ count: 0 }),
+        createMany: async ({ data }) => ({ count: data?.length || 0 }),
+      },
+    };
+
+    prisma.$transaction = async (arg) => {
+      if (typeof arg === "function") {
+        return await arg(mockTx);
+      }
+      return Promise.all(arg);
+    };
+  });
+
+  afterEach(() => {
+    prisma.exam.findUnique = originalExamFind;
+    prisma.exam.update = originalExamUpdate;
+    prisma.teacher.findUnique = originalTeacherFind;
+    prisma.examCode.findUnique = originalExamCodeFind;
+    prisma.examCode.findMany = originalExamCodeFindMany;
+    prisma.examCode.create = originalExamCodeCreate;
+    prisma.examCode.delete = originalExamCodeDelete;
+    prisma.examSubmission.count = originalSubmissionCount;
+    prisma.$transaction = originalTx;
+  });
+
+  after(() => {
+    prisma.$transaction = originalTx;
+  });
   // -----------------------------------------------------------
   // 1-4. EXAM_OFFICER CREATE AUTHORIZATION
   // -----------------------------------------------------------
