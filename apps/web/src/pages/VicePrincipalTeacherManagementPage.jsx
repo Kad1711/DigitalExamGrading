@@ -49,8 +49,8 @@ export default function VicePrincipalTeacherManagementPage() {
   const [savingProf, setSavingProf] = useState(false);
   const [profError, setProfError] = useState("");
 
-  // Assignment modal
   const [assignModal, setAssignModal] = useState(null); // { teacher }
+  const [modalAssignments, setModalAssignments] = useState([]);
   const [assignedClassIds, setAssignedClassIds] = useState([]);
   const [assignSubjectId, setAssignSubjectId] = useState("");
   const [savingAssign, setSavingAssign] = useState(false);
@@ -157,16 +157,32 @@ export default function VicePrincipalTeacherManagementPage() {
       const res = await api.get(`/admin/teachers/${teacher.id}/assignments`);
       const data = res.data.data || {};
       const allAssignments = data.assignments || [];
-      const relevantClassIds = subjectIdForTeacher
-        ? allAssignments.filter((a) => a.subjectId === subjectIdForTeacher).map((a) => a.classId)
+      setModalAssignments(allAssignments);
+      const targetSubject = subjectIdForTeacher || allAssignments[0]?.subjectId || "";
+      if (!subjectIdForTeacher && targetSubject) {
+        setAssignSubjectId(targetSubject);
+      }
+      const relevantClassIds = targetSubject
+        ? allAssignments.filter((a) => a.subjectId === targetSubject).map((a) => a.classId)
         : allAssignments.map((a) => a.classId);
       setAssignedClassIds(relevantClassIds);
-      if (!subjectIdForTeacher && allAssignments[0]?.subjectId) {
-        setAssignSubjectId(allAssignments[0].subjectId);
-      }
     } catch {
+      setModalAssignments([]);
       setAssignedClassIds([]);
     }
+  };
+
+  const handleAssignSubjectChange = (newSubjectId) => {
+    setAssignSubjectId(newSubjectId);
+    setAssignConflict(null);
+    if (!newSubjectId) {
+      setAssignedClassIds([]);
+      return;
+    }
+    const matchingClassIds = (modalAssignments || [])
+      .filter((a) => a.subjectId === newSubjectId)
+      .map((a) => a.classId);
+    setAssignedClassIds(matchingClassIds);
   };
 
   const toggleClass = (classId) => {
@@ -191,7 +207,7 @@ export default function VicePrincipalTeacherManagementPage() {
       await api.put(`/admin/teachers/${assignModal.id}/assignments`, {
         classIds: assignedClassIds,
         subjectId: assignSubjectId,
-        removeOtherSubjects: true,
+        removeOtherSubjects: false,
         confirmOverride: isOverride,
       });
       // Refresh teacher data
@@ -396,14 +412,24 @@ export default function VicePrincipalTeacherManagementPage() {
                               <div className="flex flex-wrap justify-center gap-1 max-w-[200px]">
                                 {(teacher.assignments || [])
                                   .slice(0, 3)
-                                  .map((a) => (
-                                    <span
-                                      key={a.classId || a.id}
-                                      className="text-[10px] bg-slate-100 text-slate-600 rounded px-1.5 py-0.5 font-medium"
-                                    >
-                                      {a.class?.name || a.className}
-                                    </span>
-                                  ))}
+                                  .map((a) => {
+                                    const clsName = a.class?.name || a.className;
+                                    const subjCode = a.subject?.code || a.subject?.name;
+                                    return (
+                                      <span
+                                        key={a.classId || a.id}
+                                        className="text-[10px] bg-slate-100 text-slate-700 rounded px-1.5 py-0.5 font-medium border border-slate-200"
+                                        title={a.subject?.name ? `${clsName} - Môn ${a.subject.name}` : clsName}
+                                      >
+                                        {clsName}
+                                        {subjCode ? (
+                                          <span className="ml-1 text-[9px] text-indigo-600 font-semibold">
+                                            ({subjCode})
+                                          </span>
+                                        ) : null}
+                                      </span>
+                                    );
+                                  })}
                                 {assignmentCount > 3 && (
                                   <span className="text-[10px] text-slate-400">
                                     +{assignmentCount - 3}
@@ -607,7 +633,7 @@ export default function VicePrincipalTeacherManagementPage() {
               </label>
               <select
                 value={assignSubjectId}
-                onChange={(e) => setAssignSubjectId(e.target.value)}
+                onChange={(e) => handleAssignSubjectChange(e.target.value)}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
               >
                 <option value="">— Chọn môn học —</option>
@@ -673,8 +699,7 @@ export default function VicePrincipalTeacherManagementPage() {
               )}
 
               <p className="text-[11px] text-slate-400 mt-1.5">
-                Tất cả phân công hiện có của giáo viên sẽ được thay thế bằng danh
-                sách này.
+                Phân công của giáo viên cho môn học này sẽ được cập nhật theo danh sách đã chọn.
               </p>
             </div>
 

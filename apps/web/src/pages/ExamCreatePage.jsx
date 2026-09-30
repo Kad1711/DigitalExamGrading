@@ -19,6 +19,7 @@ import {
   Sparkles,
   Clock,
   Lock,
+  X,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Alert from "../components/ui/Alert";
@@ -188,13 +189,16 @@ export default function ExamCreatePage() {
       setGrades(grList);
 
       if (subs.length > 0) setSubjectId(subs[0].id);
-      if (clsList.length > 0) {
+      if (isMultiClassAllowed) {
+        setClassId("");
+        setSelectedClassIds([]);
+      } else if (clsList.length > 0) {
         setClassId(clsList[0].id);
         setSelectedClassIds([clsList[0].id]);
       }
       if (grList.length > 0) {
         setNewClassGradeId(grList[0].id);
-        setSelectedGradeId(grList[0].id);
+        setSelectedGradeId("");
       }
     } catch (err) {
       const code = err.response?.data?.error?.code;
@@ -209,6 +213,56 @@ export default function ExamCreatePage() {
       setLoadingData(false);
     }
   };
+
+  const selectedSubjectObj = React.useMemo(() => {
+    return subjects.find((s) => s.id === subjectId) || null;
+  }, [subjects, subjectId]);
+
+  const getAssignmentForSubject = React.useCallback(
+    (cls) => {
+      if (!cls?.assignments || !Array.isArray(cls.assignments)) return null;
+
+      // 1. Ưu tiên đối chiếu ID môn học chuẩn và xác minh cùng năm học
+      if (subjectId) {
+        const idMatch = cls.assignments.find((a) => {
+          if (a.subjectId !== subjectId) return false;
+          // Không khớp nhầm phân công khác năm học
+          if (cls.academicYearId && a.academicYearId && a.academicYearId !== cls.academicYearId) {
+            return false;
+          }
+          return true;
+        });
+        if (idMatch) return idMatch;
+      }
+
+      // 2. Chỉ fallback theo mã môn khi thực sự cần và mã môn là duy nhất trong danh mục
+      if (selectedSubjectObj?.code) {
+        const codeMatchingSubjects = subjects.filter((s) => s.code === selectedSubjectObj.code);
+        if (codeMatchingSubjects.length === 1) {
+          const codeMatch = cls.assignments.find((a) => {
+            const aCode = a.subject?.code || a.subjectCode;
+            if (aCode !== selectedSubjectObj.code) return false;
+            // Xác minh cùng năm học
+            if (cls.academicYearId && a.academicYearId && a.academicYearId !== cls.academicYearId) {
+              return false;
+            }
+            return true;
+          });
+          if (codeMatch) {
+            if (process.env.NODE_ENV !== "production") {
+              console.warn(
+                `[ExamCreatePage] getAssignmentForSubject: Fallback match by subject code "${selectedSubjectObj.code}" instead of ID. Class: ${cls.name}`
+              );
+            }
+            return codeMatch;
+          }
+        }
+      }
+
+      return null;
+    },
+    [subjectId, selectedSubjectObj, subjects]
+  );
 
   const parsedBatchNames = React.useMemo(() => {
     if (!batchClassNamesInput) return [];
@@ -412,6 +466,17 @@ export default function ExamCreatePage() {
       setSubmitting(true);
       setErrorMsg("");
 
+      let resolvedGradeId = selectedGradeId || undefined;
+      if (!resolvedGradeId && classIdsToSend.length > 0) {
+        const chosenClasses = (classes || []).filter((c) => classIdsToSend.includes(c.id));
+        const gradeIds = Array.from(
+          new Set(chosenClasses.map((c) => c.gradeId || c.grade?.id).filter(Boolean))
+        );
+        if (gradeIds.length === 1) {
+          resolvedGradeId = gradeIds[0];
+        }
+      }
+
       const payload = {
         title: title.trim(),
         description: description.trim() || undefined,
@@ -419,7 +484,7 @@ export default function ExamCreatePage() {
         subjectId,
         classId: classIdsToSend[0],
         classIds: classIdsToSend,
-        gradeId: selectedGradeId || undefined,
+        gradeId: resolvedGradeId,
         durationMinutes: Number(durationMinutes) || 45,
         sheetPreset,
         questionCount: qCount,
@@ -729,69 +794,40 @@ export default function ExamCreatePage() {
                   </div>
                 </div>
               ) : (
-                /* Super Admin / Exam Officer Multi-Class Assignment */
-                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                /* Super Admin / Exam Officer / Principal / Vice Principal Multi-Class Assignment */
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
-                        Lớp học tham gia kỳ thi (BGH) <span className="text-rose-500">*</span>
+                        Lớp học tham gia kỳ thi (BGH / Khảo thí) <span className="text-rose-500">*</span>
                       </label>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Chọn một hoặc nhiều lớp. Giáo viên được phân công giảng dạy môn này ở các lớp đã chọn sẽ cùng truy cập đề thi để chấm bài.
+                        Chọn một hoặc nhiều lớp. Trạng thái phân công giáo viên được xác định theo môn học đang chọn.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {selectedGradeId && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const inGrade = classes.filter(
-                              (c) => (c.gradeId || c.grade?.id) === selectedGradeId
-                            );
-                            const inGradeIds = inGrade.map((c) => c.id);
-                            const allSelected = inGradeIds.every((id) =>
-                              selectedClassIds.includes(id)
-                            );
-                            if (allSelected) {
-                              setSelectedClassIds((prev) =>
-                                prev.filter((id) => !inGradeIds.includes(id))
-                              );
-                            } else {
-                              setSelectedClassIds((prev) => [
-                                ...new Set([...prev, ...inGradeIds]),
-                              ]);
-                            }
-                          }}
-                          className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
-                        >
-                          Chọn toàn khối
-                        </button>
-                      )}
-                      {canCreateClass && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCreateClassError("");
-                            setShowCreateClassModal(true);
-                          }}
-                          className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          Tạo lớp mới
-                        </button>
-                      )}
-                    </div>
+                    {canCreateClass && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCreateClassError("");
+                          setShowCreateClassModal(true);
+                        }}
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Tạo lớp mới
+                      </button>
+                    )}
                   </div>
 
                   {/* Warning if any selected class has no assigned teacher for the selected subject */}
                   {subjectId && selectedClassIds.length > 0 && (() => {
                     const unassignedSelected = classes.filter(
-                      (c) => selectedClassIds.includes(c.id) && !c.assignments?.some((a) => a.subjectId === subjectId)
+                      (c) => selectedClassIds.includes(c.id) && !getAssignmentForSubject(c)
                     );
-                    const selectedSubjectObj = subjects.find((s) => s.id === subjectId);
                     if (unassignedSelected.length === 0) return null;
                     return (
-                      <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
+                      <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2.5">
                         <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                         <div>
                           <span className="font-semibold">Lưu ý phân công: </span>
@@ -801,60 +837,292 @@ export default function ExamCreatePage() {
                     );
                   })()}
 
-                  <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto p-1">
-                    {classes
-                      .filter((cls) => {
-                        if (!selectedGradeId) return true;
-                        return (cls.gradeId || cls.grade?.id) === selectedGradeId;
-                      })
-                      .map((cls) => {
-                        const isSelected = selectedClassIds.includes(cls.id);
-                        const assignment = cls.assignments?.find((a) => a.subjectId === subjectId);
-                        const teacherName = assignment?.teacher?.fullName;
-                        const teacherTitle = assignment?.teacher?.title || "Giáo viên";
+                  {/* KHU VỰC HIỂN THỊ CÁC LỚP ĐÃ CHỌN (Kèm nút bỏ chọn từng lớp và bỏ chọn tất cả) */}
+                  <div className="rounded-xl bg-white border border-slate-200 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>Đã chọn:</span>
+                        <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 text-xs font-bold">
+                          {selectedClassIds.length} lớp
+                        </span>
+                      </div>
+                      {selectedClassIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedClassIds([])}
+                          className="text-xs font-semibold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer"
+                        >
+                          Hủy chọn tất cả
+                        </button>
+                      )}
+                    </div>
+
+                    {selectedClassIds.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">
+                        Chưa chọn lớp nào tham gia kỳ thi. Vui lòng bấm vào các lớp bên dưới.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pt-1">
+                        {classes
+                          .filter((c) => selectedClassIds.includes(c.id))
+                          .map((c) => {
+                            const assignment = getAssignmentForSubject(c);
+                            const isAssigned = Boolean(assignment);
+                            const isOutsideFilter = selectedGradeId && (c.gradeId || c.grade?.id) !== selectedGradeId;
+
+                            return (
+                              <span
+                                key={c.id}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                                  isAssigned
+                                    ? "bg-blue-50 border-blue-200 text-blue-800"
+                                    : "bg-amber-50 border-amber-200 text-amber-800"
+                                }`}
+                              >
+                                <span className="font-semibold">Lớp {c.name}</span>
+                                {isOutsideFilter && (
+                                  <span className="text-[10px] text-slate-500 font-normal">
+                                    ({c.gradeName || c.grade?.name || "Khác"})
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  title={`Bỏ chọn lớp ${c.name}`}
+                                  onClick={() =>
+                                    setSelectedClassIds((prev) => prev.filter((id) => id !== c.id))
+                                  }
+                                  className="hover:text-rose-600 hover:bg-slate-200/50 p-0.5 rounded cursor-pointer transition-colors"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </span>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* KHU VỰC DANH SÁCH LỚP ĐỂ CHỌN */}
+                  {selectedGradeId ? (
+                    /* Khi đang chọn một khối cụ thể */
+                    (() => {
+                      const classesInGrade = classes.filter(
+                        (c) => (c.gradeId || c.grade?.id) === selectedGradeId
+                      );
+                      const inGradeIds = classesInGrade.map((c) => c.id);
+                      const allSelected =
+                        inGradeIds.length > 0 &&
+                        inGradeIds.every((id) => selectedClassIds.includes(id));
+                      const currentGradeObj = grades.find((g) => g.id === selectedGradeId);
+
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                              Danh sách lớp {currentGradeObj?.name || ""} ({classesInGrade.length} lớp)
+                            </span>
+                            {classesInGrade.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (allSelected) {
+                                    setSelectedClassIds((prev) =>
+                                      prev.filter((id) => !inGradeIds.includes(id))
+                                    );
+                                  } else {
+                                    setSelectedClassIds((prev) =>
+                                      Array.from(new Set([...prev, ...inGradeIds]))
+                                    );
+                                  }
+                                }}
+                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                              >
+                                {allSelected ? "Hủy chọn toàn khối" : "Chọn toàn khối"}
+                              </button>
+                            )}
+                          </div>
+
+                          {classesInGrade.length === 0 ? (
+                            <p className="text-xs text-slate-400 italic p-3 bg-white rounded-lg border border-slate-200">
+                              Chưa có lớp nào thuộc khối này.
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto p-1">
+                              {classesInGrade.map((cls) => {
+                                const isSelected = selectedClassIds.includes(cls.id);
+                                const assignment = getAssignmentForSubject(cls);
+                                const teacherName = assignment?.teacher?.fullName;
+                                const teacherTitle = assignment?.teacher?.title || "Giáo viên";
+
+                                return (
+                                  <button
+                                    key={cls.id}
+                                    type="button"
+                                    disabled={submitting}
+                                    onClick={() => {
+                                      setSelectedClassIds((prev) =>
+                                        prev.includes(cls.id)
+                                          ? prev.filter((id) => id !== cls.id)
+                                          : [...prev, cls.id]
+                                      );
+                                    }}
+                                    className={`inline-flex flex-col items-start gap-0.5 px-3 py-2 rounded-xl text-xs border transition-all cursor-pointer ${
+                                      isSelected
+                                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                                        : "bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 font-bold">
+                                      {isSelected ? (
+                                        <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                                      ) : (
+                                        <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 inline-block" />
+                                      )}
+                                      <span>{cls.name}</span>
+                                    </div>
+                                    {subjectId && (
+                                      <span
+                                        className={`text-[10px] pl-5 ${
+                                          isSelected
+                                            ? "text-blue-100"
+                                            : teacherName
+                                            ? "text-slate-500"
+                                            : "text-amber-600 font-medium"
+                                        }`}
+                                      >
+                                        {teacherName ? `${teacherName} (${teacherTitle})` : "Chưa phân công GV"}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    /* Khi chọn "Tất cả các khối" */
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Tất cả các khối ({classes.length} lớp)
+                        </span>
+                        {classes.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedClassIds(classes.map((c) => c.id));
+                              }}
+                              className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                            >
+                              Chọn tất cả các lớp
+                            </button>
+                            {selectedClassIds.length > 0 && (
+                              <>
+                                <span className="text-slate-300">|</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedClassIds([])}
+                                  className="text-xs font-semibold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer"
+                                >
+                                  Hủy chọn tất cả
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {grades.map((gr) => {
+                        const grClasses = classes.filter(
+                          (c) => (c.gradeId || c.grade?.id) === gr.id
+                        );
+                        if (grClasses.length === 0) return null;
+                        const grIds = grClasses.map((c) => c.id);
+                        const allSelectedInGr =
+                          grIds.length > 0 && grIds.every((id) => selectedClassIds.includes(id));
 
                         return (
-                          <button
-                            key={cls.id}
-                            type="button"
-                            disabled={submitting}
-                            onClick={() => {
-                              setSelectedClassIds((prev) =>
-                                prev.includes(cls.id)
-                                  ? prev.filter((id) => id !== cls.id)
-                                  : [...prev, cls.id]
-                              );
-                            }}
-                            className={`inline-flex flex-col items-start gap-0.5 px-3 py-2 rounded-xl text-xs border transition-all cursor-pointer ${
-                              isSelected
-                                ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                                : "bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
-                            }`}
-                          >
-                            <div className="flex items-center gap-1.5 font-bold">
-                              {isSelected ? (
-                                <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                              ) : (
-                                <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 inline-block" />
-                              )}
-                              <span>{cls.name}</span>
-                            </div>
-                            {subjectId && (
-                              <span className={`text-[10px] pl-5 ${isSelected ? "text-blue-100" : teacherName ? "text-slate-500" : "text-amber-600 font-medium"}`}>
-                                {teacherName ? `${teacherName} (${teacherTitle})` : "Chưa phân công GV"}
+                          <div key={gr.id} className="space-y-2 bg-white/70 p-3 rounded-lg border border-slate-200/80">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-800">
+                                {gr.name} ({grClasses.length} lớp)
                               </span>
-                            )}
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (allSelectedInGr) {
+                                    setSelectedClassIds((prev) =>
+                                      prev.filter((id) => !grIds.includes(id))
+                                    );
+                                  } else {
+                                    setSelectedClassIds((prev) =>
+                                      Array.from(new Set([...prev, ...grIds]))
+                                    );
+                                  }
+                                }}
+                                className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                              >
+                                {allSelectedInGr ? `Hủy chọn toàn ${gr.name}` : `Chọn toàn ${gr.name}`}
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-2 p-1">
+                              {grClasses.map((cls) => {
+                                const isSelected = selectedClassIds.includes(cls.id);
+                                const assignment = getAssignmentForSubject(cls);
+                                const teacherName = assignment?.teacher?.fullName;
+                                const teacherTitle = assignment?.teacher?.title || "Giáo viên";
+
+                                return (
+                                  <button
+                                    key={cls.id}
+                                    type="button"
+                                    disabled={submitting}
+                                    onClick={() => {
+                                      setSelectedClassIds((prev) =>
+                                        prev.includes(cls.id)
+                                          ? prev.filter((id) => id !== cls.id)
+                                          : [...prev, cls.id]
+                                      );
+                                    }}
+                                    className={`inline-flex flex-col items-start gap-0.5 px-3 py-2 rounded-xl text-xs border transition-all cursor-pointer ${
+                                      isSelected
+                                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                                        : "bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 font-bold">
+                                      {isSelected ? (
+                                        <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                                      ) : (
+                                        <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 inline-block" />
+                                      )}
+                                      <span>{cls.name}</span>
+                                    </div>
+                                    {subjectId && (
+                                      <span
+                                        className={`text-[10px] pl-5 ${
+                                          isSelected
+                                            ? "text-blue-100"
+                                            : teacherName
+                                            ? "text-slate-500"
+                                            : "text-amber-600 font-medium"
+                                        }`}
+                                      >
+                                        {teacherName ? `${teacherName} (${teacherTitle})` : "Chưa phân công GV"}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         );
                       })}
-                  </div>
-                  <div className="text-[11px] text-slate-600 font-medium">
-                    Đã chọn:{" "}
-                    <strong className="text-blue-700 font-bold">
-                      {selectedClassIds.length}
-                    </strong>{" "}
-                    lớp ({(classes || []).filter((c) => c && selectedClassIds.includes(c.id)).map((c) => c.name || "Lớp").join(", ") || "Chưa chọn lớp nào"})
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
 

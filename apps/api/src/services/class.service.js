@@ -82,13 +82,23 @@ export async function listClasses(user = null) {
       },
       assignments: {
         select: {
+          id: true,
           teacherId: true,
           subjectId: true,
+          academicYearId: true,
           teacher: {
             select: {
               id: true,
               fullName: true,
+              title: true,
               teacherCode: true,
+            },
+          },
+          subject: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
             },
           },
         },
@@ -105,11 +115,14 @@ export async function listClasses(user = null) {
     gradeName: c.grade.name,
     gradeLevel: c.grade.level,
     academicYearId: c.academicYearId,
-    academicYearName: c.academicYear.name,
-    studentCount: c._count.enrollments,
-    examCount: c._count.exams,
+    academicYearName: c.academicYear?.name,
+    studentCount: c._count?.enrollments ?? 0,
+    examCount: c._count?.exams ?? 0,
     assignedTeacherIds: (c.assignments || []).map((a) => a.teacherId),
     assignedTeachers: (c.assignments || []).map((a) => a.teacher?.fullName).filter(Boolean),
+    assignments: (c.assignments || []).filter(
+      (a) => !c.academicYearId || !a.academicYearId || a.academicYearId === c.academicYearId
+    ),
     createdAt: c.createdAt,
   }));
 }

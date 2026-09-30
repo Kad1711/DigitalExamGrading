@@ -859,4 +859,46 @@ test("Class & Student Management Suite", async (t) => {
       await prisma.user.delete({ where: { id: teacherReplacement.id } }).catch(() => {});
     }
   });
+
+  await t.test("19. listClasses returns full assignments relation with teacher and subject info", async () => {
+    const mathSubject = await prisma.subject.findFirst({ where: { code: "TOAN" } });
+    const ts = Date.now();
+    const testClass = await classService.createClass({
+      name: `9_REG_${ts.toString().slice(-4)}`,
+      gradeId: ctx.grade9.id,
+      teacherUserId: ctx.teacher.id,
+    });
+
+    try {
+      await adminTeacherService.assignClassSubjectTeacher({
+        classId: testClass.id,
+        subjectId: mathSubject.id,
+        teacherId: ctx.teacher.teacher.id,
+      });
+
+      const classes = await classService.listClasses({ role: "SUPER_ADMIN" });
+      assert.ok(Array.isArray(classes));
+
+      const foundClass = classes.find((c) => c.id === testClass.id);
+      assert.ok(foundClass, "Created class should be found in listClasses");
+      assert.ok(Array.isArray(foundClass.assignments), "assignments must be an array");
+      assert.ok(foundClass.assignments.length >= 1, "assignments must have at least 1 record");
+
+      const assignment = foundClass.assignments.find((a) => a.subjectId === mathSubject.id);
+      assert.ok(assignment, "Assignment for mathSubject must exist");
+      assert.equal(assignment.teacherId, ctx.teacher.teacher.id);
+      assert.ok(assignment.teacher, "Assignment must include teacher relation");
+      assert.equal(assignment.teacher.fullName, ctx.teacher.teacher.fullName);
+      assert.ok(assignment.subject, "Assignment must include subject relation");
+      assert.equal(assignment.subject.code, mathSubject.code);
+    } finally {
+      await prisma.teachingAssignmentHistory.deleteMany({
+        where: { classId: testClass.id },
+      }).catch(() => {});
+      await prisma.teachingAssignment.deleteMany({
+        where: { classId: testClass.id },
+      }).catch(() => {});
+      await classService.deleteClass(testClass.id).catch(() => {});
+    }
+  });
 });
