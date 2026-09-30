@@ -100,7 +100,7 @@ jobs:
           TEST_DATABASE_URL: postgresql://exam_user:exam_local_2026@localhost:5432/exam_grading_test?schema=public
         run: |
           npx prisma generate
-          npx prisma db push
+          npx prisma migrate deploy
 
       - name: Seed Test Database
         env:

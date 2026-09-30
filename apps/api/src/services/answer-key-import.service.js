@@ -307,6 +307,13 @@ export async function applyImport(examId, fileBuffer, mimeType, originalName, re
   let totalAnswers = 0;
 
   await prisma.$transaction(async (tx) => {
+    // Acquire row-level lock on Exam before modifying AnswerKey records to prevent TOCTOU race
+    if (typeof tx.$executeRaw === "function") {
+      try {
+        await tx.$executeRaw`SELECT id FROM "Exam" WHERE id = ${examId} FOR UPDATE`;
+      } catch {}
+    }
+
     for (const [code, items] of validation.groupedByCode.entries()) {
       const examCodeId = items[0].examCodeId;
 
@@ -333,6 +340,7 @@ export async function applyImport(examId, fileBuffer, mimeType, originalName, re
       data: {
         answerKeyApprovedAt: null,
         answerKeyApprovedByTeacherId: null,
+        answerKeyApprovedByUserId: null,
         publicationApprovalStatus: "NOT_REQUIRED",
       },
     });

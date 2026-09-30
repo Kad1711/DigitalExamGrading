@@ -693,6 +693,53 @@ export default function ExamDetailPage() {
   const canGrade = isSchoolLeadership || isTeacherOwner || isCreator || user?.role === "TEACHER";
   const canManage = isSchoolLeadership || isTeacherOwner || isCreator;
 
+  const getAnswerKeyApproverInfo = () => {
+    if (!exam?.answerKeyApprovedAt) return null;
+
+    let approverName = null;
+    let approverTitle = null;
+
+    if (exam.answerKeyApprovedByUser) {
+      const u = exam.answerKeyApprovedByUser;
+      approverName = u.teacher?.fullName || u.fullName || u.email;
+      if (u.teacher?.title) {
+        approverTitle = u.teacher.title;
+      } else if (u.role === "PRINCIPAL") {
+        approverTitle = "Hiệu trưởng";
+      } else if (u.role === "VICE_PRINCIPAL") {
+        approverTitle = "Hiệu phó";
+      } else if (u.role === "EXAM_OFFICER") {
+        approverTitle = "Cán bộ Khảo thí";
+      } else if (u.role === "SUPER_ADMIN") {
+        approverTitle = "Quản trị viên";
+      } else if (u.role === "TEACHER") {
+        approverTitle = u.teacher?.isSubjectLeader ? "Tổ trưởng chuyên môn" : "Giáo viên";
+      }
+    } else if (exam.answerKeyApprovedByTeacher) {
+      const t = exam.answerKeyApprovedByTeacher;
+      approverName = t.fullName;
+      approverTitle = t.title || (t.isSubjectLeader ? "Tổ trưởng chuyên môn" : "Giáo viên");
+    }
+
+    const formattedDate = new Date(exam.answerKeyApprovedAt).toLocaleString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    return {
+      approverText: approverName
+        ? `${approverName}${approverTitle ? ` (${approverTitle})` : ""}`
+        : "Chưa có thông tin người duyệt",
+      approvedAtText: formattedDate,
+    };
+  };
+
+  const approverInfo = getAnswerKeyApproverInfo();
+
   // Readiness calculation
   const hasExamCodes = examCodes.length > 0;
   const allCodesComplete =
@@ -1118,39 +1165,59 @@ export default function ExamDetailPage() {
                 {/* Step 3b: Phê duyệt đáp án gốc (Chỉ bắt buộc cho kỳ thi chính quy MIDTERM / FINAL) */}
                 {isOfficialExam && (
                   <div
-                    className={`flex items-center justify-between p-2.5 rounded-lg border ${
+                    className={`p-2.5 rounded-lg border ${
                       exam.answerKeyApprovedAt
                         ? "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
                         : "bg-slate-50 border-slate-200 text-slate-700"
                     }`}
                   >
-                    <div className="flex items-center gap-2 font-medium">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 font-medium">
+                        {exam.answerKeyApprovedAt ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
+                        )}
+                        <span>Duyệt đáp án gốc</span>
+                      </div>
                       {exam.answerKeyApprovedAt ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <Badge variant="emerald" size="sm">
+                          Đã duyệt
+                        </Badge>
+                      ) : canApproveAnswerKey && isDraft ? (
+                        <Button
+                          variant="primary"
+                          size="xs"
+                          onClick={handleApproveAnswerKey}
+                          disabled={actionLoading || !allCodesComplete}
+                          title={
+                            !allCodesComplete
+                              ? "Cần nhập đủ đáp án cho tất cả mã đề trước khi phê duyệt"
+                              : "Bấm để phê duyệt đáp án gốc"
+                          }
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer"
+                        >
+                          Duyệt đáp án
+                        </Button>
                       ) : (
-                        <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
+                        <Badge
+                          variant="amber"
+                          size="sm"
+                          title="Chờ Ban Khảo thí, Ban Giám hiệu hoặc Tổ trưởng chuyên môn phê duyệt"
+                        >
+                          Chờ duyệt
+                        </Badge>
                       )}
-                      <span>Duyệt đáp án gốc</span>
                     </div>
-                    {exam.answerKeyApprovedAt ? (
-                      <Badge variant="emerald" size="sm" title={`Duyệt bởi ${exam.answerKeyApprovedByTeacher?.fullName || "Ban Khảo thí / Ban Giám hiệu"}`}>
-                        Đã duyệt
-                      </Badge>
-                    ) : canApproveAnswerKey ? (
-                      <Button
-                        variant="primary"
-                        size="xs"
-                        onClick={handleApproveAnswerKey}
-                        disabled={actionLoading || !allCodesComplete}
-                        title={!allCodesComplete ? "Cần nhập đủ đáp án cho tất cả mã đề trước khi phê duyệt" : "Bấm để phê duyệt đáp án gốc"}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                      >
-                        Duyệt đáp án
-                      </Button>
-                    ) : (
-                      <Badge variant="amber" size="sm" title="Chờ Ban Khảo thí, Ban Giám hiệu hoặc Tổ trưởng chuyên môn phê duyệt">
-                        Chờ duyệt
-                      </Badge>
+                    {exam.answerKeyApprovedAt && approverInfo && (
+                      <div className="mt-1.5 pt-1.5 border-t border-emerald-200/60 text-[11px] text-emerald-800 space-y-0.5">
+                        <p>
+                          <span className="font-semibold">Đã duyệt bởi:</span> {approverInfo.approverText}
+                        </p>
+                        <p>
+                          <span className="font-semibold">Thời gian duyệt:</span> {approverInfo.approvedAtText}
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1480,6 +1547,58 @@ export default function ExamDetailPage() {
                     bằng khi chấm bài.
                   </Alert>
                 ) : null}
+
+                {/* Master Answer Key Approval Notice / Status Banner */}
+                {isOfficialExam && exam.answerKeyApprovedAt && (
+                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-emerald-950 uppercase tracking-wide">
+                        Đáp án gốc đã được phê duyệt chính thức
+                      </p>
+                      <p className="text-emerald-800">
+                        <span className="font-medium">Đã duyệt bởi:</span>{" "}
+                        <strong>{approverInfo?.approverText}</strong>
+                      </p>
+                      <p className="text-emerald-700">
+                        <span className="font-medium">Thời gian duyệt:</span>{" "}
+                        {approverInfo?.approvedAtText}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {isOfficialExam && !exam.answerKeyApprovedAt && (
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-amber-950">
+                          Kỳ thi chính quy yêu cầu phê duyệt đáp án gốc
+                        </p>
+                        <p className="text-amber-800 text-[11px]">
+                          Cần nhập đủ đáp án cho tất cả mã đề và được Tổ trưởng chuyên môn, Ban Khảo thí hoặc Ban Giám hiệu phê duyệt trước khi phát hành.
+                        </p>
+                      </div>
+                    </div>
+                    {canApproveAnswerKey && isDraft && (
+                      <Button
+                        variant="primary"
+                        size="xs"
+                        onClick={handleApproveAnswerKey}
+                        disabled={actionLoading || !allCodesComplete}
+                        title={
+                          !allCodesComplete
+                            ? "Cần nhập đủ đáp án cho tất cả mã đề trước khi phê duyệt"
+                            : "Bấm để phê duyệt đáp án gốc"
+                        }
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shrink-0 cursor-pointer"
+                      >
+                        Duyệt đáp án gốc
+                      </Button>
+                    )}
+                  </div>
+                )}
 
                 {/* Compact Multi-Column Question Bubble Matrix */}
                 {loadingAnswers ? (

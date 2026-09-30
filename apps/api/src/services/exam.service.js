@@ -28,6 +28,21 @@ export async function assertExamAccess(examId, reqUser) {
       teacher: { select: { id: true, fullName: true, teacherCode: true } },
       createdByUser: { select: { id: true, fullName: true, role: true } },
       answerKeyApprovedByTeacher: { select: { id: true, fullName: true, teacherCode: true, title: true, isSubjectLeader: true } },
+      answerKeyApprovedByUser: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: true,
+          teacher: {
+            select: {
+              fullName: true,
+              title: true,
+              isSubjectLeader: true,
+            },
+          },
+        },
+      },
       examCodes: { select: { id: true, code: true } },
     },
   });
@@ -476,6 +491,17 @@ export async function updateExam(examId, data, reqUser) {
     allowStudentViewAnswers: data.allowStudentViewAnswers,
     allowStudentViewImage: data.allowStudentViewImage,
   };
+
+  // Nếu thay đổi cấu trúc thang điểm / số câu, vô hiệu hóa phê duyệt đáp án cũ
+  if (
+    (data.questionCount !== undefined && data.questionCount !== exam.questionCount) ||
+    (data.maxScore !== undefined && data.maxScore !== exam.maxScore) ||
+    (data.scoringType !== undefined && data.scoringType !== exam.scoringType)
+  ) {
+    updateData.answerKeyApprovedAt = null;
+    updateData.answerKeyApprovedByTeacherId = null;
+    updateData.answerKeyApprovedByUserId = null;
+  }
 
   if (data.classIds && Array.isArray(data.classIds)) {
     await prisma.examClass.deleteMany({ where: { examId } });

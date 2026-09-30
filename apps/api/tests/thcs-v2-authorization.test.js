@@ -1,7 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { assertExamManageAccess, createExam } from "../src/services/exam.service.js";
-import { approveAnswerKey } from "../src/services/answer-key.service.js";
+import { assertExamManageAccess, createExam, updateExam } from "../src/services/exam.service.js";
+import { approveAnswerKey, putAnswerKey } from "../src/services/answer-key.service.js";
+import { applyImport } from "../src/services/answer-key-import.service.js";
+import { createExamCode, deleteExamCode } from "../src/services/exam-code.service.js";
 import { authorizeRoles } from "../src/middlewares/role.middleware.js";
 import prisma from "../src/config/prisma.js";
 
@@ -290,6 +292,364 @@ describe("THCS V2 Core Authorization & Governance Verification Suite", () => {
 
       assert.equal(passed, true);
       assert.equal(caughtError, null);
+    });
+  });
+
+  // -----------------------------------------------------------
+  // 14-19. MASTER ANSWER KEY APPROVAL LIFECYCLE & AUDIT
+  // -----------------------------------------------------------
+  describe("Master Answer Key Approval Lifecycle & Audit Suite", () => {
+    it("14. Leadership (VICE_PRINCIPAL) approve MIDTERM -> ALLOW, records answerKeyApprovedByUserId", async () => {
+      const originalExamFind = prisma.exam.findUnique;
+      const originalExamUpdate = prisma.exam.update;
+      const originalTeacherFind = prisma.teacher.findUnique;
+
+      let updatePayload = null;
+      prisma.exam.findUnique = async () => ({
+        id: "ex_mid_bgh",
+        status: "DRAFT",
+        examType: "MIDTERM",
+        subjectId: "subj_it",
+        questionCount: 40,
+        examCodes: [{ id: "c1", code: "101", _count: { answerKeys: 40 } }],
+      });
+      prisma.teacher.findUnique = async () => null;
+
+      prisma.exam.update = async ({ data, include }) => {
+        updatePayload = data;
+        return {
+          id: "ex_mid_bgh",
+          ...data,
+          answerKeyApprovedByUser: {
+            id: "u_vice_principal",
+            fullName: "Trần Phó Hiệu Trưởng",
+            role: "VICE_PRINCIPAL",
+          },
+        };
+      };
+
+      try {
+        const reqUser = { id: "u_vice_principal", role: "VICE_PRINCIPAL" };
+        const result = await approveAnswerKey("ex_mid_bgh", reqUser);
+        assert.ok(result.answerKeyApprovedAt);
+        assert.equal(updatePayload.answerKeyApprovedByUserId, "u_vice_principal");
+        assert.equal(result.answerKeyApprovedByUser.fullName, "Trần Phó Hiệu Trưởng");
+      } finally {
+        prisma.exam.findUnique = originalExamFind;
+        prisma.exam.update = originalExamUpdate;
+        prisma.teacher.findUnique = originalTeacherFind;
+      }
+    });
+
+    it("15. Duplicate approval on already-approved exam -> DENY (409 ANSWER_KEY_ALREADY_APPROVED)", async () => {
+      const originalExamFind = prisma.exam.findUnique;
+      const originalTeacherFind = prisma.teacher.findUnique;
+
+      prisma.exam.findUnique = async () => ({
+        id: "ex_mid_approved",
+        status: "DRAFT",
+        examType: "MIDTERM",
+        subjectId: "subj_math",
+        questionCount: 40,
+        answerKeyApprovedAt: new Date(),
+        examCodes: [{ id: "c1", code: "101", _count: { answerKeys: 40 } }],
+      });
+      prisma.teacher.findUnique = async () => null;
+
+      try {
+        const reqUser = { id: "u_officer", role: "EXAM_OFFICER" };
+        await assert.rejects(
+          () => approveAnswerKey("ex_mid_approved", reqUser),
+          (err) => {
+            assert.equal(err.statusCode, 409);
+            assert.equal(err.code, "ANSWER_KEY_ALREADY_APPROVED");
+            return true;
+          }
+        );
+      } finally {
+        prisma.exam.findUnique = originalExamFind;
+        prisma.teacher.findUnique = originalTeacherFind;
+      }
+    });
+
+    it("16. Approve non-DRAFT exam -> DENY (409 EXAM_NOT_DRAFT)", async () => {
+      const originalExamFind = prisma.exam.findUnique;
+      const originalTeacherFind = prisma.teacher.findUnique;
+
+      prisma.exam.findUnique = async () => ({
+        id: "ex_mid_published",
+        status: "PUBLISHED",
+        examType: "MIDTERM",
+        subjectId: "subj_math",
+        questionCount: 40,
+        examCodes: [{ id: "c1", code: "101", _count: { answerKeys: 40 } }],
+      });
+      prisma.teacher.findUnique = async () => null;
+
+      try {
+        const reqUser = { id: "u_officer", role: "EXAM_OFFICER" };
+        await assert.rejects(
+          () => approveAnswerKey("ex_mid_published", reqUser),
+          (err) => {
+            assert.equal(err.statusCode, 409);
+            assert.equal(err.code, "EXAM_NOT_DRAFT");
+            return true;
+          }
+        );
+      } finally {
+        prisma.exam.findUnique = originalExamFind;
+        prisma.teacher.findUnique = originalTeacherFind;
+      }
+    });
+  });
+
+  // -----------------------------------------------------------
+  // 17-21. MASTER ANSWER KEY INVALIDATION ON MODIFICATIONS
+  // -----------------------------------------------------------
+  describe("Master Answer Key Approval Invalidation Suite", () => {
+    it("17. putAnswerKey invalidates answer key approval atomically", async () => {
+      const originalExamFind = prisma.exam.findUnique;
+      const originalCodeFind = prisma.examCode.findUnique;
+      const originalSubCount = prisma.examSubmission.count;
+      const originalTx = prisma.$transaction;
+
+      let invalidatedData = null;
+
+      prisma.exam.findUnique = async () => ({
+        id: "ex_1",
+        status: "DRAFT",
+        examType: "MIDTERM",
+        questionCount: 2,
+        maxScore: 10,
+        scoringType: "EQUAL",
+        createdByUserId: "u_teacher",
+        teacherId: "t_teacher",
+      });
+      prisma.examCode.findUnique = async () => ({ id: "c_1", examId: "ex_1", code: "101" });
+      prisma.examSubmission.count = async () => 0;
+
+      const mockTx = {
+        answerKey: {
+          deleteMany: async () => {},
+          createMany: async ({ data }) => ({ count: data.length }),
+        },
+        exam: {
+          update: async ({ data }) => {
+            invalidatedData = data;
+            return {};
+          },
+        },
+      };
+      prisma.$transaction = async (cb) => cb(mockTx);
+
+      try {
+        const answers = [
+          { questionNumber: 1, correctAnswer: "A" },
+          { questionNumber: 2, correctAnswer: "B" },
+        ];
+        const reqUser = { id: "u_teacher", role: "TEACHER" };
+        await putAnswerKey("ex_1", "c_1", answers, reqUser);
+
+        assert.ok(invalidatedData, "Expected exam.update to be called in transaction");
+        assert.equal(invalidatedData.answerKeyApprovedAt, null);
+        assert.equal(invalidatedData.answerKeyApprovedByTeacherId, null);
+        assert.equal(invalidatedData.answerKeyApprovedByUserId, null);
+      } finally {
+        prisma.exam.findUnique = originalExamFind;
+        prisma.examCode.findUnique = originalCodeFind;
+        prisma.examSubmission.count = originalSubCount;
+        prisma.$transaction = originalTx;
+      }
+    });
+
+    it("18. createExamCode invalidates answer key approval", async () => {
+      const originalExamFind = prisma.exam.findUnique;
+      const originalCodesFind = prisma.examCode.findMany;
+      const originalCodeCreate = prisma.examCode.create;
+      const originalExamUpdate = prisma.exam.update;
+      const originalTx = prisma.$transaction;
+
+      let invalidatedData = null;
+
+      prisma.exam.findUnique = async () => ({
+        id: "ex_1",
+        status: "DRAFT",
+        examType: "MIDTERM",
+        createdByUserId: "u_teacher",
+        teacherId: "t_teacher",
+      });
+      prisma.examCode.findMany = async () => [];
+      prisma.examCode.create = async ({ data }) => ({ id: "c_new", ...data });
+      prisma.exam.update = async ({ data }) => {
+        invalidatedData = data;
+        return {};
+      };
+      prisma.$transaction = async (ops) => {
+        return Promise.all(ops);
+      };
+
+      try {
+        const reqUser = { id: "u_teacher", role: "TEACHER" };
+        await createExamCode("ex_1", "102", reqUser);
+
+        assert.ok(invalidatedData, "Expected exam.update in transaction");
+        assert.equal(invalidatedData.answerKeyApprovedAt, null);
+        assert.equal(invalidatedData.answerKeyApprovedByTeacherId, null);
+        assert.equal(invalidatedData.answerKeyApprovedByUserId, null);
+      } finally {
+        prisma.exam.findUnique = originalExamFind;
+        prisma.examCode.findMany = originalCodesFind;
+        prisma.examCode.create = originalCodeCreate;
+        prisma.exam.update = originalExamUpdate;
+        prisma.$transaction = originalTx;
+      }
+    });
+
+    it("19. deleteExamCode invalidates answer key approval", async () => {
+      const originalExamFind = prisma.exam.findUnique;
+      const originalCodeFind = prisma.examCode.findUnique;
+      const originalCodeDelete = prisma.examCode.delete;
+      const originalExamUpdate = prisma.exam.update;
+      const originalTx = prisma.$transaction;
+
+      let invalidatedData = null;
+
+      prisma.exam.findUnique = async () => ({
+        id: "ex_1",
+        status: "DRAFT",
+        examType: "MIDTERM",
+        createdByUserId: "u_teacher",
+        teacherId: "t_teacher",
+      });
+      prisma.examCode.findUnique = async () => ({ id: "c_1", examId: "ex_1", code: "101" });
+      prisma.examCode.delete = async () => ({ id: "c_1" });
+      prisma.exam.update = async ({ data }) => {
+        invalidatedData = data;
+        return {};
+      };
+      prisma.$transaction = async (ops) => {
+        return Promise.all(ops);
+      };
+
+      try {
+        const reqUser = { id: "u_teacher", role: "TEACHER" };
+        await deleteExamCode("ex_1", "c_1", reqUser);
+
+        assert.ok(invalidatedData, "Expected exam.update in transaction");
+        assert.equal(invalidatedData.answerKeyApprovedAt, null);
+        assert.equal(invalidatedData.answerKeyApprovedByTeacherId, null);
+        assert.equal(invalidatedData.answerKeyApprovedByUserId, null);
+      } finally {
+        prisma.exam.findUnique = originalExamFind;
+        prisma.examCode.findUnique = originalCodeFind;
+        prisma.examCode.delete = originalCodeDelete;
+        prisma.exam.update = originalExamUpdate;
+        prisma.$transaction = originalTx;
+      }
+    });
+
+    it("20. updateExam modifying maxScore or questionCount invalidates answer key approval", async () => {
+      const originalExamFind = prisma.exam.findUnique;
+      const originalExamUpdate = prisma.exam.update;
+      const originalTeacherFind = prisma.teacher.findUnique;
+
+      let updatedData = null;
+
+      prisma.exam.findUnique = async () => ({
+        id: "ex_1",
+        status: "DRAFT",
+        examType: "MIDTERM",
+        questionCount: 40,
+        maxScore: 10,
+        scoringType: "EQUAL",
+        createdByUserId: "u_teacher",
+        teacherId: "t_teacher",
+      });
+      prisma.teacher.findUnique = async () => ({ id: "t_teacher", primarySubjectId: "subj_math" });
+      prisma.exam.update = async ({ data }) => {
+        updatedData = data;
+        return { id: "ex_1", ...data };
+      };
+
+      try {
+        const reqUser = { id: "u_teacher", role: "TEACHER" };
+        await updateExam("ex_1", { maxScore: 20 }, reqUser);
+
+        assert.ok(updatedData, "Expected exam.update to be called");
+        assert.equal(updatedData.maxScore, 20);
+        assert.equal(updatedData.answerKeyApprovedAt, null);
+        assert.equal(updatedData.answerKeyApprovedByTeacherId, null);
+        assert.equal(updatedData.answerKeyApprovedByUserId, null);
+      } finally {
+        prisma.exam.findUnique = originalExamFind;
+        prisma.exam.update = originalExamUpdate;
+        prisma.teacher.findUnique = originalTeacherFind;
+      }
+    });
+
+    it("21. applyImport (importAnswerKeys) invalidates answer key approval atomically", async () => {
+      const originalExamFind = prisma.exam.findUnique;
+      const originalCodeFind = prisma.examCode.findMany;
+      const originalSubCount = prisma.examSubmission.count;
+      const originalTx = prisma.$transaction;
+
+      let invalidatedData = null;
+
+      prisma.exam.findUnique = async () => ({
+        id: "ex_1",
+        status: "DRAFT",
+        examType: "MIDTERM",
+        questionCount: 2,
+        maxScore: 10,
+        scoringType: "EQUAL",
+        createdByUserId: "u_teacher",
+        teacherId: "t_teacher",
+      });
+      prisma.examCode.findMany = async () => [
+        { id: "c_1", examId: "ex_1", code: "101" },
+      ];
+      prisma.examSubmission.count = async () => 0;
+
+      const mockTx = {
+        $executeRaw: async () => 1,
+        answerKey: {
+          deleteMany: async () => {},
+          createMany: async ({ data }) => ({ count: data.length }),
+        },
+        exam: {
+          update: async ({ data }) => {
+            invalidatedData = data;
+            return {};
+          },
+        },
+      };
+      prisma.$transaction = async (cb) => cb(mockTx);
+
+      try {
+        const csvContent = "examcode,questionnumber,correctanswer,score\n101,1,A,5\n101,2,B,5\n";
+        const fileBuffer = Buffer.from(csvContent, "utf-8");
+        const reqUser = { id: "u_teacher", role: "TEACHER" };
+
+        const result = await applyImport(
+          "ex_1",
+          fileBuffer,
+          "text/csv",
+          "import.csv",
+          reqUser
+        );
+
+        assert.equal(result.totalAnswers, 2);
+        assert.ok(invalidatedData, "Expected tx.exam.update to be called");
+        assert.equal(invalidatedData.answerKeyApprovedAt, null);
+        assert.equal(invalidatedData.answerKeyApprovedByTeacherId, null);
+        assert.equal(invalidatedData.answerKeyApprovedByUserId, null);
+        assert.equal(invalidatedData.publicationApprovalStatus, "NOT_REQUIRED");
+      } finally {
+        prisma.exam.findUnique = originalExamFind;
+        prisma.examCode.findMany = originalCodeFind;
+        prisma.examSubmission.count = originalSubCount;
+        prisma.$transaction = originalTx;
+      }
     });
   });
 });

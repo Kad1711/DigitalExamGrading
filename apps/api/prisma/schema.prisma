@@ -152,6 +152,7 @@ model User {
   examsPublicationApproved    Exam[]                   @relation("ExamPublicationApprover")
   examsAcademicReviewed       Exam[]                   @relation("ExamAcademicReviewer")
   examsPrincipalApproved      Exam[]                   @relation("ExamPrincipalApprover")
+  examsAnswerKeyApprovedByUser Exam[]                  @relation("ExamAnswerKeyUserApprover")
   resultPublicationLogs       ExamResultPublicationLog[] @relation("PublicationLogActor")
   teachingAssignmentHistories TeachingAssignmentHistory[] @relation("TeachingHistoryActor")
 
@@ -412,9 +413,10 @@ model Exam {
   principalApprovedAt          DateTime?
   principalApprovedByUserId    String?
 
-  // Master Answer Key Approval (Subject Leader)
+  // Master Answer Key Approval (Subject Leader / Leadership)
   answerKeyApprovedAt          DateTime?
   answerKeyApprovedByTeacherId String?
+  answerKeyApprovedByUserId    String?
 
   teacher                    Teacher?                  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
   createdByUser              User?                     @relation("ExamsCreated", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -428,6 +430,7 @@ model Exam {
   academicReviewedByUser     User?                     @relation("ExamAcademicReviewer", fields: [academicReviewedByUserId], references: [id], onDelete: SetNull)
   principalApprovedByUser    User?                     @relation("ExamPrincipalApprover", fields: [principalApprovedByUserId], references: [id], onDelete: SetNull)
   answerKeyApprovedByTeacher Teacher?                  @relation("ExamAnswerKeyApprover", fields: [answerKeyApprovedByTeacherId], references: [id], onDelete: SetNull)
+  answerKeyApprovedByUser    User?                     @relation("ExamAnswerKeyUserApprover", fields: [answerKeyApprovedByUserId], references: [id], onDelete: SetNull)
   examCodes                  ExamCode[]
   answerSheetTemplates       AnswerSheetTemplate[]
   submissions                ExamSubmission[]
@@ -448,6 +451,7 @@ model Exam {
   @@index([academicReviewedByUserId])
   @@index([principalApprovedByUserId])
   @@index([answerKeyApprovedByTeacherId])
+  @@index([answerKeyApprovedByUserId])
 }
 
 model ExamClass {

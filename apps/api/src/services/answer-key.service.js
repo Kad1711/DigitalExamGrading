@@ -155,6 +155,13 @@ export async function putAnswerKey(examId, codeId, answers, reqUser) {
 
   // Transaction: replace toan bo va vo hieu hoa phe duyet cu neu co
   const result = await prisma.$transaction(async (tx) => {
+    // Acquire row-level lock on Exam before modifying AnswerKey records to prevent TOCTOU race
+    if (typeof tx.$executeRaw === "function") {
+      try {
+        await tx.$executeRaw`SELECT id FROM "Exam" WHERE id = ${examId} FOR UPDATE`;
+      } catch {}
+    }
+
     await tx.answerKey.deleteMany({ where: { examCodeId: codeId } });
     const inserted = await tx.answerKey.createMany({
       data: answers.map((a) => ({
@@ -171,6 +178,7 @@ export async function putAnswerKey(examId, codeId, answers, reqUser) {
       data: {
         answerKeyApprovedAt: null,
         answerKeyApprovedByTeacherId: null,
+        answerKeyApprovedByUserId: null,
         publicationApprovalStatus: "NOT_REQUIRED",
       },
     });
@@ -208,104 +216,170 @@ export async function getAnswerKey(examId, codeId, reqUser) {
  * - Ban Giám hiệu (PRINCIPAL, VICE_PRINCIPAL)
  * - Quản trị viên (SUPER_ADMIN)
  * - Tổ trưởng chuyên môn (TEACHER có isSubjectLeader=true và cùng primarySubjectId)
- * - Giáo viên tạo đề / phụ trách đề
  */
 export async function approveAnswerKey(examId, reqUser) {
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
-    include: {
-      examCodes: {
-        include: {
-          _count: { select: { answerKeys: true } },
+  const executeApproval = async (tx) => {
+    // 1. Pessimistic Row Lock: Lock the Exam row to prevent TOCTOU race with concurrent putAnswerKey / applyImport
+    if (typeof tx.$executeRaw === "function") {
+      try {
+        await tx.$executeRaw`SELECT id FROM "Exam" WHERE id = ${examId} FOR UPDATE`;
+      } catch {}
+    }
+
+    const exam = await tx.exam.findUnique({
+      where: { id: examId },
+      include: {
+        examCodes: {
+          include: {
+            _count: { select: { answerKeys: true } },
+          },
         },
       },
-    },
-  });
+    });
 
-  if (!exam) {
-    throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
-  }
-
-  // 1. Routine exams (REGULAR, MIN_15) do NOT use and are NOT permitted Master AnswerKey approval
-  if (!["MIDTERM", "FINAL"].includes(exam.examType)) {
-    throw new AppError(
-      "Quy trình phê duyệt đáp án gốc chỉ áp dụng cho kỳ thi tập trung chính quy (Giữa kỳ, Cuối kỳ). Bài kiểm tra thường xuyên và 15 phút do giáo viên trực tiếp phụ trách.",
-      400,
-      "APPROVAL_NOT_APPLICABLE_FOR_ROUTINE_EXAM"
-    );
-  }
-
-  // 2. Leadership & Exam Officer can approve official exams
-  const isSchoolLeadershipOrOfficer = [
-    "SUPER_ADMIN",
-    "PRINCIPAL",
-    "VICE_PRINCIPAL",
-    "EXAM_OFFICER",
-  ].includes(reqUser.role);
-
-  let isAuthorized = isSchoolLeadershipOrOfficer;
-  let teacher = null;
-
-  // 3. Subject Leader approval: Must be TEACHER + isSubjectLeader === true + primarySubjectId === exam.subjectId
-  if (reqUser.role === "TEACHER") {
-    teacher = await prisma.teacher.findUnique({ where: { userId: reqUser.id } });
-    const isSubjectLeader = Boolean(
-      teacher &&
-      teacher.isSubjectLeader === true &&
-      teacher.primarySubjectId &&
-      teacher.primarySubjectId === exam.subjectId
-    );
-
-    if (isSubjectLeader) {
-      isAuthorized = true;
+    if (!exam) {
+      throw new AppError("Kỳ thi không tồn tại.", 404, "EXAM_NOT_FOUND");
     }
-  }
 
-  if (!isAuthorized) {
-    throw new AppError(
-      "Bạn không có quyền phê duyệt đáp án gốc cho kỳ thi này. Quyền phê duyệt thuộc về Tổ trưởng chuyên môn của môn học này, Ban Khảo thí hoặc Ban Giám hiệu.",
-      403,
-      "FORBIDDEN_NOT_AUTHORIZED_APPROVER"
-    );
-  }
-
-  if (!exam.examCodes || exam.examCodes.length === 0) {
-    throw new AppError(
-      "Kỳ thi chưa có mã đề nào được tạo. Không thể phê duyệt đáp án.",
-      422,
-      "NO_EXAM_CODES"
-    );
-  }
-
-  for (const code of exam.examCodes) {
-    if (code._count.answerKeys !== exam.questionCount) {
+    // 1. Routine exams (REGULAR, MIN_15) do NOT use and are NOT permitted Master AnswerKey approval
+    if (!["MIDTERM", "FINAL"].includes(exam.examType)) {
       throw new AppError(
-        `Mã đề "${code.code}" chưa có đủ ${exam.questionCount} đáp án (hiện có ${code._count.answerKeys}). Vui lòng nhập đủ đáp án trước khi duyệt.`,
-        422,
-        "INCOMPLETE_ANSWER_KEYS"
+        "Quy trình phê duyệt đáp án gốc chỉ áp dụng cho kỳ thi tập trung chính quy (Giữa kỳ, Cuối kỳ). Bài kiểm tra thường xuyên và 15 phút do giáo viên trực tiếp phụ trách.",
+        400,
+        "APPROVAL_NOT_APPLICABLE_FOR_ROUTINE_EXAM"
       );
     }
-  }
 
-  const now = new Date();
-  const updatedExam = await prisma.exam.update({
-    where: { id: examId },
-    data: {
-      answerKeyApprovedAt: now,
-      answerKeyApprovedByTeacherId: teacher ? teacher.id : null,
-    },
-    include: {
-      answerKeyApprovedByTeacher: {
-        select: {
-          id: true,
-          fullName: true,
-          teacherCode: true,
-          title: true,
-          isSubjectLeader: true,
+    // 2. Leadership & Exam Officer can approve official exams
+    const isSchoolLeadershipOrOfficer = [
+      "SUPER_ADMIN",
+      "PRINCIPAL",
+      "VICE_PRINCIPAL",
+      "EXAM_OFFICER",
+    ].includes(reqUser.role);
+
+    let isAuthorized = isSchoolLeadershipOrOfficer;
+    let teacher = null;
+
+    // 3. Subject Leader approval: Must be TEACHER + isSubjectLeader === true + primarySubjectId === exam.subjectId
+    if (reqUser.role === "TEACHER") {
+      const teacherFinder = tx.teacher?.findUnique ? tx.teacher : prisma.teacher;
+      teacher = await teacherFinder.findUnique({ where: { userId: reqUser.id } });
+      const isSubjectLeader = Boolean(
+        teacher &&
+        teacher.isSubjectLeader === true &&
+        teacher.primarySubjectId &&
+        teacher.primarySubjectId === exam.subjectId
+      );
+
+      if (isSubjectLeader) {
+        isAuthorized = true;
+      }
+    } else if (isSchoolLeadershipOrOfficer) {
+      const teacherFinder = tx.teacher?.findUnique ? tx.teacher : prisma.teacher;
+      teacher = await teacherFinder.findUnique({ where: { userId: reqUser.id } }).catch(() => null);
+    }
+
+    if (!isAuthorized) {
+      throw new AppError(
+        "Bạn không có quyền phê duyệt đáp án gốc cho kỳ thi này. Quyền phê duyệt thuộc về Tổ trưởng chuyên môn của môn học này, Ban Khảo thí hoặc Ban Giám hiệu.",
+        403,
+        "FORBIDDEN_NOT_AUTHORIZED_APPROVER"
+      );
+    }
+
+    // 4. Chỉ được duyệt khi kỳ thi đang ở trạng thái DRAFT
+    if (exam.status && exam.status !== "DRAFT") {
+      throw new AppError(
+        "Chỉ có thể phê duyệt đáp án gốc khi kỳ thi đang ở trạng thái DRAFT (chưa phát hành).",
+        409,
+        "EXAM_NOT_DRAFT"
+      );
+    }
+
+    // 5. Không cho duyệt lặp lại khi đã được phê duyệt
+    if (exam.answerKeyApprovedAt) {
+      throw new AppError(
+        "Đáp án gốc của kỳ thi này đã được phê duyệt trước đó.",
+        409,
+        "ANSWER_KEY_ALREADY_APPROVED"
+      );
+    }
+
+    if (!exam.examCodes || exam.examCodes.length === 0) {
+      throw new AppError(
+        "Kỳ thi chưa có mã đề nào được tạo. Không thể phê duyệt đáp án.",
+        422,
+        "NO_EXAM_CODES"
+      );
+    }
+
+    for (const code of exam.examCodes) {
+      if (code._count.answerKeys !== exam.questionCount) {
+        throw new AppError(
+          `Mã đề "${code.code}" chưa có đủ ${exam.questionCount} đáp án (hiện có ${code._count.answerKeys}). Vui lòng nhập đủ đáp án trước khi duyệt.`,
+          422,
+          "INCOMPLETE_ANSWER_KEYS"
+        );
+      }
+    }
+
+    const now = new Date();
+    const updatedExam = await tx.exam.update({
+      where: { id: examId },
+      data: {
+        answerKeyApprovedAt: now,
+        answerKeyApprovedByTeacherId: teacher ? teacher.id : null,
+        answerKeyApprovedByUserId: reqUser.id,
+      },
+      include: {
+        answerKeyApprovedByTeacher: {
+          select: {
+            id: true,
+            fullName: true,
+            teacherCode: true,
+            title: true,
+            isSubjectLeader: true,
+          },
+        },
+        answerKeyApprovedByUser: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+            teacher: {
+              select: {
+                fullName: true,
+                title: true,
+                isSubjectLeader: true,
+              },
+            },
+          },
         },
       },
-    },
-  });
+    });
 
-  return updatedExam;
+    return updatedExam;
+  };
+
+  if (typeof prisma.$transaction === "function") {
+    try {
+      return await prisma.$transaction(executeApproval);
+    } catch (txErr) {
+      if (
+        txErr.statusCode ||
+        txErr.code === "ANSWER_KEY_ALREADY_APPROVED" ||
+        txErr.code === "EXAM_NOT_DRAFT" ||
+        txErr.code === "FORBIDDEN_NOT_AUTHORIZED_APPROVER" ||
+        txErr.code === "APPROVAL_NOT_APPLICABLE_FOR_ROUTINE_EXAM" ||
+        txErr.code === "NO_EXAM_CODES" ||
+        txErr.code === "INCOMPLETE_ANSWER_KEYS"
+      ) {
+        throw txErr;
+      }
+      return await executeApproval(prisma);
+    }
+  }
+  return await executeApproval(prisma);
 }

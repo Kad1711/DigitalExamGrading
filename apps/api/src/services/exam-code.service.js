@@ -31,7 +31,19 @@ export async function createExamCode(examId, code, reqUser) {
     );
   }
 
-  return prisma.examCode.create({ data: { examId, code: canonicalCode } });
+  const [created] = await prisma.$transaction([
+    prisma.examCode.create({ data: { examId, code: canonicalCode } }),
+    prisma.exam.update({
+      where: { id: examId },
+      data: {
+        answerKeyApprovedAt: null,
+        answerKeyApprovedByTeacherId: null,
+        answerKeyApprovedByUserId: null,
+        publicationApprovalStatus: "NOT_REQUIRED",
+      },
+    }),
+  ]);
+  return created;
 }
 
 export async function listExamCodes(examId, reqUser) {
@@ -54,5 +66,16 @@ export async function deleteExamCode(examId, codeId, reqUser) {
     throw new AppError("Ma de khong ton tai.", 404, "EXAM_CODE_NOT_FOUND");
   }
 
-  await prisma.examCode.delete({ where: { id: codeId } });
+  await prisma.$transaction([
+    prisma.examCode.delete({ where: { id: codeId } }),
+    prisma.exam.update({
+      where: { id: examId },
+      data: {
+        answerKeyApprovedAt: null,
+        answerKeyApprovedByTeacherId: null,
+        answerKeyApprovedByUserId: null,
+        publicationApprovalStatus: "NOT_REQUIRED",
+      },
+    }),
+  ]);
 }
