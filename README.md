@@ -357,18 +357,7 @@ Hệ thống được thiết kế tối ưu để triển khai trơn tru trên 
 
 # 🔑 Tài khoản kiểm thử mặc định
 
-Khi chạy seed dữ liệu mẫu, hệ thống tự động khởi tạo các tài khoản chuẩn THCS:
 
-| Vai trò | Email đăng nhập | Mật khẩu mặc định | Ghi chú nghiệp vụ |
-|---|---|:---:|---|
-| `SUPER_ADMIN` | `admin@digitalexam.local` | `Admin@123` | Quản trị viên cấp cao toàn quyền |
-| `PRINCIPAL` | `hieutruong@digitalexam.local` | `Admin@123` | Hiệu trưởng (Phê duyệt Cuối kỳ) |
-| `VICE_PRINCIPAL` | `hieupho@digitalexam.local` | `Admin@123` | Phó Hiệu trưởng (Quản lý GV, Lớp học, duyệt Giữa kỳ) |
-| `EXAM_OFFICER` | `khaothi@digitalexam.local` | `Admin@123` | Cán bộ khảo thí (Tạo kỳ thi tập trung, chấm OMR) |
-| `TEACHER` | `toan_leader@digitalexam.local` | `Admin@123` | Tổ trưởng chuyên môn Toán (Duyệt đáp án Toán) |
-| `TEACHER` | `van_leader@digitalexam.local` | `Admin@123` | Tổ trưởng chuyên môn Ngữ văn |
-| `TEACHER` | `giaovien1@digitalexam.local` | `Admin@123` | Giáo viên chuyên môn Toán |
-| `STUDENT` | `hs6a01@digitalexam.local` | `123456` | Học sinh lớp 6A (SBD: `060101`) |
 
 ---
 
